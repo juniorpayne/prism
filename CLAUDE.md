@@ -23,6 +23,7 @@ Since this is a new project, you may need to:
 - Repository contains only a README.md with project name "prism"
 - No build scripts, package managers, or development tools configured yet
 - No existing codebase or documentation to reference
+- We use venv in python for this project
 
 ## Development Practices
 
