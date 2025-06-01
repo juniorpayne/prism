@@ -119,14 +119,16 @@ class ConfigManager:
 
         # Validate logging section
         logging_config = config['logging']
-        required_logging_fields = ['level', 'file']
+        required_logging_fields = ['level']
         for field in required_logging_fields:
             if field not in logging_config:
                 raise ConfigValidationError(f"Missing required field: logging.{field}")
 
         if not isinstance(logging_config['level'], str):
             raise ConfigValidationError("Invalid type for logging.level: must be string")
-        if not isinstance(logging_config['file'], str):
+        
+        # File field is optional
+        if 'file' in logging_config and not isinstance(logging_config['file'], str):
             raise ConfigValidationError("Invalid type for logging.file: must be string")
 
         # Validate logging level values
