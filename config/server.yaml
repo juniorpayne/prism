@@ -1,0 +1,29 @@
+# Prism DNS Server Configuration (SCRUM-12)
+
+# Server settings
+server:
+  tcp_port: 8080
+  api_port: 8081
+  host: "0.0.0.0"
+  max_connections: 1000
+  
+# Database settings
+database:
+  path: "/app/data/hosts.db"
+  connection_pool_size: 20
+  
+# Heartbeat monitoring settings
+heartbeat:
+  check_interval: 30  # seconds
+  timeout_multiplier: 2
+  grace_period: 30  # seconds
+  cleanup_after_days: 30
+  
+# Logging settings
+logging:
+  level: INFO
+  file: "/app/data/server.log"
+  console: true
+  max_size: 104857600  # 100MB
+  backup_count: 5
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"

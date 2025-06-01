@@ -36,6 +36,8 @@ Since this is a new project, you may need to:
 ## Jira Workflow Notes
 
 - When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format)
+- After you finish reviewing a jira ticket and it has passed its review you need to change the status to done.
+- Jira workflow: todo -> in progress -> waiting for review -> in review -> done
 
 ## Review Process
 
@@ -55,3 +57,7 @@ Since this is a new project, you may need to:
 ## Development Workflow
 
 - Make sure to check in your code into github after each task has been completed.
+
+## User Story Management
+
+- Make sure you always are updating user stories before, during and after doing issues.

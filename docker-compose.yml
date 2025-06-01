@@ -1,0 +1,94 @@
+# Docker Compose for Prism DNS Server Development (SCRUM-12)
+version: '3.8'
+
+services:
+  # Main server service
+  server:
+    build:
+      context: .
+      target: development
+    container_name: prism-server
+    ports:
+      - "8080:8080"  # TCP server port
+      - "8081:8081"  # REST API port
+    volumes:
+      - .:/app
+      - server_data:/app/data
+    environment:
+      - PRISM_ENV=development
+      - PRISM_CONFIG_PATH=/app/config/server.yaml
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: >
+      sh -c "python -m server.main --config /app/config/server.yaml"
+    depends_on:
+      - database
+    restart: unless-stopped
+    networks:
+      - prism-network
+
+  # Database service (SQLite with volume)
+  database:
+    image: alpine:3.18
+    container_name: prism-database
+    volumes:
+      - database_data:/data
+    command: >
+      sh -c "mkdir -p /data && tail -f /dev/null"
+    networks:
+      - prism-network
+
+  # Test runner service
+  tests:
+    build:
+      context: .
+      target: test
+    container_name: prism-tests
+    volumes:
+      - .:/app
+      - test_coverage:/app/htmlcov
+    environment:
+      - PRISM_ENV=test
+      - PYTHONPATH=/app
+    command: >
+      sh -c "python -m pytest tests/ -v --cov=server --cov-report=html"
+    depends_on:
+      - database
+    networks:
+      - prism-network
+    profiles:
+      - testing
+
+  # Development tools service
+  dev-tools:
+    build:
+      context: .
+      target: development
+    container_name: prism-dev-tools
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    command: >
+      sh -c "echo 'Development tools ready' && tail -f /dev/null"
+    networks:
+      - prism-network
+    profiles:
+      - tools
+
+volumes:
+  # Persistent data volume for database
+  database_data:
+    driver: local
+  
+  # Server data volume
+  server_data:
+    driver: local
+  
+  # Test coverage reports
+  test_coverage:
+    driver: local
+
+networks:
+  prism-network:
+    driver: bridge

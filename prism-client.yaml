@@ -14,7 +14,7 @@ server:
 
 # Heartbeat settings
 heartbeat:
-  interval: 60  # seconds
+  interval: 5  # seconds
 
 # Logging configuration
 logging:

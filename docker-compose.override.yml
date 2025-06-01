@@ -1,0 +1,36 @@
+# Docker Compose Override for Development (SCRUM-12)
+# This file provides development-specific configurations
+
+version: '3.8'
+
+services:
+  server:
+    # Enable hot reloading for development
+    command: >
+      sh -c "
+        echo 'Starting Prism server in development mode...' &&
+        python -m server.main --config /app/config/server.yaml --reload
+      "
+    environment:
+      - DEBUG=1
+      - LOG_LEVEL=DEBUG
+    # Mount source code for hot reloading
+    volumes:
+      - ./server:/app/server
+      - ./config:/app/config
+      - ./tests:/app/tests
+    # Override restart policy for development
+    restart: "no"
+
+  tests:
+    # Development test configuration
+    volumes:
+      - ./tests:/app/tests
+      - ./server:/app/server
+      - ./htmlcov:/app/htmlcov
+    environment:
+      - COVERAGE_FILE=/app/.coverage
+    
+  dev-tools:
+    # Enable development tools by default in override
+    profiles: []

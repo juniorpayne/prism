@@ -1,0 +1,35 @@
+# Example Prism DNS Server Configuration (SCRUM-12)
+# Copy this file to server.yaml and modify as needed
+
+# Server settings
+server:
+  tcp_port: 8080              # Port for TCP client connections
+  api_port: 8081              # Port for REST API
+  host: "0.0.0.0"             # Interface to bind to (0.0.0.0 for all)
+  max_connections: 1000       # Maximum concurrent connections
+  
+# Database settings
+database:
+  path: "./data/hosts.db"     # SQLite database file path
+  connection_pool_size: 20    # Connection pool size
+  
+# Heartbeat monitoring settings
+heartbeat:
+  check_interval: 30          # How often to check for offline hosts (seconds)
+  timeout_multiplier: 2       # Multiplier for client heartbeat interval
+  grace_period: 30            # Additional grace period before marking offline (seconds)
+  cleanup_after_days: 30      # Remove offline hosts after this many days
+  
+# Logging settings
+logging:
+  level: INFO                 # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "./logs/server.log"   # Log file path (optional)
+  console: true               # Enable console logging
+  max_size: 104857600         # Maximum log file size (100MB)
+  backup_count: 5             # Number of backup log files to keep
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# Development settings (optional)
+development:
+  auto_reload: false          # Enable auto-reload on code changes
+  debug_mode: false           # Enable debug mode
