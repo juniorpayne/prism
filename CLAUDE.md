@@ -23,3 +23,35 @@ Since this is a new project, you may need to:
 - Repository contains only a README.md with project name "prism"
 - No build scripts, package managers, or development tools configured yet
 - No existing codebase or documentation to reference
+
+## Development Practices
+
+- Each user story requires the following: 
+  1. definition of done
+  2. testable 
+  3. TDD driven
+  4. Unit Tests
+  5. Acceptance criteria
+
+## Jira Workflow Notes
+
+- When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format)
+
+## Review Process
+
+- Once you have finished a user story you should put it in the "WAITING FOR REVIEW" column for someone to pick it up and do a code and functionality review.
+
+## User Story Review Guidelines
+
+- When reviewing a user story:
+  1. Fully understand the contents of the user story
+  2. Ensure you can run the code with no errors
+  3. Review the code and verify it behaves as expected
+  4. Think critically about any potential missing elements
+  5. Check the acceptance criteria
+  6. Provide feedback only if required
+  7. Once verified, move the issue status to "DONE"
+
+## Development Workflow
+
+- Make sure to check in your code into github after each task has been completed.

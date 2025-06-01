@@ -1,0 +1,23 @@
+# Prism Host Client Configuration Example
+# Copy this file to client.yaml and modify as needed
+
+server:
+  # Server hostname or IP address
+  host: "localhost"
+  
+  # Server port number
+  port: 8080
+  
+  # Connection timeout in seconds
+  timeout: 10
+
+heartbeat:
+  # Heartbeat interval in seconds
+  interval: 60
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Log file path (relative or absolute)
+  file: "client.log"
