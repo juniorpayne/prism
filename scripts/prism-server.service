@@ -1,0 +1,56 @@
+# Prism DNS Server systemd service file (SCRUM-18)
+# Copy this file to /etc/systemd/system/ for system-wide installation
+# or to ~/.config/systemd/user/ for user-specific installation
+
+[Unit]
+Description=Prism DNS Server - Managed DNS with heartbeat monitoring
+Documentation=https://github.com/your-org/prism-dns
+After=network.target network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=prism
+Group=prism
+WorkingDirectory=/opt/prism-dns
+ExecStart=/opt/prism-dns/venv/bin/python -m server.main --config /etc/prism/server.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=prism-server
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/prism-dns /var/log/prism /var/lib/prism
+
+# Environment variables
+Environment=PYTHONPATH=/opt/prism-dns
+Environment=PRISM_LOGGING_LEVEL=INFO
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+
+# Installation Instructions:
+# 1. Copy this file to /etc/systemd/system/prism-server.service
+# 2. Create prism user: sudo useradd -r -s /bin/false prism
+# 3. Create directories: sudo mkdir -p /opt/prism-dns /etc/prism /var/log/prism /var/lib/prism
+# 4. Set ownership: sudo chown -R prism:prism /opt/prism-dns /var/log/prism /var/lib/prism
+# 5. Copy configuration: sudo cp config/server.example.yaml /etc/prism/server.yaml
+# 6. Edit configuration: sudo nano /etc/prism/server.yaml
+# 7. Reload systemd: sudo systemctl daemon-reload
+# 8. Enable service: sudo systemctl enable prism-server
+# 9. Start service: sudo systemctl start prism-server
+# 10. Check status: sudo systemctl status prism-server

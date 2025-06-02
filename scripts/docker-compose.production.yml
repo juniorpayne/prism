@@ -1,0 +1,109 @@
+# Prism DNS Server Production Docker Compose (SCRUM-18)
+# Production-ready deployment with proper configuration management
+
+version: '3.8'
+
+services:
+  prism-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: prism-dns-server
+    restart: unless-stopped
+    
+    # Network configuration
+    ports:
+      - "${PRISM_SERVER_TCP_PORT:-8080}:8080"
+      - "${PRISM_SERVER_API_PORT:-8081}:8081"
+    
+    # Environment configuration
+    environment:
+      - PRISM_SERVER_TCP_PORT=${PRISM_SERVER_TCP_PORT:-8080}
+      - PRISM_SERVER_API_PORT=${PRISM_SERVER_API_PORT:-8081}
+      - PRISM_SERVER_HOST=0.0.0.0
+      - PRISM_DATABASE_PATH=/data/hosts.db
+      - PRISM_LOGGING_LEVEL=${PRISM_LOGGING_LEVEL:-INFO}
+      - PRISM_LOGGING_FILE=/logs/server.log
+    
+    # Volume mounts
+    volumes:
+      - prism-data:/data
+      - prism-logs:/logs
+      - ./production.yaml:/app/server.yaml:ro
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # Security
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,noexec,nosuid,nodev
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Web interface (if implemented)
+  prism-web:
+    image: nginx:alpine
+    container_name: prism-dns-web
+    restart: unless-stopped
+    ports:
+      - "${PRISM_WEB_PORT:-3000}:80"
+    volumes:
+      - ../web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - prism-server
+    profiles:
+      - web
+
+volumes:
+  prism-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PRISM_DATA_DIR:-./data}
+  
+  prism-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PRISM_LOGS_DIR:-./logs}
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Usage:
+# 1. Create production configuration: cp ../config/server.example.yaml production.yaml
+# 2. Edit production.yaml for your environment
+# 3. Create data and log directories: mkdir -p data logs
+# 4. Set environment variables in .env file
+# 5. Start: docker-compose -f docker-compose.production.yml up -d
+# 6. Check logs: docker-compose -f docker-compose.production.yml logs -f
+# 7. Stop: docker-compose -f docker-compose.production.yml down

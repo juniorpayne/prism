@@ -1,7 +1,7 @@
-# Example Prism DNS Server Configuration (SCRUM-12)
+# Example Prism DNS Server Configuration (SCRUM-18)
 # Copy this file to server.yaml and modify as needed
 
-# Server settings
+# Server connection settings
 server:
   tcp_port: 8080              # Port for TCP client connections
   api_port: 8081              # Port for REST API
@@ -10,7 +10,7 @@ server:
   
 # Database settings
 database:
-  path: "./data/hosts.db"     # SQLite database file path
+  path: "./hosts.db"          # SQLite database file path
   connection_pool_size: 20    # Connection pool size
   
 # Heartbeat monitoring settings
@@ -22,14 +22,25 @@ heartbeat:
   
 # Logging settings
 logging:
-  level: INFO                 # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  file: "./logs/server.log"   # Log file path (optional)
-  console: true               # Enable console logging
+  level: "INFO"               # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "./server.log"        # Log file path
   max_size: 104857600         # Maximum log file size (100MB)
   backup_count: 5             # Number of backup log files to keep
-  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
-# Development settings (optional)
-development:
-  auto_reload: false          # Enable auto-reload on code changes
-  debug_mode: false           # Enable debug mode
+# API settings
+api:
+  enable_cors: true           # Enable Cross-Origin Resource Sharing
+  cors_origins:               # Allowed CORS origins
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:3000"
+    - "http://127.0.0.1:8080"
+  request_timeout: 30         # API request timeout in seconds
+
+# Environment Variable Overrides:
+# PRISM_SERVER_TCP_PORT        - Override TCP server port
+# PRISM_SERVER_API_PORT        - Override API server port
+# PRISM_SERVER_HOST            - Override server host
+# PRISM_DATABASE_PATH          - Override database file path
+# PRISM_LOGGING_LEVEL          - Override logging level
+# PRISM_LOGGING_FILE           - Override log file path
