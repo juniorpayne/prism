@@ -9,7 +9,7 @@ services:
     command: >
       sh -c "
         echo 'Starting Prism server in development mode...' &&
-        python -m server.main --config /app/config/server.yaml --reload
+        python -m server.main --config /app/config/server.yaml
       "
     environment:
       - DEBUG=1

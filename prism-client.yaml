@@ -8,7 +8,7 @@ service:
 
 # Server connection settings
 server:
-  host: dns.example.com
+  host: 35.170.180.10
   port: 8080
   timeout: 10
 

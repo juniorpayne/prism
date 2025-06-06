@@ -19,7 +19,7 @@ _app_config: Dict[str, Any] = {}
 def set_app_config(config: Dict[str, Any]) -> None:
     """
     Set application configuration for dependency injection.
-    
+
     Args:
         config: Application configuration
     """
@@ -31,27 +31,27 @@ def set_app_config(config: Dict[str, Any]) -> None:
 def get_app_config() -> Dict[str, Any]:
     """
     Get application configuration.
-    
+
     Returns:
         Application configuration dictionary
     """
     if not _app_config:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Application configuration not initialized"
+            detail="Application configuration not initialized",
         )
     return _app_config
 
 
 def get_database_manager(
-    config: Dict[str, Any] = Depends(get_app_config)
+    config: Dict[str, Any] = Depends(get_app_config),
 ) -> Generator[DatabaseManager, None, None]:
     """
     Get database manager dependency.
-    
+
     Args:
         config: Application configuration
-        
+
     Yields:
         DatabaseManager instance
     """
@@ -63,8 +63,7 @@ def get_database_manager(
     except Exception as e:
         logger.error(f"Database manager error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database connection error"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database connection error"
         )
     finally:
         if db_manager:
@@ -75,14 +74,14 @@ def get_database_manager(
 
 
 def get_host_operations(
-    db_manager: DatabaseManager = Depends(get_database_manager)
+    db_manager: DatabaseManager = Depends(get_database_manager),
 ) -> HostOperations:
     """
     Get host operations dependency.
-    
+
     Args:
         db_manager: Database manager instance
-        
+
     Returns:
         HostOperations instance
     """
@@ -92,5 +91,5 @@ def get_host_operations(
         logger.error(f"Host operations error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Host operations initialization error"
+            detail="Host operations initialization error",
         )

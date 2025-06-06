@@ -1,0 +1,99 @@
+# Production Multi-stage Dockerfile for Prism DNS Server
+# Optimized for security, performance, and minimal attack surface
+
+# Build stage - compile and install dependencies
+FROM python:3.11-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    postgresql-dev \
+    && rm -rf /var/cache/apk/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better layer caching
+COPY server/requirements.txt .
+
+# Install Python dependencies to a local directory
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Production stage - runtime environment
+FROM python:3.11-alpine AS production
+
+# Install runtime dependencies only
+RUN apk add --no-cache \
+    libpq \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user for security
+RUN addgroup -g 1000 prism && \
+    adduser -D -s /bin/sh -u 1000 -G prism prism
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python packages from builder stage
+COPY --from=builder /root/.local /home/prism/.local
+
+# Copy application code
+COPY --chown=prism:prism server/ ./server/
+COPY --chown=prism:prism config/ ./config/
+
+# Switch to non-root user
+USER prism
+
+# Add local packages to PATH
+ENV PATH=/home/prism/.local/bin:$PATH
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PRISM_ENV=production
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8081/api/health || exit 1
+
+# Production command - run main server
+CMD ["python", "-m", "server.main", "--config", "/app/config/server.yaml"]
+
+# Development stage - for local development
+FROM python:3.11-slim AS development
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install requirements
+COPY server/requirements.txt ./server/
+RUN pip install --no-cache-dir -r server/requirements.txt
+
+# Copy application code
+COPY . ./
+
+# Create non-root user
+RUN groupadd -r prism && useradd -r -g prism prism
+RUN chown -R prism:prism /app
+USER prism
+
+# Environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PRISM_ENV=development
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Development command
+CMD ["python", "-m", "server.main"]
