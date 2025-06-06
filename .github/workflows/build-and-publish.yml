@@ -8,6 +8,11 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 env:
   REGISTRY: ghcr.io
   REGISTRY_NAMESPACE: ${{ github.repository_owner }}
@@ -50,9 +55,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.server == 'true' || github.event_name == 'release'
-    permissions:
-      contents: read
-      packages: write
     
     steps:
       - name: Checkout code
@@ -124,9 +126,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.web == 'true' || github.event_name == 'release'
-    permissions:
-      contents: read
-      packages: write
     
     steps:
       - name: Checkout code
@@ -193,9 +192,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.client == 'true' || github.event_name == 'release'
-    permissions:
-      contents: read
-      packages: write
     
     steps:
       - name: Checkout code
@@ -261,9 +257,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-server, build-web, build-client]
     if: always() && (needs.build-server.result == 'success' || needs.build-web.result == 'success' || needs.build-client.result == 'success')
-    permissions:
-      contents: read
-      packages: write
     
     steps:
       - name: Log in to Container Registry
