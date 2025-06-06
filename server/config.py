@@ -4,11 +4,12 @@ Server Configuration Management (SCRUM-18)
 YAML-based configuration system with validation and environment overrides.
 """
 
-import os
-import yaml
 import logging
-from typing import Dict, Any, Optional
+import os
 from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 

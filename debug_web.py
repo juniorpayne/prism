@@ -3,10 +3,11 @@
 Debug script to test web interface loading
 """
 
-import time
 import subprocess
-import requests
 import sys
+import time
+
+import requests
 
 
 def test_api_direct():

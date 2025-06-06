@@ -4,11 +4,11 @@ Enhanced Validators for Prism DNS Server (SCRUM-15)
 Additional validation functions for registration processing.
 """
 
-import re
-import logging
 import ipaddress
-from typing import Dict, Any, Optional, Tuple, List
+import logging
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)

@@ -4,15 +4,16 @@ Prism DNS Web Interface - Sprint 3 Demo
 Comprehensive demonstration of all completed web interface features
 """
 
-import os
-import sys
 import json
-import time
-import threading
+import os
 import subprocess
-import requests
+import sys
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
+
+import requests
 
 
 class WebInterfaceDemo:
@@ -43,10 +44,10 @@ class WebInterfaceDemo:
 
     def start_mock_api_server(self):
         """Start mock API server with realistic data"""
-        from http.server import HTTPServer, BaseHTTPRequestHandler
         import json
         import random
         from datetime import datetime, timedelta
+        from http.server import BaseHTTPRequestHandler, HTTPServer
 
         class MockAPIHandler(BaseHTTPRequestHandler):
             def do_GET(self):

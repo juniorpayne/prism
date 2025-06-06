@@ -4,17 +4,18 @@ Simple HTTP server for Prism DNS Web Interface
 Development server to serve static files and proxy API requests
 """
 
+import argparse
+import asyncio
+import json
 import os
 import sys
-import json
-import asyncio
-import argparse
-from pathlib import Path
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-import requests
 import threading
 import time
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import requests
 
 
 class PrismWebHandler(SimpleHTTPRequestHandler):

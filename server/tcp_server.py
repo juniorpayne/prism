@@ -8,14 +8,13 @@ import asyncio
 import logging
 import signal
 import time
-from typing import Dict, Any, List, Optional, Callable
 from asyncio import Server
+from typing import Any, Callable, Dict, List, Optional
 
 from .connection_handler import ConnectionHandler, ConnectionManager
-from .server_stats import ServerStats, StatsCollector
 from .database.connection import DatabaseManager
 from .database.migrations import init_database
-
+from .server_stats import ServerStats, StatsCollector
 
 logger = logging.getLogger(__name__)
 

@@ -4,14 +4,15 @@ Test script for Prism DNS Web Interface
 Tests the web interface components and integration
 """
 
-import os
-import sys
 import json
-import time
+import os
 import subprocess
+import sys
 import threading
-import requests
+import time
 from pathlib import Path
+
+import requests
 
 
 def test_web_files():
@@ -169,8 +170,8 @@ def start_mock_api_server():
     """Start a mock API server for testing"""
     print("🚀 Starting mock API server...")
 
-    from http.server import HTTPServer, BaseHTTPRequestHandler
     import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class MockAPIHandler(BaseHTTPRequestHandler):
         def do_GET(self):

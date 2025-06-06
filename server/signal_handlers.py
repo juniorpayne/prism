@@ -4,11 +4,11 @@ Signal Handlers for Graceful Shutdown (SCRUM-18)
 Handles SIGTERM, SIGINT, and other signals for graceful server shutdown.
 """
 
-import signal
-import logging
 import asyncio
-import threading
+import logging
 import os
+import signal
+import threading
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)

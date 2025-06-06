@@ -4,18 +4,18 @@ Prism Host Client - Complete managed DNS client application
 Integrates all components: configuration, logging, heartbeat, networking, and service management.
 """
 
-import sys
-import os
 import argparse
+import os
 import signal
+import sys
 from typing import Optional
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from client.service_manager import ServiceManager
-from client.log_manager import LogManager, ErrorHandler
 from client.config_manager import ConfigManager, ConfigValidationError
+from client.log_manager import ErrorHandler, LogManager
+from client.service_manager import ServiceManager
 
 
 class PrismClient:
