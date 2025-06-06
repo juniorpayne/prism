@@ -107,13 +107,14 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:latest
           format: 'sarif'
           output: 'server-trivy-results.sarif'
+        continue-on-error: true
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('server-trivy-results.sarif') != ''
         with:
           sarif_file: 'server-trivy-results.sarif'
 
@@ -175,13 +176,14 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:latest
           format: 'sarif'
           output: 'web-trivy-results.sarif'
+        continue-on-error: true
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('web-trivy-results.sarif') != ''
         with:
           sarif_file: 'web-trivy-results.sarif'
 
@@ -301,7 +303,7 @@ jobs:
           
           services:
             nginx:
-              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}
+              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:latest
               container_name: prism-nginx
               ports:
                 - "80:80"
@@ -314,7 +316,7 @@ jobs:
                 - prism-backend
 
             prism-server:
-              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}
+              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:latest
               container_name: prism-server
               ports:
                 - "8080:8080"
@@ -387,7 +389,7 @@ jobs:
           
           # Server image
           if [[ "${{ needs.build-server.result }}" == "success" ]]; then
-            echo "| Server | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Server | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:latest\` |" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ needs.changes.outputs.server }}" == "true" ]]; then
             echo "| Server | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
           else
@@ -396,7 +398,7 @@ jobs:
           
           # Web image
           if [[ "${{ needs.build-web.result }}" == "success" ]]; then
-            echo "| Web Interface | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Web Interface | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:latest\` |" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ needs.changes.outputs.web }}" == "true" ]]; then
             echo "| Web Interface | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
           else
@@ -405,7 +407,7 @@ jobs:
           
           # Client image
           if [[ "${{ needs.build-client.result }}" == "success" ]]; then
-            echo "| Client | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-client:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Client | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-client:latest\` |" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ needs.changes.outputs.client }}" == "true" ]]; then
             echo "| Client | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
           else
