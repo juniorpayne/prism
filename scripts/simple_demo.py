@@ -68,7 +68,8 @@ def main():
     from server.database.connection import DatabaseManager
     from server.database.operations import HostOperations
 
-    db_file = tempfile.mktemp(suffix=".db")
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+        db_file = tmp_file.name
     db_config = {"database": {"path": db_file}}
 
     db_manager = DatabaseManager(db_config)

@@ -254,9 +254,9 @@ class WebInterfaceDemo:
 
             # Test API endpoints
             try:
-                health = requests.get("http://localhost:8081/api/health").json()
-                stats = requests.get("http://localhost:8081/api/stats").json()
-                hosts = requests.get("http://localhost:8081/api/hosts").json()
+                health = requests.get("http://localhost:8081/api/health", timeout=10).json()
+                stats = requests.get("http://localhost:8081/api/stats", timeout=10).json()
+                hosts = requests.get("http://localhost:8081/api/hosts", timeout=10).json()
 
                 print(f"   📊 API Health: {health['status']}")
                 print(f"   📊 Total Hosts: {stats['total_hosts']}")

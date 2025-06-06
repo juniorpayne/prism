@@ -400,8 +400,8 @@ heartbeat:
     finally:
         os.unlink(config_file)
         # Cleanup demo log file
-        if os.path.exists("/tmp/config_logging_demo.log"):
-            os.unlink("/tmp/config_logging_demo.log")
+        if os.path.exists("/tmp/config_logging_demo.log"):  # nosec B108 - Demo script
+            os.unlink("/tmp/config_logging_demo.log")  # nosec B108 - Demo script
 
 
 def demo_real_world_scenario():

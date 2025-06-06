@@ -35,7 +35,8 @@ class SprintDemo:
 
     def __init__(self):
         """Initialize demo with temporary database."""
-        self.db_file = tempfile.mktemp(suffix=".db")
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+            self.db_file = tmp_file.name
         self.config = self._create_demo_config()
         self.db_manager = None
         self.host_ops = None
@@ -47,7 +48,7 @@ class SprintDemo:
             "server": {
                 "tcp_port": 8080,
                 "api_port": 8081,
-                "host": "0.0.0.0",
+                "host": "0.0.0.0",  # nosec B104 - Demo environment
                 "max_connections": 1000,
             },
             "database": {"path": self.db_file, "connection_pool_size": 10},
@@ -389,7 +390,7 @@ class SprintDemo:
         docker_config = {
             "database_path": "/data/hosts.db",
             "log_file": "/logs/server.log",
-            "bind_address": "0.0.0.0",
+            "bind_address": "0.0.0.0",  # nosec B104 - Docker deployment config
             "environment_overrides": "PRISM_* variables supported",
         }
 

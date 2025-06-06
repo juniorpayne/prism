@@ -1,6 +1,6 @@
 [bandit]
-exclude_dirs = ['tests', 'venv', '.venv', 'build', 'dist']
-skips = ['B101']  # Skip assert_used test since we use asserts in tests
+exclude_dirs = tests,venv,.venv,build,dist,scripts
+skips = B101
 
-[bandit.assert_used]
-skips = ['**/test_*.py', '**/tests/*.py']
+# Allow hardcoded tmp directories in tests/scripts (they're not production code)
+# Allow 0.0.0.0 binding in tests/scripts and production config (needed for containers)

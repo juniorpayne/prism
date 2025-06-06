@@ -97,7 +97,7 @@ class ServerConfigSection:
 
     tcp_port: int = 8080
     api_port: int = 8081
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # nosec B104 - Required for Docker/container deployment
     max_connections: int = 1000
 
     def __post_init__(self):

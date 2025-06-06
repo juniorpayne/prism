@@ -4,10 +4,11 @@ Provides service/daemon functionality for background operation and system integr
 """
 
 import os
-import sys
 import signal
-import time
+import sys
+import tempfile
 import threading
+import time
 import logging
 from typing import Dict, Any, Optional, Callable
 from client.config_manager import ConfigManager
@@ -74,7 +75,7 @@ class DaemonProcess:
             pid_file: Path to PID file for process tracking
             daemonize: Whether to actually daemonize the process
         """
-        self._pid_file = pid_file or "/tmp/prism-client.pid"
+        self._pid_file = pid_file or os.path.join(tempfile.gettempdir(), "prism-client.pid")
         self._daemonize = daemonize
         self._logger = logging.getLogger(__name__)
 
@@ -246,7 +247,7 @@ class ServiceManager:
         self._running = False
 
         # Setup daemon process
-        pid_file = service_config.get("pid_file", f"/tmp/{self._service_name}.pid")
+        pid_file = service_config.get("pid_file", os.path.join(tempfile.gettempdir(), f"{self._service_name}.pid"))
         self._daemon = DaemonProcess(
             pid_file=pid_file, daemonize=False
         )  # Default to non-daemon for testing
