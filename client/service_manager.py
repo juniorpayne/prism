@@ -247,7 +247,9 @@ class ServiceManager:
         self._running = False
 
         # Setup daemon process
-        pid_file = service_config.get("pid_file", os.path.join(tempfile.gettempdir(), f"{self._service_name}.pid"))
+        pid_file = service_config.get(
+            "pid_file", os.path.join(tempfile.gettempdir(), f"{self._service_name}.pid")
+        )
         self._daemon = DaemonProcess(
             pid_file=pid_file, daemonize=False
         )  # Default to non-daemon for testing
