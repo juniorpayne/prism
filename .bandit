@@ -1,6 +1,9 @@
 [bandit]
 exclude_dirs = tests,venv,.venv,build,dist,scripts
-skips = B101
+skips = B101,B108,B104
 
-# Allow hardcoded tmp directories in tests/scripts (they're not production code)
+# Allow hardcoded tmp directories in tests/scripts (they're not production code)  
 # Allow 0.0.0.0 binding in tests/scripts and production config (needed for containers)
+# B101: assert_used - OK in tests
+# B108: hardcoded_tmp_directory - OK in tests/demos  
+# B104: hardcoded_bind_all_interfaces - OK for containers
