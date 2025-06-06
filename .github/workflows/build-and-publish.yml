@@ -366,7 +366,7 @@ jobs:
           EOF
 
       - name: Upload deployment manifest
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deployment-manifests
           path: docker-compose.registry.yml
