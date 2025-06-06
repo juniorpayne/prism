@@ -1,0 +1,90 @@
+name: Cleanup Container Images
+
+on:
+  schedule:
+    # Run weekly on Sundays at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (don't actually delete)'
+        required: false
+        default: 'true'
+        type: boolean
+      keep_count:
+        description: 'Number of images to keep per package'
+        required: false
+        default: '10'
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  cleanup:
+    name: Clean up old container images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        package: [prism-server, prism-web, prism-client]
+    
+    steps:
+      - name: Set cleanup parameters
+        id: params
+        run: |
+          # Set defaults or use workflow inputs
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "dry_run=${{ inputs.dry_run }}" >> $GITHUB_OUTPUT
+            echo "keep_count=${{ inputs.keep_count }}" >> $GITHUB_OUTPUT
+          else
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+            echo "keep_count=10" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete old images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: 'container'
+          min-versions-to-keep: ${{ steps.params.outputs.keep_count }}
+          delete-only-untagged-versions: false
+          ignore-versions: '^(latest|main|develop)$'
+          dry-run: ${{ steps.params.outputs.dry_run }}
+
+      - name: Log cleanup results
+        run: |
+          echo "Cleanup completed for ${{ matrix.package }}"
+          echo "Dry run: ${{ steps.params.outputs.dry_run }}"
+          echo "Images kept: ${{ steps.params.outputs.keep_count }}"
+
+  cleanup-summary:
+    name: Cleanup Summary
+    runs-on: ubuntu-latest
+    needs: cleanup
+    if: always()
+    
+    steps:
+      - name: Generate cleanup summary
+        run: |
+          echo "# 🧹 Container Image Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Cleanup Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace**: \`${{ env.REGISTRY_NAMESPACE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Packages Cleaned" >> $GITHUB_STEP_SUMMARY
+          echo "- \`prism-server\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`prism-web\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`prism-client\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Retention Policy" >> $GITHUB_STEP_SUMMARY
+          echo "- **Keep Latest**: 10 versions per package" >> $GITHUB_STEP_SUMMARY
+          echo "- **Protected Tags**: \`latest\`, \`main\`, \`develop\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Schedule**: Weekly (Sundays at 02:00 UTC)" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,426 @@
+name: Build and Publish Images
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  # Determine what images need to be built based on changes
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.changes.outputs.server }}
+      web: ${{ steps.changes.outputs.web }}
+      client: ${{ steps.changes.outputs.client }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'requirements.txt'
+              - 'Dockerfile.production'
+              - '.github/workflows/build-and-publish.yml'
+            web:
+              - 'web/**'
+              - '.github/workflows/build-and-publish.yml'
+            client:
+              - 'client/**'
+              - 'prism_client.py'
+              - 'requirements.txt'
+              - '.github/workflows/build-and-publish.yml'
+
+  # Build and publish server image
+  build-server:
+    name: Build Server Image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.server == 'true' || github.event_name == 'release'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server
+          tags: |
+            # Set latest tag for main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Tag with branch name for develop branch
+            type=ref,event=branch
+            # Tag with PR number for pull requests
+            type=ref,event=pr
+            # Tag with version for releases
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # Tag with commit SHA
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=Prism DNS Server
+            org.opencontainers.image.description=Managed DNS server with heartbeat monitoring
+            org.opencontainers.image.vendor=Prism DNS
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.production
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}
+          format: 'sarif'
+          output: 'server-trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'server-trivy-results.sarif'
+
+  # Build and publish web image
+  build-web:
+    name: Build Web Interface Image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'release'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=Prism Web Interface
+            org.opencontainers.image.description=Web interface for Prism DNS management
+            org.opencontainers.image.vendor=Prism DNS
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}
+          format: 'sarif'
+          output: 'web-trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'web-trivy-results.sarif'
+
+  # Build and publish client image (optional)
+  build-client:
+    name: Build Client Image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.client == 'true' || github.event_name == 'release'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create client Dockerfile
+        run: |
+          cat > Dockerfile.client << 'EOF'
+          FROM python:3.11-alpine
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          COPY client/ ./client/
+          COPY prism_client.py .
+          RUN adduser -D -s /bin/sh prism
+          USER prism
+          ENTRYPOINT ["python", "prism_client.py"]
+          EOF
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-client
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=Prism DNS Client
+            org.opencontainers.image.description=DNS client for Prism managed DNS
+            org.opencontainers.image.vendor=Prism DNS
+
+      - name: Build and push client image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.client
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Image scanning and cleanup job
+  image-management:
+    name: Image Management
+    runs-on: ubuntu-latest
+    needs: [build-server, build-web, build-client]
+    if: always() && (needs.build-server.result == 'success' || needs.build-web.result == 'success' || needs.build-client.result == 'success')
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up old images
+        run: |
+          # Keep last 10 images for each repository
+          echo "Cleaning up old container images..."
+          
+          # This would typically use GitHub API or a cleanup tool
+          # For now, we'll just log the cleanup intent
+          echo "Would clean up images older than 30 days, keeping last 10 versions"
+          echo "Registry: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}"
+
+  # Create deployment artifacts
+  create-deployment-manifests:
+    name: Create Deployment Manifests
+    runs-on: ubuntu-latest
+    needs: [build-server, build-web]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create production deployment manifest
+        run: |
+          # Update docker-compose.production.yml with new image references
+          cat > docker-compose.registry.yml << EOF
+          # Production Docker Compose using Container Registry Images
+          # Generated automatically by CI/CD pipeline
+          
+          services:
+            nginx:
+              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}
+              container_name: prism-nginx
+              ports:
+                - "80:80"
+                - "443:443"
+              depends_on:
+                - prism-server
+              restart: unless-stopped
+              networks:
+                - prism-frontend
+                - prism-backend
+
+            prism-server:
+              image: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}
+              container_name: prism-server
+              ports:
+                - "8080:8080"
+              volumes:
+                - server_data:/app/data
+                - server_logs:/app/logs
+                - ./config:/app/config:ro
+              environment:
+                - PRISM_ENV=production
+                - PRISM_LOG_LEVEL=\${LOG_LEVEL:-INFO}
+                - PRISM_DATABASE_PATH=/app/data/prism.db
+                - PRISM_CONFIG_PATH=/app/config/server.yaml
+              depends_on:
+                - database
+              restart: unless-stopped
+              networks:
+                - prism-backend
+                - prism-frontend
+
+            database:
+              image: postgres:15-alpine
+              container_name: prism-database
+              environment:
+                - POSTGRES_DB=\${DB_NAME:-prism}
+                - POSTGRES_USER=\${DB_USER:-prism}
+                - POSTGRES_PASSWORD=\${DB_PASSWORD}
+              volumes:
+                - database_data:/var/lib/postgresql/data
+              restart: unless-stopped
+              networks:
+                - prism-backend
+
+          volumes:
+            server_data:
+              driver: local
+            server_logs:
+              driver: local
+            database_data:
+              driver: local
+
+          networks:
+            prism-frontend:
+              driver: bridge
+            prism-backend:
+              driver: bridge
+              internal: false
+          EOF
+
+      - name: Upload deployment manifest
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-manifests
+          path: docker-compose.registry.yml
+          retention-days: 30
+
+  # Summary job
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [changes, build-server, build-web, build-client]
+    if: always()
+    
+    steps:
+      - name: Generate build summary
+        run: |
+          echo "# 🚀 Container Registry Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Server image
+          if [[ "${{ needs.build-server.result }}" == "success" ]]; then
+            echo "| Server | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-server:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.changes.outputs.server }}" == "true" ]]; then
+            echo "| Server | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Server | ⏭️ Skipped | No changes |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Web image
+          if [[ "${{ needs.build-web.result }}" == "success" ]]; then
+            echo "| Web Interface | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-web:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.changes.outputs.web }}" == "true" ]]; then
+            echo "| Web Interface | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Web Interface | ⏭️ Skipped | No changes |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Client image
+          if [[ "${{ needs.build-client.result }}" == "success" ]]; then
+            echo "| Client | ✅ Built | \`${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/prism-client:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.changes.outputs.client }}" == "true" ]]; then
+            echo "| Client | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Client | ⏭️ Skipped | No changes |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Registry Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace**: \`${{ env.REGISTRY_NAMESPACE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🚀 Deployment Ready" >> $GITHUB_STEP_SUMMARY
+            echo "Images are tagged and ready for production deployment!" >> $GITHUB_STEP_SUMMARY
+          fi
