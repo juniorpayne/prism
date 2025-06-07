@@ -8,7 +8,7 @@ import logging
 import logging.handlers
 import os
 import sys
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class LoggingConfigError(Exception):

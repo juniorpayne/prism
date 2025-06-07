@@ -4,10 +4,10 @@ Response Builder for Prism DNS Server (SCRUM-15)
 Creates consistent registration response messages.
 """
 
-import logging
-from typing import Dict, Any, Optional, List, Set
-from datetime import datetime, timezone
 import json
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 

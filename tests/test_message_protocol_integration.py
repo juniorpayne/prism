@@ -4,6 +4,7 @@ Tests the complete message protocol workflow including integration with SystemIn
 """
 
 import json
+
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

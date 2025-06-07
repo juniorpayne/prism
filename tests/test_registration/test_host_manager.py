@@ -4,13 +4,13 @@ Tests for Host Manager (SCRUM-15)
 Test-driven development for host record management.
 """
 
-import unittest
 import asyncio
-import tempfile
 import os
+import tempfile
 import time
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestHostManager(unittest.TestCase):
@@ -121,9 +121,9 @@ class TestHostManager(unittest.TestCase):
         """Test reactivating an offline host."""
 
         async def test_reactivation():
-            from server.host_manager import HostManager
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.host_manager import HostManager
 
             manager = HostManager(self.manager_config)
 
@@ -187,9 +187,9 @@ class TestHostManager(unittest.TestCase):
         """Test listing hosts by status."""
 
         async def test_list_by_status():
-            from server.host_manager import HostManager
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.host_manager import HostManager
 
             manager = HostManager(self.manager_config)
 
@@ -264,9 +264,9 @@ class TestHostManager(unittest.TestCase):
         """Test getting host count by status."""
 
         async def test_count_by_status():
-            from server.host_manager import HostManager
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.host_manager import HostManager
 
             manager = HostManager(self.manager_config)
 
@@ -341,10 +341,10 @@ class TestHostManager(unittest.TestCase):
         """Test cleaning up old offline hosts."""
 
         async def test_cleanup():
-            from server.host_manager import HostManager
             from server.database.connection import DatabaseManager
-            from server.database.operations import HostOperations
             from server.database.models import Host
+            from server.database.operations import HostOperations
+            from server.host_manager import HostManager
 
             manager = HostManager(self.manager_config)
 

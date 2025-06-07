@@ -4,19 +4,19 @@ Demo script for Heartbeat Registration Loop (SCRUM-8)
 Demonstrates heartbeat manager functionality and integration with all components.
 """
 
-import sys
 import os
-import tempfile
-import time
 import signal
+import sys
+import tempfile
 import threading
+import time
 
 # Add parent directory to path to import client modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from client.heartbeat_manager import HeartbeatManager
 from client.config_manager import ConfigManager
 from client.connection_manager import ConnectionError
+from client.heartbeat_manager import HeartbeatManager
 from client.system_info import SystemInfo
 
 

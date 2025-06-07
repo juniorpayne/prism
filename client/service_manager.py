@@ -3,17 +3,18 @@ Service/Daemon Mode Operation for Prism Host Client (SCRUM-11)
 Provides service/daemon functionality for background operation and system integration.
 """
 
+import logging
 import os
 import signal
 import sys
 import tempfile
 import threading
 import time
-import logging
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable, Dict, Optional
+
 from client.config_manager import ConfigManager
 from client.heartbeat_manager import HeartbeatManager
-from client.log_manager import LogManager, ErrorHandler
+from client.log_manager import ErrorHandler, LogManager
 
 
 class SignalHandler:

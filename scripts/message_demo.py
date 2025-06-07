@@ -5,13 +5,13 @@ Demonstrates message creation, validation, and serialization.
 """
 
 import json
-import sys
 import os
+import sys
 
 # Add parent directory to path to import client modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from client.message_protocol import MessageProtocol, TCPSender, MessageValidationError
+from client.message_protocol import MessageProtocol, MessageValidationError, TCPSender
 from client.system_info import SystemInfo
 
 

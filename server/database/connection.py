@@ -4,19 +4,18 @@ Database Connection Management for Prism DNS Server (SCRUM-13)
 Handles SQLite connections, pooling, and session management.
 """
 
-import os
 import logging
+import os
 from contextlib import contextmanager
-from typing import Optional, Dict, Any, Generator
 from pathlib import Path
+from typing import Any, Dict, Generator, Optional
 
-from sqlalchemy import create_engine, Engine, event
-from sqlalchemy.orm import sessionmaker, Session, scoped_session
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
 
 from .models import Base
-
 
 logger = logging.getLogger(__name__)
 

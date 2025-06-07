@@ -3,11 +3,13 @@ Tests for Configuration Management System (SCRUM-9)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
+from unittest.mock import mock_open, patch
+
+import pytest
 import yaml
-from unittest.mock import patch, mock_open
+
 from client.config_manager import ConfigManager, ConfigValidationError
 
 

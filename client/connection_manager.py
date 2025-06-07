@@ -3,10 +3,11 @@ Client Network Connection Management for Prism Host Client (SCRUM-5)
 Handles TCP connections with retry logic, error handling, and configuration integration.
 """
 
+import logging
 import socket
 import time
-import logging
-from typing import Optional, Dict, Any, Union
+from typing import Any, Dict, Optional, Union
+
 from client.config_manager import ConfigManager
 
 

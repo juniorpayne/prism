@@ -5,8 +5,10 @@ Dependency injection for database and other services.
 """
 
 import logging
-from typing import Dict, Any, Generator
+from typing import Any, Dict, Generator
+
 from fastapi import Depends, HTTPException, status
+
 from server.database.connection import DatabaseManager
 from server.database.operations import HostOperations
 

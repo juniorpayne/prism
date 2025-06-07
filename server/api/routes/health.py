@@ -7,14 +7,15 @@ REST endpoints for server health and statistics.
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from server.api.dependencies import get_database_manager, get_host_operations
 from server.api.models import HealthResponse, StatisticsResponse
-from server.api.dependencies import get_host_operations, get_database_manager
-from server.database.operations import HostOperations
 from server.database.connection import DatabaseManager
+from server.database.operations import HostOperations
 
 logger = logging.getLogger(__name__)
 

@@ -3,14 +3,15 @@ Integration tests for Logging and Error Handling (SCRUM-10)
 Tests integration with all existing client components.
 """
 
-import tempfile
 import os
+import tempfile
 import time
-from unittest.mock import patch, Mock
-from client.log_manager import LogManager, ErrorHandler
-from client.heartbeat_manager import HeartbeatManager
-from client.connection_manager import ConnectionManager
+from unittest.mock import Mock, patch
+
 from client.config_manager import ConfigManager
+from client.connection_manager import ConnectionManager
+from client.heartbeat_manager import HeartbeatManager
+from client.log_manager import ErrorHandler, LogManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

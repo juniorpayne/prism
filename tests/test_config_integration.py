@@ -3,9 +3,11 @@ Integration test for Configuration Management System (SCRUM-9)
 Tests the complete configuration workflow.
 """
 
-import tempfile
 import os
+import tempfile
+
 import pytest
+
 from client.config_manager import ConfigManager, ConfigValidationError
 
 

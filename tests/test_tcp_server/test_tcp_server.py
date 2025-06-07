@@ -4,14 +4,14 @@ Tests for TCP Server Implementation (SCRUM-14)
 Test-driven development for asyncio-based TCP server.
 """
 
-import unittest
 import asyncio
-import tempfile
-import os
 import json
+import os
 import struct
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import tempfile
+import unittest
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 
 class TestTCPServer(unittest.TestCase):
@@ -171,8 +171,8 @@ class TestTCPServer(unittest.TestCase):
         """Test server processes client messages correctly."""
 
         async def test_message_processing():
-            from server.tcp_server import TCPServer
             from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
             config["server"]["tcp_port"] = 8084
@@ -561,8 +561,9 @@ class TestServerStats(unittest.TestCase):
 
     def test_server_stats_performance_metrics(self):
         """Test performance metrics tracking."""
-        from server.server_stats import ServerStats
         import time
+
+        from server.server_stats import ServerStats
 
         stats = ServerStats()
 
@@ -595,8 +596,9 @@ class TestServerStats(unittest.TestCase):
 
     def test_server_stats_json_export(self):
         """Test exporting stats as JSON."""
-        from server.server_stats import ServerStats
         import json
+
+        from server.server_stats import ServerStats
 
         stats = ServerStats()
 

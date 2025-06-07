@@ -4,9 +4,9 @@ Tests for Database Models (SCRUM-13)
 Test-driven development for SQLAlchemy models and schema.
 """
 
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -102,8 +102,9 @@ class TestDatabaseModels(unittest.TestCase):
 
     def test_host_model_field_types(self):
         """Test that Host model fields have correct types."""
+        from sqlalchemy import DateTime, Integer, String
+
         from server.database.models import Host
-        from sqlalchemy import Integer, String, DateTime
 
         # Check field types
         field_types = {
@@ -152,8 +153,9 @@ class TestDatabaseModels(unittest.TestCase):
     def test_database_base_exists(self):
         """Test that database base is properly configured."""
         try:
-            from server.database.models import Base
             from sqlalchemy.ext.declarative import DeclarativeMeta
+
+            from server.database.models import Base
 
             self.assertIsInstance(Base, DeclarativeMeta)
         except ImportError:
@@ -176,8 +178,9 @@ class TestDatabaseSchema(unittest.TestCase):
 
     def test_schema_creation(self):
         """Test that database schema can be created."""
-        from server.database.models import Base
         from sqlalchemy import create_engine
+
+        from server.database.models import Base
 
         # Create engine and schema
         engine = create_engine(f"sqlite:///{self.db_path}")
@@ -188,8 +191,9 @@ class TestDatabaseSchema(unittest.TestCase):
 
     def test_hosts_table_exists(self):
         """Test that hosts table is created."""
-        from server.database.models import Base, Host
         from sqlalchemy import create_engine, inspect
+
+        from server.database.models import Base, Host
 
         # Create schema
         engine = create_engine(f"sqlite:///{self.db_path}")
@@ -203,8 +207,9 @@ class TestDatabaseSchema(unittest.TestCase):
 
     def test_hosts_table_columns(self):
         """Test that hosts table has correct columns."""
-        from server.database.models import Base, Host
         from sqlalchemy import create_engine, inspect
+
+        from server.database.models import Base, Host
 
         # Create schema
         engine = create_engine(f"sqlite:///{self.db_path}")
@@ -231,8 +236,9 @@ class TestDatabaseSchema(unittest.TestCase):
 
     def test_hosts_table_indexes(self):
         """Test that hosts table has proper indexes."""
-        from server.database.models import Base, Host
         from sqlalchemy import create_engine, inspect
+
+        from server.database.models import Base, Host
 
         # Create schema
         engine = create_engine(f"sqlite:///{self.db_path}")
@@ -253,8 +259,9 @@ class TestDatabaseSchema(unittest.TestCase):
 
     def test_hosts_table_constraints(self):
         """Test that hosts table has proper constraints."""
-        from server.database.models import Base, Host
         from sqlalchemy import create_engine, inspect
+
+        from server.database.models import Base, Host
 
         # Create schema
         engine = create_engine(f"sqlite:///{self.db_path}")

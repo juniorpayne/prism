@@ -4,12 +4,13 @@ Tests for Server Configuration Management (SCRUM-18)
 Test-driven development for configuration, logging, and deployment.
 """
 
-import pytest
+import logging
 import os
 import tempfile
+from unittest.mock import MagicMock, patch
+
+import pytest
 import yaml
-import logging
-from unittest.mock import patch, MagicMock
 
 
 class TestServerConfig:
@@ -118,7 +119,7 @@ class TestServerConfig:
 
     def test_config_validation(self):
         """Test configuration validation."""
-        from server.config import ServerConfig, ConfigValidationError
+        from server.config import ConfigValidationError, ServerConfig
 
         # Test invalid port
         with pytest.raises(ConfigValidationError):
@@ -193,14 +194,14 @@ class TestServerConfig:
 
     def test_config_file_not_found(self):
         """Test handling of missing configuration file."""
-        from server.config import ServerConfig, ConfigFileError
+        from server.config import ConfigFileError, ServerConfig
 
         with pytest.raises(ConfigFileError):
             ServerConfig.from_file("/nonexistent/config.yaml")
 
     def test_config_invalid_yaml(self):
         """Test handling of invalid YAML file."""
-        from server.config import ServerConfig, ConfigFileError
+        from server.config import ConfigFileError, ServerConfig
 
         # Create file with invalid YAML
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -264,7 +265,7 @@ class TestLoggingSetup:
 
     def test_logging_level_validation(self):
         """Test logging level validation."""
-        from server.logging_setup import LoggingSetup, LoggingConfigError
+        from server.logging_setup import LoggingConfigError, LoggingSetup
 
         # Test invalid log level
         with pytest.raises(LoggingConfigError):
@@ -316,8 +317,9 @@ class TestSignalHandlers:
 
     def test_signal_handler_setup(self):
         """Test signal handler setup."""
-        from server.signal_handlers import SignalHandler
         import signal
+
+        from server.signal_handlers import SignalHandler
 
         shutdown_callback = MagicMock()
         handler = SignalHandler(shutdown_callback)

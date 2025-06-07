@@ -4,13 +4,13 @@ Tests for Heartbeat Monitor (SCRUM-16)
 Test-driven development for heartbeat monitoring and timeout detection.
 """
 
-import unittest
 import asyncio
-import tempfile
 import os
+import tempfile
 import time
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestHeartbeatMonitor(unittest.TestCase):
@@ -108,9 +108,9 @@ class TestHeartbeatMonitor(unittest.TestCase):
         """Test timeout check with recently active hosts."""
 
         async def test_recent_hosts():
-            from server.heartbeat_monitor import HeartbeatMonitor
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.heartbeat_monitor import HeartbeatMonitor
 
             monitor = HeartbeatMonitor(self.monitor_config)
 
@@ -134,10 +134,10 @@ class TestHeartbeatMonitor(unittest.TestCase):
         """Test timeout check with old hosts that should timeout."""
 
         async def test_old_hosts():
-            from server.heartbeat_monitor import HeartbeatMonitor
             from server.database.connection import DatabaseManager
-            from server.database.operations import HostOperations
             from server.database.models import Host
+            from server.database.operations import HostOperations
+            from server.heartbeat_monitor import HeartbeatMonitor
 
             monitor = HeartbeatMonitor(self.monitor_config)
 
@@ -170,9 +170,9 @@ class TestHeartbeatMonitor(unittest.TestCase):
         """Test marking hosts as offline."""
 
         async def test_mark_offline():
-            from server.heartbeat_monitor import HeartbeatMonitor
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.heartbeat_monitor import HeartbeatMonitor
 
             monitor = HeartbeatMonitor(self.monitor_config)
 
@@ -221,10 +221,10 @@ class TestHeartbeatMonitor(unittest.TestCase):
         """Test getting hosts filtered by last seen time."""
 
         async def test_last_seen_filter():
-            from server.heartbeat_monitor import HeartbeatMonitor
             from server.database.connection import DatabaseManager
-            from server.database.operations import HostOperations
             from server.database.models import Host
+            from server.database.operations import HostOperations
+            from server.heartbeat_monitor import HeartbeatMonitor
 
             monitor = HeartbeatMonitor(self.monitor_config)
 
@@ -258,9 +258,9 @@ class TestHeartbeatMonitor(unittest.TestCase):
         """Test heartbeat monitor performance with multiple hosts."""
 
         async def test_performance():
-            from server.heartbeat_monitor import HeartbeatMonitor
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.heartbeat_monitor import HeartbeatMonitor
 
             monitor = HeartbeatMonitor(self.monitor_config)
 

@@ -3,12 +3,12 @@ System Information Detection for Prism Host Client (SCRUM-6)
 Handles hostname detection, validation, and system metadata collection.
 """
 
-import socket
 import platform
-import re
-import time
 import random
-from typing import Dict, Any
+import re
+import socket
+import time
+from typing import Any, Dict
 
 
 class HostnameValidationError(Exception):

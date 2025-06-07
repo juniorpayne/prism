@@ -4,19 +4,19 @@ Demo script for Logging and Error Handling (SCRUM-10)
 Demonstrates comprehensive logging system and error handling capabilities.
 """
 
-import sys
 import os
+import sys
 import tempfile
-import time
 import threading
+import time
 
 # Add parent directory to path to import client modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from client.log_manager import LogManager, ErrorHandler
-from client.heartbeat_manager import HeartbeatManager
-from client.connection_manager import ConnectionManager, ConnectionError
 from client.config_manager import ConfigManager, ConfigValidationError
+from client.connection_manager import ConnectionError, ConnectionManager
+from client.heartbeat_manager import HeartbeatManager
+from client.log_manager import ErrorHandler, LogManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

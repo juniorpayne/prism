@@ -4,11 +4,11 @@ Tests for Database Connection Management (SCRUM-13)
 Test-driven development for database connection pooling and management.
 """
 
-import unittest
-import tempfile
-import os
 import asyncio
-from unittest.mock import patch, Mock
+import os
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
 
 
 class TestDatabaseConnection(unittest.TestCase):

@@ -3,11 +3,13 @@ Tests for Hostname Detection and System Information (SCRUM-6)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
 import platform
 import socket
-from unittest.mock import patch, MagicMock
-from client.system_info import SystemInfo, HostnameValidationError
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from client.system_info import HostnameValidationError, SystemInfo
 
 
 class TestSystemInfo:

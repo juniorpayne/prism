@@ -3,9 +3,10 @@ Configuration Management System for Prism Host Client (SCRUM-9)
 Handles loading, validation, and management of client configuration.
 """
 
-import yaml
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import yaml
 
 
 class ConfigValidationError(Exception):

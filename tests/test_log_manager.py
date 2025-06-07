@@ -3,14 +3,16 @@ Tests for Logging and Error Handling (SCRUM-10)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
+import logging
 import os
 import tempfile
-import time
-import logging
 import threading
-from unittest.mock import Mock, patch, call
-from client.log_manager import LogManager, ErrorHandler
+import time
+from unittest.mock import Mock, call, patch
+
+import pytest
+
+from client.log_manager import ErrorHandler, LogManager
 
 
 class TestLogManager:

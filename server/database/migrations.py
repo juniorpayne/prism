@@ -5,13 +5,13 @@ Handles database schema versioning and upgrades.
 """
 
 import logging
-from typing import Dict, Any, List, Callable
-from sqlalchemy import text, Table, MetaData
+from typing import Any, Callable, Dict, List
+
+from sqlalchemy import MetaData, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .connection import DatabaseManager
 from .models import SCHEMA_VERSION
-
 
 logger = logging.getLogger(__name__)
 

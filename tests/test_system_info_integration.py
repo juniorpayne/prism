@@ -3,7 +3,7 @@ Integration test for System Information Detection (SCRUM-6)
 Tests the complete hostname detection and system info workflow.
 """
 
-from client.system_info import SystemInfo, HostnameValidationError
+from client.system_info import HostnameValidationError, SystemInfo
 
 
 def test_complete_system_info_workflow():

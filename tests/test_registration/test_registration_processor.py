@@ -4,13 +4,13 @@ Tests for Registration Processor (SCRUM-15)
 Test-driven development for advanced registration processing logic.
 """
 
-import unittest
 import asyncio
-import tempfile
 import os
+import tempfile
 import time
+import unittest
 from datetime import datetime, timezone
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestRegistrationProcessor(unittest.TestCase):
@@ -143,9 +143,9 @@ class TestRegistrationProcessor(unittest.TestCase):
         """Test processing offline host coming back online."""
 
         async def test_reconnection():
-            from server.registration_processor import RegistrationProcessor
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.registration_processor import RegistrationProcessor
 
             processor = RegistrationProcessor(self.processor_config)
 
@@ -390,8 +390,9 @@ class TestRegistrationResult(unittest.TestCase):
 
     def test_registration_result_json_serialization(self):
         """Test JSON serialization of registration result."""
-        from server.registration_processor import RegistrationResult
         import json
+
+        from server.registration_processor import RegistrationResult
 
         result = RegistrationResult(
             success=True,

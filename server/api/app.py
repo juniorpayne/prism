@@ -5,15 +5,16 @@ Main FastAPI application for REST API endpoints.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 
-from server.api.routes import hosts, health
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
+from server.api.routes import health, hosts
 
 logger = logging.getLogger(__name__)
 

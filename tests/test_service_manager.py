@@ -3,14 +3,16 @@ Tests for Service/Daemon Mode Operation (SCRUM-11)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
 import os
 import signal
 import tempfile
-import time
 import threading
-from unittest.mock import Mock, patch, MagicMock, call
-from client.service_manager import ServiceManager, SignalHandler, DaemonProcess
+import time
+from unittest.mock import MagicMock, Mock, call, patch
+
+import pytest
+
+from client.service_manager import DaemonProcess, ServiceManager, SignalHandler
 
 
 class TestSignalHandler:

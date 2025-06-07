@@ -4,22 +4,22 @@ Complete Prism Client Demo (SCRUM-11)
 Demonstrates the complete service/daemon functionality and all integrated components.
 """
 
-import sys
 import os
-import tempfile
-import time
 import subprocess
+import sys
+import tempfile
 import threading
+import time
 
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from client.service_manager import ServiceManager
-from client.log_manager import LogManager, ErrorHandler
 from client.config_manager import ConfigManager
-from client.heartbeat_manager import HeartbeatManager
 from client.connection_manager import ConnectionManager
+from client.heartbeat_manager import HeartbeatManager
+from client.log_manager import ErrorHandler, LogManager
 from client.message_protocol import MessageProtocol
+from client.service_manager import ServiceManager
 from client.system_info import SystemInfo
 
 
@@ -187,8 +187,9 @@ def demo_signal_handling():
     """Demonstrate signal handling for graceful shutdown."""
     print("\n=== Signal Handling Demo ===")
 
-    from client.service_manager import SignalHandler
     import signal
+
+    from client.service_manager import SignalHandler
 
     # Create a mock shutdown callback
     shutdown_called = threading.Event()

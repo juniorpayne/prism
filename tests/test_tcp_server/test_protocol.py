@@ -4,12 +4,12 @@ Tests for Message Protocol Handling (SCRUM-14)
 Test-driven development for length-prefixed JSON message protocol.
 """
 
-import unittest
 import asyncio
 import json
 import struct
-from unittest.mock import Mock, AsyncMock, patch
+import unittest
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestMessageProtocol(unittest.TestCase):
@@ -271,9 +271,10 @@ class TestMessageProtocol(unittest.TestCase):
 
     def test_protocol_concurrent_safety(self):
         """Test protocol thread safety with concurrent access."""
-        from server.protocol import MessageProtocol
         import threading
         import time
+
+        from server.protocol import MessageProtocol
 
         protocol = MessageProtocol()
         results = []

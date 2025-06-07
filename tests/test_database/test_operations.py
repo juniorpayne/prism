@@ -4,9 +4,9 @@ Tests for Database CRUD Operations (SCRUM-13)
 Test-driven development for host record operations.
 """
 
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
@@ -39,8 +39,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_create_host_operation(self):
         """Test creating a new host record."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -60,8 +60,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_host_by_hostname(self):
         """Test retrieving host by hostname."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -83,8 +83,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_host_by_hostname_not_found(self):
         """Test retrieving non-existent host returns None."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -99,8 +99,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_update_host_ip(self):
         """Test updating host IP address."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -125,8 +125,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_update_host_last_seen(self):
         """Test updating host last seen timestamp."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -159,8 +159,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_all_hosts(self):
         """Test retrieving all hosts."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -183,8 +183,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_hosts_by_status(self):
         """Test retrieving hosts by status."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -210,8 +210,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_mark_host_offline(self):
         """Test marking host as offline."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -236,9 +236,10 @@ class TestHostOperations(unittest.TestCase):
 
     def test_cleanup_old_hosts(self):
         """Test cleaning up old offline hosts."""
-        from server.database.operations import HostOperations
-        from server.database.connection import DatabaseManager
         from datetime import datetime, timedelta
+
+        from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -270,8 +271,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_host_exists(self):
         """Test checking if host exists."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -292,8 +293,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_host_count(self):
         """Test getting total host count."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -312,8 +313,8 @@ class TestHostOperations(unittest.TestCase):
 
     def test_get_host_count_by_status(self):
         """Test getting host count by status."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -348,8 +349,8 @@ class TestDatabaseTransactions(unittest.TestCase):
 
     def test_transaction_commit(self):
         """Test successful transaction commit."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -366,8 +367,8 @@ class TestDatabaseTransactions(unittest.TestCase):
 
     def test_transaction_rollback(self):
         """Test transaction rollback on error."""
-        from server.database.operations import HostOperations
         from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)
@@ -390,9 +391,10 @@ class TestDatabaseTransactions(unittest.TestCase):
 
     def test_concurrent_operations(self):
         """Test concurrent database operations."""
-        from server.database.operations import HostOperations
-        from server.database.connection import DatabaseManager
         import threading
+
+        from server.database.connection import DatabaseManager
+        from server.database.operations import HostOperations
 
         config = {"database": {"path": self.db_path, "connection_pool_size": 20}}
         db_manager = DatabaseManager(config)

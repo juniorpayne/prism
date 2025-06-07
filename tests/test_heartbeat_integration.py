@@ -3,13 +3,14 @@ Integration tests for Heartbeat Registration Loop (SCRUM-8)
 Tests integration with all client components.
 """
 
-import tempfile
 import os
+import tempfile
 import time
-from unittest.mock import patch, Mock
-from client.heartbeat_manager import HeartbeatManager
+from unittest.mock import Mock, patch
+
 from client.config_manager import ConfigManager
 from client.connection_manager import ConnectionManager
+from client.heartbeat_manager import HeartbeatManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

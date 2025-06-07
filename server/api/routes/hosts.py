@@ -7,18 +7,19 @@ REST endpoints for host data retrieval.
 import logging
 import math
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from server.api.dependencies import get_database_manager, get_host_operations
 from server.api.models import (
-    HostResponse,
     HostListResponse,
+    HostResponse,
     PaginationParams,
     create_error_response,
 )
-from server.api.dependencies import get_host_operations, get_database_manager
-from server.database.operations import HostOperations
 from server.database.models import Host
+from server.database.operations import HostOperations
 
 logger = logging.getLogger(__name__)
 

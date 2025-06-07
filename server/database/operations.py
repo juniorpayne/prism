@@ -5,15 +5,15 @@ Host record management and database operations.
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import and_, desc, func, or_
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from sqlalchemy import and_, or_, func, desc
 
-from .models import Host
 from .connection import DatabaseManager
-
+from .models import Host
 
 logger = logging.getLogger(__name__)
 

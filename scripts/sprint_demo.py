@@ -14,19 +14,20 @@ This demo showcases:
 import asyncio
 import os
 import sys
-import time
 import tempfile
-import yaml
+import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+import yaml
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from server.config import ServerConfiguration
 from server.database.connection import DatabaseManager
 from server.database.operations import HostOperations
-from server.heartbeat_monitor import HeartbeatMonitor, HeartbeatConfig
-from server.config import ServerConfiguration
+from server.heartbeat_monitor import HeartbeatConfig, HeartbeatMonitor
 from server.logging_setup import setup_logging
 
 
@@ -298,7 +299,7 @@ class SprintDemo:
         # Demo 1: API Models and Structure
         self.print_step("1. API Data Models", "Pydantic models for type-safe responses")
 
-        from server.api.models import HostResponse, HostListResponse, HealthResponse
+        from server.api.models import HealthResponse, HostListResponse, HostResponse
 
         # Create sample host response
         sample_host = self.host_ops.get_host_by_hostname("web-server-01")
@@ -324,7 +325,7 @@ class SprintDemo:
         # Demo 2: API Endpoint Simulation
         self.print_step("2. API Endpoint Logic", "Host retrieval and pagination")
 
-        from server.api.routes.hosts import get_hosts_logic, get_host_by_hostname_logic
+        from server.api.routes.hosts import get_host_by_hostname_logic, get_hosts_logic
 
         # Simulate GET /api/hosts
         all_hosts = self.host_ops.get_all_hosts()

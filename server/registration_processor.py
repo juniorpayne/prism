@@ -5,17 +5,16 @@ Advanced host registration processing with IP change detection and logging.
 """
 
 import asyncio
+import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from dataclasses import dataclass, asdict
-import json
+from typing import Any, Dict, List, Optional
 
 from .database.connection import DatabaseManager
 from .database.operations import HostOperations
 from .message_validator import MessageValidator
-
 
 logger = logging.getLogger(__name__)
 

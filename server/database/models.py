@@ -4,14 +4,13 @@ Database Models for Prism DNS Server (SCRUM-13)
 SQLAlchemy models for host registration data.
 """
 
-import re
 import ipaddress
+import re
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Index, create_engine, event
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import validates
 from typing import Optional
 
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, create_engine, event
+from sqlalchemy.orm import declarative_base, validates
 
 # Create the declarative base
 Base = declarative_base()

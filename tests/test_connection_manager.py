@@ -3,12 +3,14 @@ Tests for Client Network Connection Management (SCRUM-5)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
 import socket
 import time
-from unittest.mock import Mock, patch, MagicMock, call
-from client.connection_manager import ConnectionManager, ConnectionError
+from unittest.mock import MagicMock, Mock, call, patch
+
+import pytest
+
 from client.config_manager import ConfigManager
+from client.connection_manager import ConnectionError, ConnectionManager
 
 
 class TestConnectionManager:

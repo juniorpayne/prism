@@ -8,7 +8,8 @@ import logging.handlers
 import os
 import sys
 import traceback
-from typing import Dict, Any, Optional, Union
+from typing import Any, Dict, Optional, Union
+
 from client.config_manager import ConfigManager
 
 

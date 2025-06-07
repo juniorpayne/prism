@@ -4,8 +4,8 @@ Tests for Response Builder (SCRUM-15)
 Test-driven development for registration response message creation.
 """
 
-import unittest
 import json
+import unittest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 

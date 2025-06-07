@@ -3,11 +3,13 @@ Tests for Heartbeat Registration Loop (SCRUM-8)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
-import time
 import threading
-from unittest.mock import Mock, patch, MagicMock, call
-from client.heartbeat_manager import HeartbeatManager, HeartbeatError
+import time
+from unittest.mock import MagicMock, Mock, call, patch
+
+import pytest
+
+from client.heartbeat_manager import HeartbeatError, HeartbeatManager
 
 
 class TestHeartbeatManager:

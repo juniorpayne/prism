@@ -3,11 +3,13 @@ Tests for JSON Message Protocol Implementation (SCRUM-7)
 Following TDD approach as specified in the user story.
 """
 
-import pytest
 import json
 import struct
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from client.message_protocol import MessageProtocol, MessageValidationError, TCPSender
 
 

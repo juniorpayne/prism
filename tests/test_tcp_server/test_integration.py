@@ -4,15 +4,15 @@ Integration Tests for TCP Server (SCRUM-14)
 Test-driven development for complete TCP server integration.
 """
 
-import unittest
 import asyncio
-import tempfile
-import os
 import json
+import os
 import struct
-from datetime import datetime, timezone
+import tempfile
 import threading
 import time
+import unittest
+from datetime import datetime, timezone
 
 
 class TestTCPServerIntegration(unittest.TestCase):
@@ -38,10 +38,10 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test complete client registration flow with database integration."""
 
         async def test_flow():
-            from server.tcp_server import TCPServer
-            from server.protocol import MessageProtocol
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -99,10 +99,10 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test multiple clients registering simultaneously."""
 
         async def test_multiple_clients():
-            from server.tcp_server import TCPServer
-            from server.protocol import MessageProtocol
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -169,10 +169,10 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test client reconnection updates IP address."""
 
         async def test_reconnection():
-            from server.tcp_server import TCPServer
-            from server.protocol import MessageProtocol
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -229,8 +229,8 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test server handles invalid messages gracefully."""
 
         async def test_invalid_messages():
-            from server.tcp_server import TCPServer
             from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
             config["server"]["tcp_port"] = 9004
@@ -284,9 +284,9 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test server performance with many concurrent connections."""
 
         async def test_performance():
-            from server.tcp_server import TCPServer
-            from server.protocol import MessageProtocol
             from server.database.connection import DatabaseManager
+            from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -349,8 +349,8 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test server graceful shutdown with active connections."""
 
         async def test_graceful_shutdown():
-            from server.tcp_server import TCPServer
             from server.database.connection import DatabaseManager
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -400,8 +400,8 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test server handles database errors gracefully."""
 
         async def test_db_error_handling():
-            from server.tcp_server import TCPServer
             from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Use invalid database path to simulate database errors
             bad_config = self.server_config.copy()
@@ -472,10 +472,10 @@ class TestTCPServerStressTest(unittest.TestCase):
         """Test server handles high volume of concurrent registrations."""
 
         async def test_high_volume():
-            from server.tcp_server import TCPServer
-            from server.protocol import MessageProtocol
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.protocol import MessageProtocol
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)
@@ -536,10 +536,12 @@ class TestTCPServerStressTest(unittest.TestCase):
         """Test server memory usage remains stable under load."""
 
         async def test_memory_usage():
-            import psutil
             import os
-            from server.tcp_server import TCPServer
+
+            import psutil
+
             from server.database.connection import DatabaseManager
+            from server.tcp_server import TCPServer
 
             # Initialize database
             db_manager = DatabaseManager(self.server_config)

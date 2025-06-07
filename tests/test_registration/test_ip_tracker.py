@@ -4,13 +4,13 @@ Tests for IP Change Tracker (SCRUM-15)
 Test-driven development for IP change detection and logging.
 """
 
-import unittest
 import asyncio
-import tempfile
 import os
+import tempfile
 import time
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestIPTracker(unittest.TestCase):
@@ -74,9 +74,9 @@ class TestIPTracker(unittest.TestCase):
         """Test detecting IP change when IP is the same."""
 
         async def test_same_ip():
-            from server.ip_tracker import IPTracker
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.ip_tracker import IPTracker
 
             tracker = IPTracker(self.tracker_config)
 
@@ -99,9 +99,9 @@ class TestIPTracker(unittest.TestCase):
         """Test detecting IP change when IP is different."""
 
         async def test_different_ip():
-            from server.ip_tracker import IPTracker
             from server.database.connection import DatabaseManager
             from server.database.operations import HostOperations
+            from server.ip_tracker import IPTracker
 
             tracker = IPTracker(self.tracker_config)
 

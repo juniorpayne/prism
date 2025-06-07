@@ -4,16 +4,16 @@ Heartbeat Monitor for Prism DNS Server (SCRUM-16)
 Monitors host heartbeats and manages host status transitions.
 """
 
-import logging
 import asyncio
+import logging
 import time
-from typing import Dict, Any, Optional, List, Set
-from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Set
 
 from server.database.connection import DatabaseManager
-from server.database.operations import HostOperations
 from server.database.models import Host
+from server.database.operations import HostOperations
 
 logger = logging.getLogger(__name__)
 

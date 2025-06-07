@@ -7,8 +7,9 @@ Quick demonstration of completed features from SCRUM-12 through SCRUM-18
 import os
 import sys
 import tempfile
-import yaml
 from datetime import datetime
+
+import yaml
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

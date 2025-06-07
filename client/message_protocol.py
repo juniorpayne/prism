@@ -6,7 +6,7 @@ Handles message creation, validation, serialization, and TCP framing.
 import json
 import struct
 from datetime import datetime, timezone
-from typing import Dict, Any, Union
+from typing import Any, Dict, Union
 
 
 class MessageValidationError(Exception):

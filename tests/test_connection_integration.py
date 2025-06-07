@@ -3,11 +3,12 @@ Integration test for Client Network Connection Management (SCRUM-5)
 Tests integration with ConfigManager and MessageProtocol components.
 """
 
-import tempfile
 import os
-from unittest.mock import patch, Mock
-from client.connection_manager import ConnectionManager, ConnectionError
+import tempfile
+from unittest.mock import Mock, patch
+
 from client.config_manager import ConfigManager
+from client.connection_manager import ConnectionError, ConnectionManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

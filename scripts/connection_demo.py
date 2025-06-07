@@ -4,16 +4,16 @@ Demo script for Client Network Connection Management (SCRUM-5)
 Demonstrates connection management, retry logic, and integration with other components.
 """
 
-import sys
 import os
+import sys
 import tempfile
 import time
 
 # Add parent directory to path to import client modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from client.connection_manager import ConnectionManager, ConnectionError
 from client.config_manager import ConfigManager
+from client.connection_manager import ConnectionError, ConnectionManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 

@@ -3,12 +3,13 @@ Heartbeat Registration Loop for Prism Host Client (SCRUM-8)
 Handles periodic heartbeat messages to the server with configurable intervals.
 """
 
-import threading
 import logging
+import threading
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from client.config_manager import ConfigManager
-from client.connection_manager import ConnectionManager, ConnectionError
+from client.connection_manager import ConnectionError, ConnectionManager
 from client.message_protocol import MessageProtocol, TCPSender
 from client.system_info import SystemInfo
 
