@@ -20,11 +20,14 @@ class PrismApp {
             this.initializeStatusBar();
             
             // Create component instances
+            console.log('Creating dashboard component...');
             window.dashboard = new Dashboard();
+            console.log('Creating hostManager component...');
             window.hostManager = new HostManager();
+            console.log('Components created successfully');
             
-            // Check API connectivity
-            await this.checkApiConnection();
+            // Check API connectivity (non-blocking)
+            this.checkApiConnection();
             
             // Load initial view
             this.showView(this.currentView);
@@ -145,10 +148,9 @@ class PrismApp {
         
         this.currentView = viewName;
         
-        // Load view data after a short delay to ensure DOM is ready
-        setTimeout(() => {
-            this.loadViewData(viewName);
-        }, 50);
+        // Load view data immediately - components are already initialized
+        console.log(`Loading data for view: ${viewName}`);
+        this.loadViewData(viewName);
         
         // Update page title
         document.title = `Prism DNS - ${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`;
@@ -158,22 +160,26 @@ class PrismApp {
         try {
             switch (viewName) {
                 case 'dashboard':
-                    if (dashboard) {
-                        await dashboard.loadDashboard();
-                        dashboard.startAutoRefresh();
+                    if (window.dashboard) {
+                        await window.dashboard.loadDashboard();
+                        window.dashboard.startAutoRefresh();
+                    } else {
+                        console.warn('Dashboard component not available');
                     }
-                    if (hostManager) {
-                        hostManager.stopAutoRefresh();
+                    if (window.hostManager) {
+                        window.hostManager.stopAutoRefresh();
                     }
                     break;
                     
                 case 'hosts':
-                    if (hostManager) {
-                        await hostManager.loadHosts();
-                        hostManager.startAutoRefresh();
+                    if (window.hostManager) {
+                        await window.hostManager.loadHosts();
+                        window.hostManager.startAutoRefresh();
+                    } else {
+                        console.warn('HostManager component not available');
                     }
-                    if (dashboard) {
-                        dashboard.stopAutoRefresh();
+                    if (window.dashboard) {
+                        window.dashboard.stopAutoRefresh();
                     }
                     break;
             }

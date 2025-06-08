@@ -80,20 +80,37 @@ class Dashboard {
 
     async loadDashboard() {
         try {
-            // Load stats and health data in parallel
-            const [stats, health] = await Promise.all([
+            // Load stats and health data in parallel with fallbacks
+            const [statsResult, healthResult] = await Promise.allSettled([
                 this.loadStats(),
                 this.loadHealth()
             ]);
             
-            this.updateStatsCards(stats);
-            this.updateChart(stats);
-            this.updateServerStatus(health);
-            await this.loadRecentActivity();
+            // Handle stats
+            if (statsResult.status === 'fulfilled') {
+                this.updateStatsCards(statsResult.value);
+                this.updateChart(statsResult.value);
+            } else {
+                console.error('Failed to load stats:', statsResult.reason);
+                this.updateStatsCards({ total_hosts: 0, online_hosts: 0, offline_hosts: 0 });
+            }
+            
+            // Handle health
+            if (healthResult.status === 'fulfilled') {
+                this.updateServerStatus(healthResult.value);
+            } else {
+                console.error('Failed to load health:', healthResult.reason);
+                this.updateServerStatus({ status: 'unknown', uptime_seconds: 0 });
+            }
+            
+            // Load recent activity (non-blocking)
+            this.loadRecentActivity().catch(error => {
+                console.error('Failed to load recent activity:', error);
+            });
             
         } catch (error) {
             console.error('Failed to load dashboard:', error);
-            this.showDashboardError(error.getUserMessage());
+            this.showDashboardError(error.getUserMessage ? error.getUserMessage() : error.message);
         }
     }
 
@@ -311,5 +328,4 @@ class Dashboard {
     }
 }
 
-// Global dashboard instance
-let dashboard = null;
+// Global dashboard instance available as window.dashboard

@@ -462,5 +462,4 @@ class HostManager {
     }
 }
 
-// Global host manager instance
-let hostManager = null;
+// Global host manager instance available as window.hostManager
