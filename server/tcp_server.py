@@ -119,7 +119,8 @@ class TCPServer:
     def _initialize_database(self) -> None:
         """Initialize database connection and schema."""
         try:
-            if self.config.database_config:
+            # Check if database configuration has required parameters
+            if self.config.database_config and "path" in self.config.database_config:
                 self.db_manager = DatabaseManager({"database": self.config.database_config})
 
                 # Initialize database schema with migrations
@@ -127,10 +128,11 @@ class TCPServer:
 
                 logger.info("Database initialized successfully")
             else:
-                logger.warning("No database configuration provided")
+                logger.warning("No database configuration provided or missing required 'path' parameter")
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
+            logger.error(f"Database config was: {self.config.database_config}")
             # Continue without database (graceful degradation)
             self.db_manager = None
 
