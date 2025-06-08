@@ -400,8 +400,17 @@ class TestTCPServerIntegration(unittest.TestCase):
         """Test server handles database errors gracefully."""
 
         async def test_db_error_handling():
+            import logging
             from server.protocol import MessageProtocol
             from server.tcp_server import TCPServer
+
+            # Temporarily suppress excessive error logging for this test
+            connection_logger = logging.getLogger("server.connection_handler")
+            tcp_logger = logging.getLogger("server.tcp_server")
+            original_level = connection_logger.level
+            tcp_original_level = tcp_logger.level
+            connection_logger.setLevel(logging.CRITICAL)
+            tcp_logger.setLevel(logging.CRITICAL)
 
             # Use invalid database path to simulate database errors
             bad_config = self.server_config.copy()
@@ -445,6 +454,9 @@ class TestTCPServerIntegration(unittest.TestCase):
 
             finally:
                 await server.stop()
+                # Restore original logging levels
+                connection_logger.setLevel(original_level)
+                tcp_logger.setLevel(tcp_original_level)
 
         asyncio.run(test_db_error_handling())
 

@@ -391,7 +391,11 @@ class TestConnectionHandler(unittest.TestCase):
         mock_writer = Mock()
         mock_writer.get_extra_info.return_value = ("127.0.0.1", 12345)
 
-        handler = ConnectionHandler(mock_reader, mock_writer)
+        # Mock database manager to prevent logging errors
+        mock_db_manager = Mock()
+        mock_db_manager.health_check.return_value = True
+
+        handler = ConnectionHandler(mock_reader, mock_writer, db_manager=mock_db_manager)
 
         self.assertIsNotNone(handler)
         self.assertEqual(handler.client_ip, "127.0.0.1")
@@ -410,6 +414,10 @@ class TestConnectionHandler(unittest.TestCase):
             mock_writer.write = Mock()
             mock_writer.drain = AsyncMock()
 
+            # Mock database manager and host operations
+            mock_db_manager = Mock()
+            mock_db_manager.health_check.return_value = True
+
             # Prepare test message
             protocol = MessageProtocol()
             message = {
@@ -420,10 +428,24 @@ class TestConnectionHandler(unittest.TestCase):
             }
             encoded_message = protocol.encode_message(message)
 
-            # Mock reader to return our test message
-            mock_reader.read.return_value = encoded_message
+            # Mock reader to return our test message, then simulate disconnect
+            mock_reader.read.side_effect = [encoded_message, b""]  # First message, then disconnect
 
-            handler = ConnectionHandler(mock_reader, mock_writer)
+            handler = ConnectionHandler(mock_reader, mock_writer, db_manager=mock_db_manager)
+
+            # Mock host operations with all required methods
+            mock_host_ops = Mock()
+            mock_host_ops.get_host_by_hostname.return_value = None  # New host
+            
+            # Mock successful host creation
+            mock_new_host = Mock()
+            mock_new_host.hostname = "test-host"
+            mock_new_host.current_ip = "127.0.0.1"
+            mock_host_ops.create_host.return_value = mock_new_host
+            mock_host_ops.update_host_ip.return_value = True
+            mock_host_ops.update_host_last_seen.return_value = True
+            
+            handler.host_ops = mock_host_ops
 
             # Process message
             await handler.handle_connection()
@@ -447,11 +469,16 @@ class TestConnectionHandler(unittest.TestCase):
             mock_writer.drain = AsyncMock()
             mock_writer.close = Mock()
             mock_writer.wait_closed = AsyncMock()
+            mock_writer.is_closing.return_value = False  # Not closing initially
 
             # Mock reader to simulate client disconnect (empty read)
             mock_reader.read.return_value = b""
 
-            handler = ConnectionHandler(mock_reader, mock_writer)
+            # Mock database manager to prevent logging errors
+            mock_db_manager = Mock()
+            mock_db_manager.health_check.return_value = True
+
+            handler = ConnectionHandler(mock_reader, mock_writer, db_manager=mock_db_manager)
 
             # Handle connection (should detect disconnect)
             await handler.handle_connection()
@@ -471,13 +498,20 @@ class TestConnectionHandler(unittest.TestCase):
             mock_reader = AsyncMock()
             mock_writer = Mock()
             mock_writer.get_extra_info.return_value = ("127.0.0.1", 12345)
+            mock_writer.write = Mock()
+            mock_writer.drain = AsyncMock()
             mock_writer.close = Mock()
             mock_writer.wait_closed = AsyncMock()
+            mock_writer.is_closing.return_value = False  # Not closing initially
 
             # Mock reader to simulate timeout
             mock_reader.read.side_effect = asyncio.TimeoutError()
 
-            handler = ConnectionHandler(mock_reader, mock_writer, timeout=1.0)
+            # Mock database manager to prevent logging errors
+            mock_db_manager = Mock()
+            mock_db_manager.health_check.return_value = True
+
+            handler = ConnectionHandler(mock_reader, mock_writer, db_manager=mock_db_manager, timeout=1.0)
 
             # Handle connection (should handle timeout gracefully)
             await handler.handle_connection()
