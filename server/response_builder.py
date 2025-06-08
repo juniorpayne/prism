@@ -137,6 +137,10 @@ class ResponseBuilder:
                     "server_info",
                     "statistics",
                     "processing_time_ms",
+                    "request_id",
+                    "server_node",
+                    "correlation_id",
+                    "trace_id",
                 ],
             ),
             "error": ResponseTemplate(
