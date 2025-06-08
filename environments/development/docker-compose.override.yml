@@ -1,0 +1,71 @@
+# Development Docker Compose Override
+# Optimized for development workflow with hot reloading and debugging
+
+services:
+  prism-server:
+    build:
+      context: ../..
+      target: development
+    container_name: prism-dev-server
+    ports:
+      - "8080:8080"  # TCP server
+      - "8081:8081"  # REST API  
+      - "8082:8082"  # Metrics (if enabled)
+    volumes:
+      # Development volume mounts for hot reloading
+      - ../..:/app
+      - dev_data:/app/data
+      - dev_logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    restart: "no"
+    networks:
+      - prism-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # SQLite database (file-based for development)
+  database:
+    image: alpine:3.18
+    container_name: prism-dev-database
+    volumes:
+      - dev_data:/data
+    command: >
+      sh -c "mkdir -p /data && tail -f /dev/null"
+    networks:
+      - prism-dev
+
+  # Development web server (nginx with development config)
+  nginx:
+    image: nginx:alpine
+    container_name: prism-dev-nginx
+    ports:
+      - "8090:80"
+    volumes:
+      - ../../web:/usr/share/nginx/html:ro
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - prism-server
+    networks:
+      - prism-dev
+    restart: "no"
+
+volumes:
+  dev_data:
+    driver: local
+  dev_logs:
+    driver: local
+
+networks:
+  prism-dev:
+    driver: bridge
+    name: prism-dev-network

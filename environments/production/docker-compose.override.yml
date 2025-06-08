@@ -1,0 +1,241 @@
+# Production Docker Compose Override
+# Hardened, scalable configuration for production deployment
+
+services:
+  prism-server:
+    build:
+      context: ../..
+      target: production
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/prism-server:${IMAGE_TAG:-latest}
+    container_name: prism-production-server
+    ports:
+      - "8080:8080"  # TCP server (external for client connections)
+      # API internal only - nginx proxies
+    volumes:
+      - production_data:/app/data
+      - production_logs:/app/logs
+      - production_backups:/app/backups
+      - ../../config:/app/config:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - ENVIRONMENT=production
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - prism-production-backend
+      - prism-production-frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PostgreSQL database for production
+  database:
+    image: postgres:15-alpine
+    container_name: prism-production-database
+    environment:
+      - POSTGRES_DB=prism_production
+      - POSTGRES_USER=prism
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--auth-host=md5
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+    volumes:
+      - production_db_data:/var/lib/postgresql/data
+      - production_db_logs:/var/log/postgresql
+      - production_db_backups:/backups
+    restart: always
+    networks:
+      - prism-production-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prism"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx web server and reverse proxy (production-hardened)
+  nginx:
+    build:
+      context: ../../web
+      target: production
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/prism-web:${IMAGE_TAG:-latest}
+    container_name: prism-production-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - production_ssl_certs:/etc/nginx/ssl:ro
+      - production_nginx_logs:/var/log/nginx
+      - ./nginx.production.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - prism-server
+    restart: always
+    networks:
+      - prism-production-frontend
+      - prism-production-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis cache for production performance
+  redis:
+    image: redis:7-alpine
+    container_name: prism-production-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - production_redis_data:/data
+    restart: always
+    networks:
+      - prism-production-backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  production_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/data/server
+  production_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/logs/server
+  production_backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/backups/server
+  production_db_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/data/database
+  production_db_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/logs/database
+  production_db_backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/backups/database
+  production_ssl_certs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/config/ssl
+  production_nginx_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/logs/nginx
+  production_redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/prism-dns/data/redis
+
+networks:
+  prism-production-frontend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: prism-prod-frontend
+  prism-production-backend:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: prism-prod-backend
