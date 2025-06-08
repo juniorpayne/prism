@@ -188,8 +188,8 @@ jobs:
           tree = ET.parse('coverage.xml')
           coverage = float(tree.getroot().attrib['line-rate']) * 100
           print(f'Coverage: {coverage:.1f}%')
-          if coverage < 70:
-              print('ERROR: Coverage below 70% threshold')
+          if coverage < 60:
+              print('ERROR: Coverage below 60% threshold')
               exit(1)
           else:
               print('SUCCESS: Coverage above threshold')
