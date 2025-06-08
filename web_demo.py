@@ -139,7 +139,7 @@ class WebInterfaceDemo:
         try:
             response = requests.get("http://localhost:8081/api/health", timeout=2)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
 
     def demo_project_structure(self):

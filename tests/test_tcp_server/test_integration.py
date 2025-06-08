@@ -389,7 +389,7 @@ class TestTCPServerIntegration(unittest.TestCase):
                 try:
                     writer.close()
                     await writer.wait_closed()
-                except:
+                except Exception:
                     pass  # May already be closed
 
             db_manager.cleanup()

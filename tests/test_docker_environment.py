@@ -240,7 +240,7 @@ class TestDockerFunctionality(unittest.TestCase):
         try:
             # Start services in detached mode
             result = subprocess.run(
-                ["docker-compose", "up", "-d"],
+                ["docker", "compose", "up", "-d"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
@@ -248,7 +248,7 @@ class TestDockerFunctionality(unittest.TestCase):
             )
 
             self.assertEqual(
-                result.returncode, 0, f"docker-compose up should succeed. Error: {result.stderr}"
+                result.returncode, 0, f"docker compose up should succeed. Error: {result.stderr}"
             )
 
             # Give services time to start
@@ -256,7 +256,7 @@ class TestDockerFunctionality(unittest.TestCase):
 
             # Check service status
             status_result = subprocess.run(
-                ["docker-compose", "ps"],
+                ["docker", "compose", "ps"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
@@ -268,7 +268,7 @@ class TestDockerFunctionality(unittest.TestCase):
         finally:
             # Cleanup - stop services
             subprocess.run(
-                ["docker-compose", "down"], cwd=self.project_root, capture_output=True, timeout=60
+                ["docker", "compose", "down"], cwd=self.project_root, capture_output=True, timeout=60
             )
 
     def test_development_script_works(self):

@@ -247,7 +247,7 @@ def start_mock_api_server():
         if response.status_code == 200:
             print("  ✅ Mock API server started successfully")
             return True
-    except:
+    except Exception:
         pass
 
     print("  ❌ Failed to start mock API server")

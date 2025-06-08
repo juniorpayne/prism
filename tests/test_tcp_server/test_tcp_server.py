@@ -316,7 +316,7 @@ class TestTCPServer(unittest.TestCase):
                     try:
                         writer.close()
                         await writer.wait_closed()
-                    except:
+                    except Exception:
                         pass  # Expected if already closed
             except Exception:
                 # If anything fails, still try to stop server
