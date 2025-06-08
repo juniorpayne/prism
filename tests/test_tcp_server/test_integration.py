@@ -401,6 +401,7 @@ class TestTCPServerIntegration(unittest.TestCase):
 
         async def test_db_error_handling():
             import logging
+
             from server.protocol import MessageProtocol
             from server.tcp_server import TCPServer
 
