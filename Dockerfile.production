@@ -44,6 +44,12 @@ COPY --from=builder /root/.local /home/prism/.local
 COPY --chown=prism:prism server/ ./server/
 COPY --chown=prism:prism config/ ./config/
 
+# Create data directory for logs and database
+RUN mkdir -p /app/data && chown prism:prism /app/data
+
+# Copy config file to expected location for easier access
+RUN cp /app/config/server.yaml /app/server.yaml && chown prism:prism /app/server.yaml
+
 # Switch to non-root user
 USER prism
 
@@ -53,6 +59,10 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PRISM_ENV=production
 
+# Set container-friendly defaults
+ENV PRISM_DATABASE_PATH=/app/data/hosts.db
+ENV PRISM_LOGGING_LEVEL=INFO
+
 # Expose ports
 EXPOSE 8080 8081
 
@@ -60,8 +70,8 @@ EXPOSE 8080 8081
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8081/api/health || exit 1
 
-# Production command - run main server
-CMD ["python", "-m", "server.main", "--config", "/app/config/server.yaml"]
+# Production command - run main server with environment-based config
+CMD ["python", "-m", "server.main"]
 
 # Development stage - for local development
 FROM python:3.11-slim AS development
