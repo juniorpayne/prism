@@ -128,7 +128,9 @@ class TCPServer:
 
                 logger.info("Database initialized successfully")
             else:
-                logger.warning("No database configuration provided or missing required 'path' parameter")
+                logger.warning(
+                    "No database configuration provided or missing required 'path' parameter"
+                )
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
