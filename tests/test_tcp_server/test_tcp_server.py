@@ -24,7 +24,7 @@ class TestTCPServer(unittest.TestCase):
         self.db_path = self.temp_db.name
 
         self.server_config = {
-            "server": {"tcp_port": 8080, "host": "localhost", "max_connections": 100},
+            "server": {"tcp_port": 8080, "host": "127.0.0.1", "max_connections": 100},
             "database": {"path": self.db_path, "connection_pool_size": 20},
         }
 
@@ -49,7 +49,7 @@ class TestTCPServer(unittest.TestCase):
         server = TCPServer(self.server_config)
 
         self.assertIsNotNone(server)
-        self.assertEqual(server.host, "localhost")
+        self.assertEqual(server.host, "127.0.0.1")
         self.assertEqual(server.port, 8080)
         self.assertEqual(server.max_connections, 100)
 
@@ -101,7 +101,7 @@ class TestTCPServer(unittest.TestCase):
                 actual_port = actual_address[1]
 
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", actual_port)
+                reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
 
                 # Verify connection
                 self.assertIsNotNone(reader)
@@ -136,7 +136,7 @@ class TestTCPServer(unittest.TestCase):
                 # Create multiple concurrent connections
                 connections = []
                 for i in range(5):
-                    reader, writer = await asyncio.open_connection("localhost", actual_port)
+                    reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
                     connections.append((reader, writer))
 
                 # Verify all connections established
@@ -173,7 +173,7 @@ class TestTCPServer(unittest.TestCase):
                 # Create connections up to the limit
                 connections = []
                 for i in range(3):
-                    reader, writer = await asyncio.open_connection("localhost", actual_port)
+                    reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
                     connections.append((reader, writer))
 
                 # Verify limit is respected
@@ -209,7 +209,7 @@ class TestTCPServer(unittest.TestCase):
                 actual_port = server.get_server_address()[1]
 
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", actual_port)
+                reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
 
                 # Send registration message
                 protocol = MessageProtocol()
@@ -260,7 +260,7 @@ class TestTCPServer(unittest.TestCase):
                 actual_port = server.get_server_address()[1]
 
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", actual_port)
+                reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
 
                 # Allow server time to process connection
                 await asyncio.sleep(0.1)
@@ -269,7 +269,7 @@ class TestTCPServer(unittest.TestCase):
                 connections = server.get_connection_info()
                 self.assertGreater(len(connections), 0)
 
-                # Verify IP was extracted (should be 127.0.0.1 for localhost)
+                # Verify IP was extracted (should be 127.0.0.1 for 127.0.0.1)
                 connection_ips = [conn["client_ip"] for conn in connections]
                 self.assertIn("127.0.0.1", connection_ips)
 
@@ -302,7 +302,7 @@ class TestTCPServer(unittest.TestCase):
                 # Create active connections
                 connections = []
                 for i in range(3):
-                    reader, writer = await asyncio.open_connection("localhost", actual_port)
+                    reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
                     connections.append((reader, writer))
 
                 # Graceful shutdown should close all connections
@@ -344,7 +344,7 @@ class TestTCPServer(unittest.TestCase):
                 actual_port = server.get_server_address()[1]
 
                 # Connect and send malformed data
-                reader, writer = await asyncio.open_connection("localhost", actual_port)
+                reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
 
                 # Send malformed message (invalid length prefix)
                 invalid_data = b"invalid_data_without_length_prefix"
@@ -386,7 +386,7 @@ class TestTCPServer(unittest.TestCase):
                 # Make some connections
                 connections = []
                 for i in range(3):
-                    reader, writer = await asyncio.open_connection("localhost", actual_port)
+                    reader, writer = await asyncio.open_connection("127.0.0.1", actual_port)
                     connections.append((reader, writer))
 
                 await asyncio.sleep(0.1)  # Let stats update
@@ -696,9 +696,11 @@ class TestServerStats(unittest.TestCase):
         json_stats = stats.to_json()
         parsed_stats = json.loads(json_stats)
 
-        self.assertIn("total_connections", parsed_stats)
-        self.assertIn("active_connections", parsed_stats)
-        self.assertIn("messages_received", parsed_stats)
+        self.assertIn("connections", parsed_stats)
+        self.assertIn("total_connections", parsed_stats["connections"])
+        self.assertIn("active_connections", parsed_stats["connections"])
+        self.assertIn("messages", parsed_stats)
+        self.assertIn("messages_received", parsed_stats["messages"])
 
 
 if __name__ == "__main__":
