@@ -59,15 +59,25 @@ class TestTCPServer(unittest.TestCase):
         async def test_lifecycle():
             from server.tcp_server import TCPServer
 
-            server = TCPServer(self.server_config)
+            # Use port 0 for dynamic allocation
+            config = self.server_config.copy()
+            config["server"]["tcp_port"] = 0
+            
+            server = TCPServer(config)
 
-            # Start server
-            await server.start()
-            self.assertTrue(server.is_running())
-
-            # Stop server
-            await server.stop()
-            self.assertFalse(server.is_running())
+            try:
+                # Start server
+                await server.start()
+                self.assertTrue(server.is_running())
+                
+                # Get actual port that was assigned
+                actual_address = server.get_server_address()
+                self.assertIsNotNone(actual_address)
+                self.assertGreater(actual_address[1], 0)  # Port should be > 0
+            finally:
+                # Always stop server
+                await server.stop()
+                self.assertFalse(server.is_running())
 
         asyncio.run(test_lifecycle())
 
@@ -77,16 +87,21 @@ class TestTCPServer(unittest.TestCase):
         async def test_connection():
             from server.tcp_server import TCPServer
 
-            # Use a different port to avoid conflicts
+            # Use port 0 for dynamic allocation
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8081
+            config["server"]["tcp_port"] = 0
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port that was assigned
+                actual_address = server.get_server_address()
+                actual_port = actual_address[1]
+
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", 8081)
+                reader, writer = await asyncio.open_connection("localhost", actual_port)
 
                 # Verify connection
                 self.assertIsNotNone(reader)
@@ -108,16 +123,20 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8082
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+
                 # Create multiple concurrent connections
                 connections = []
                 for i in range(5):
-                    reader, writer = await asyncio.open_connection("localhost", 8082)
+                    reader, writer = await asyncio.open_connection("localhost", actual_port)
                     connections.append((reader, writer))
 
                 # Verify all connections established
@@ -140,17 +159,21 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8083
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
             config["server"]["max_connections"] = 3  # Low limit for testing
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+
                 # Create connections up to the limit
                 connections = []
                 for i in range(3):
-                    reader, writer = await asyncio.open_connection("localhost", 8083)
+                    reader, writer = await asyncio.open_connection("localhost", actual_port)
                     connections.append((reader, writer))
 
                 # Verify limit is respected
@@ -175,14 +198,18 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8084
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", 8084)
+                reader, writer = await asyncio.open_connection("localhost", actual_port)
 
                 # Send registration message
                 protocol = MessageProtocol()
@@ -222,14 +249,18 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8085
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+
                 # Connect as client
-                reader, writer = await asyncio.open_connection("localhost", 8085)
+                reader, writer = await asyncio.open_connection("localhost", actual_port)
 
                 # Allow server time to process connection
                 await asyncio.sleep(0.1)
@@ -258,30 +289,40 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8086
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
+            
+            try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
 
-            # Create active connections
-            connections = []
-            for i in range(3):
-                reader, writer = await asyncio.open_connection("localhost", 8086)
-                connections.append((reader, writer))
+                # Create active connections
+                connections = []
+                for i in range(3):
+                    reader, writer = await asyncio.open_connection("localhost", actual_port)
+                    connections.append((reader, writer))
 
-            # Graceful shutdown should close all connections
-            await server.stop(graceful=True)
+                # Graceful shutdown should close all connections
+                await server.stop(graceful=True)
 
-            # Verify server is stopped
-            self.assertFalse(server.is_running())
+                # Verify server is stopped
+                self.assertFalse(server.is_running())
 
-            # Connections should be closed
-            for reader, writer in connections:
-                try:
-                    writer.close()
-                    await writer.wait_closed()
-                except:
-                    pass  # Expected if already closed
+                # Connections should be closed
+                for reader, writer in connections:
+                    try:
+                        writer.close()
+                        await writer.wait_closed()
+                    except:
+                        pass  # Expected if already closed
+            except Exception:
+                # If anything fails, still try to stop server
+                if server.is_running():
+                    await server.stop()
+                raise
 
         asyncio.run(test_graceful_shutdown())
 
@@ -292,14 +333,18 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8087
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+
                 # Connect and send malformed data
-                reader, writer = await asyncio.open_connection("localhost", 8087)
+                reader, writer = await asyncio.open_connection("localhost", actual_port)
 
                 # Send malformed message (invalid length prefix)
                 invalid_data = b"invalid_data_without_length_prefix"
@@ -326,18 +371,22 @@ class TestTCPServer(unittest.TestCase):
             from server.tcp_server import TCPServer
 
             config = self.server_config.copy()
-            config["server"]["tcp_port"] = 8088
+            config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            await server.start()
-
+            
             try:
+                await server.start()
+                
+                # Get actual port
+                actual_port = server.get_server_address()[1]
+                
                 initial_stats = server.get_stats()
 
                 # Make some connections
                 connections = []
                 for i in range(3):
-                    reader, writer = await asyncio.open_connection("localhost", 8088)
+                    reader, writer = await asyncio.open_connection("localhost", actual_port)
                     connections.append((reader, writer))
 
                 await asyncio.sleep(0.1)  # Let stats update
@@ -346,7 +395,8 @@ class TestTCPServer(unittest.TestCase):
 
                 # Verify stats are being tracked
                 self.assertGreaterEqual(
-                    current_stats["total_connections"], initial_stats["total_connections"] + 3
+                    current_stats["server"]["total_connections"], 
+                    initial_stats["server"]["total_connections"] + 3
                 )
 
                 # Clean up

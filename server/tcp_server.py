@@ -46,8 +46,8 @@ class TCPServerConfig:
         # Database configuration
         self.database_config = config.get("database", {})
 
-        # Validation
-        if self.tcp_port <= 0 or self.tcp_port > 65535:
+        # Validation (port 0 is allowed for dynamic allocation)
+        if self.tcp_port < 0 or self.tcp_port > 65535:
             raise ValueError(f"Invalid TCP port: {self.tcp_port}")
 
         if self.max_connections <= 0:
