@@ -215,6 +215,7 @@ jobs:
           file: ./Dockerfile.production
           target: production
           push: false
+          load: true
           tags: prism-server:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -226,16 +227,22 @@ jobs:
           file: ./web/Dockerfile
           target: production
           push: false
+          load: true
           tags: prism-web:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Run container security scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'prism-server:test'
-          format: 'json'
-          output: 'trivy-server-report.json'
+        run: |
+          echo "🔍 Running security scan on server image..."
+          # Install Trivy
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+          
+          # Scan the image
+          trivy image --severity HIGH,CRITICAL prism-server:test || true
         continue-on-error: true
 
       - name: Test container health

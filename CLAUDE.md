@@ -62,3 +62,15 @@ Since this is a new project, you may need to:
 ## User Story Management
 
 - Make sure you always are updating user stories before, during and after doing issues.
+
+## Linting Checks
+
+- Always run the standard linting check command before finishing a coding task:
+  ```
+  source venv/bin/activate && \
+  echo "🔍 Pre-completion linting checks..." && \
+  python -m black --check --diff . && \
+  python -m isort --check-only --diff . && \
+  python -m flake8 --select=E722 . && \
+  echo "✅ All linting passed!"
+  ```
