@@ -62,14 +62,14 @@ class TestTCPServer(unittest.TestCase):
             # Use port 0 for dynamic allocation
             config = self.server_config.copy()
             config["server"]["tcp_port"] = 0
-            
+
             server = TCPServer(config)
 
             try:
                 # Start server
                 await server.start()
                 self.assertTrue(server.is_running())
-                
+
                 # Get actual port that was assigned
                 actual_address = server.get_server_address()
                 self.assertIsNotNone(actual_address)
@@ -92,10 +92,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port that was assigned
                 actual_address = server.get_server_address()
                 actual_port = actual_address[1]
@@ -126,10 +126,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -163,10 +163,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["max_connections"] = 3  # Low limit for testing
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -201,10 +201,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -252,10 +252,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -292,10 +292,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -336,10 +336,10 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
 
@@ -374,13 +374,13 @@ class TestTCPServer(unittest.TestCase):
             config["server"]["tcp_port"] = 0  # Dynamic port allocation
 
             server = TCPServer(config)
-            
+
             try:
                 await server.start()
-                
+
                 # Get actual port
                 actual_port = server.get_server_address()[1]
-                
+
                 initial_stats = server.get_stats()
 
                 # Make some connections
@@ -395,8 +395,8 @@ class TestTCPServer(unittest.TestCase):
 
                 # Verify stats are being tracked
                 self.assertGreaterEqual(
-                    current_stats["server"]["total_connections"], 
-                    initial_stats["server"]["total_connections"] + 3
+                    current_stats["server"]["total_connections"],
+                    initial_stats["server"]["total_connections"] + 3,
                 )
 
                 # Clean up
@@ -486,7 +486,7 @@ class TestConnectionHandler(unittest.TestCase):
             # Mock host operations with all required methods
             mock_host_ops = Mock()
             mock_host_ops.get_host_by_hostname.return_value = None  # New host
-            
+
             # Mock successful host creation
             mock_new_host = Mock()
             mock_new_host.hostname = "test-host"
@@ -494,7 +494,7 @@ class TestConnectionHandler(unittest.TestCase):
             mock_host_ops.create_host.return_value = mock_new_host
             mock_host_ops.update_host_ip.return_value = True
             mock_host_ops.update_host_last_seen.return_value = True
-            
+
             handler.host_ops = mock_host_ops
 
             # Process message
@@ -561,7 +561,9 @@ class TestConnectionHandler(unittest.TestCase):
             mock_db_manager = Mock()
             mock_db_manager.health_check.return_value = True
 
-            handler = ConnectionHandler(mock_reader, mock_writer, db_manager=mock_db_manager, timeout=1.0)
+            handler = ConnectionHandler(
+                mock_reader, mock_writer, db_manager=mock_db_manager, timeout=1.0
+            )
 
             # Handle connection (should handle timeout gracefully)
             await handler.handle_connection()
