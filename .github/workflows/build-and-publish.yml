@@ -46,7 +46,7 @@ jobs:
             client:
               - 'client/**'
               - 'prism_client.py'
-              - 'requirements.txt'
+              - 'client/requirements.txt'
               - '.github/workflows/build-and-publish.yml'
 
   # Build and publish server image
@@ -212,7 +212,7 @@ jobs:
           cat > Dockerfile.client << 'EOF'
           FROM python:3.11-alpine
           WORKDIR /app
-          COPY requirements.txt .
+          COPY client/requirements.txt .
           RUN pip install --no-cache-dir -r requirements.txt
           COPY client/ ./client/
           COPY prism_client.py .

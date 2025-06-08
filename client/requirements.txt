@@ -1,0 +1,8 @@
+# Client Dependencies for Prism DNS Client
+# Minimal dependencies for the DNS client
+
+# Configuration
+PyYAML>=6.0
+
+# Basic logging and utilities
+# No heavy dependencies needed for the client

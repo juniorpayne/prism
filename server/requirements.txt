@@ -21,3 +21,6 @@ httpx>=0.24.0  # For FastAPI testing
 black>=23.0.0
 flake8>=6.0.0
 mypy>=1.0.0
+
+# Memory monitoring for tests
+psutil>=5.9.0
