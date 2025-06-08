@@ -268,7 +268,10 @@ class TestDockerFunctionality(unittest.TestCase):
         finally:
             # Cleanup - stop services
             subprocess.run(
-                ["docker", "compose", "down"], cwd=self.project_root, capture_output=True, timeout=60
+                ["docker", "compose", "down"],
+                cwd=self.project_root,
+                capture_output=True,
+                timeout=60,
             )
 
     def test_development_script_works(self):

@@ -19,7 +19,10 @@ from client.system_info import SystemInfo
 def test_logging_integration_with_heartbeat_manager():
     """Test logging integration with HeartbeatManager."""
     import pytest
-    pytest.skip("Logging integration test unstable in CI environment - core functionality verified via captured logs")
+
+    pytest.skip(
+        "Logging integration test unstable in CI environment - core functionality verified via captured logs"
+    )
     with tempfile.TemporaryDirectory() as temp_dir:
         log_file = os.path.join(temp_dir, "heartbeat_logging.log")
 
@@ -52,16 +55,20 @@ def test_logging_integration_with_heartbeat_manager():
         import time
 
         time.sleep(0.1)  # Allow async operations to complete
-        
+
         # Flush all loggers that might have written to the file
-        for logger_name in ["prism.client", "client.heartbeat_manager", "client.connection_manager"]:
+        for logger_name in [
+            "prism.client",
+            "client.heartbeat_manager",
+            "client.connection_manager",
+        ]:
             logger = logging.getLogger(logger_name)
             for handler in logger.handlers[:]:
                 if hasattr(handler, "flush"):
                     handler.flush()
                 if hasattr(handler, "close"):
                     handler.close()
-                
+
         # Also flush root logger handlers
         for handler in logging.getLogger().handlers[:]:
             if hasattr(handler, "flush"):
@@ -81,17 +88,23 @@ def test_logging_integration_with_heartbeat_manager():
             # If file is empty, this is likely a buffering issue in test environment
             # The fact that we see the error in captured logs proves logging is working
             import logging
-            # Check if any handlers were configured 
+
+            # Check if any handlers were configured
             heartbeat_logger = logging.getLogger("client.heartbeat_manager")
             logging_occurred = len(heartbeat_logger.handlers) > 0
-            
-        assert logging_occurred, f"No evidence of logging configuration. Log file: {log_file}, Content: '{content}'"
+
+        assert (
+            logging_occurred
+        ), f"No evidence of logging configuration. Log file: {log_file}, Content: '{content}'"
 
 
 def test_logging_integration_with_connection_manager():
     """Test logging integration with ConnectionManager."""
     import pytest
-    pytest.skip("Logging integration test unstable in CI environment - core functionality verified via captured logs")
+
+    pytest.skip(
+        "Logging integration test unstable in CI environment - core functionality verified via captured logs"
+    )
     with tempfile.TemporaryDirectory() as temp_dir:
         log_file = os.path.join(temp_dir, "connection_logging.log")
 
@@ -118,17 +131,21 @@ def test_logging_integration_with_connection_manager():
         import time
 
         time.sleep(0.1)  # Allow async operations to complete
-        
+
         # Flush all loggers that might have written to the file
-        for logger_name in ["prism.client", "client.heartbeat_manager", "client.connection_manager"]:
+        for logger_name in [
+            "prism.client",
+            "client.heartbeat_manager",
+            "client.connection_manager",
+        ]:
             logger = logging.getLogger(logger_name)
             for handler in logger.handlers[:]:
                 if hasattr(handler, "flush"):
                     handler.flush()
                 if hasattr(handler, "close"):
                     handler.close()
-                
-        # Also flush root logger handlers  
+
+        # Also flush root logger handlers
         for handler in logging.getLogger().handlers[:]:
             if hasattr(handler, "flush"):
                 handler.flush()
@@ -144,11 +161,14 @@ def test_logging_integration_with_connection_manager():
         if not logging_occurred:
             # If file is empty, this is likely a buffering issue in test environment
             import logging
-            # Check if any handlers were configured 
+
+            # Check if any handlers were configured
             connection_logger = logging.getLogger("client.connection_manager")
             logging_occurred = len(connection_logger.handlers) > 0
-            
-        assert logging_occurred, f"No evidence of logging configuration. Log file: {log_file}, Content: '{content}'"
+
+        assert (
+            logging_occurred
+        ), f"No evidence of logging configuration. Log file: {log_file}, Content: '{content}'"
 
 
 def test_error_handling_integration_with_all_components():
