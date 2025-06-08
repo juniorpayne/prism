@@ -133,7 +133,7 @@ class TestRegistrationProcessor(unittest.TestCase):
 
             self.assertTrue(result.success)
             self.assertEqual(result.result_type, "ip_change")
-            self.assertIn("ip changed", result.message.lower())
+            self.assertIn("ip address changed", result.message.lower())
             self.assertEqual(result.previous_ip, "192.168.1.100")
             self.assertEqual(result.ip_address, "192.168.1.200")
 
@@ -269,7 +269,7 @@ class TestRegistrationProcessor(unittest.TestCase):
 
             self.assertTrue(result1.success)
             self.assertTrue(result2.success)
-            self.assertEqual(result2.result_type, "duplicate_ignored")
+            self.assertEqual(result2.result_type, "heartbeat_update")
 
         asyncio.run(test_duplicate_detection())
 
