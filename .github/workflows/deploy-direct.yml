@@ -175,11 +175,21 @@ jobs:
           docker load < prism-web.tar.gz
           
           echo "📁 Setting up deployment directory..."
-          cd ~/managedDns || cd ~
+          DEPLOY_DIR=~/prism-deployment
+          mkdir -p ${DEPLOY_DIR}/data ${DEPLOY_DIR}/config
+          cd ${DEPLOY_DIR}
+          
+          echo "🧹 Cleaning up existing containers..."
+          # Force remove any existing containers with these names
+          docker rm -f prism-server prism-nginx prism-database 2>/dev/null || true
+          
+          # Also try to stop and remove using docker-compose if it exists
+          if [ -f docker-compose.production.yml ]; then
+            docker compose -f docker-compose.production.yml down --remove-orphans || true
+          fi
           
           # Create docker-compose.yml for production
           cat > docker-compose.production.yml <<'COMPOSE'
-          version: '3.8'
           
           services:
             server:
@@ -217,9 +227,6 @@ jobs:
                 - API_URL=http://server:8080
           COMPOSE
           
-          echo "🛑 Stopping existing containers..."
-          docker compose -f docker-compose.production.yml down || true
-          
           echo "🚀 Starting new containers..."
           docker compose -f docker-compose.production.yml up -d
           
@@ -229,11 +236,22 @@ jobs:
           echo "🔍 Checking container status..."
           docker compose -f docker-compose.production.yml ps
           
+          # Verify services are running
+          echo "🏥 Health check..."
+          if docker ps | grep -q prism-server && docker ps | grep -q prism-nginx; then
+            echo "✅ All containers are running"
+          else
+            echo "❌ Some containers failed to start"
+            docker compose -f docker-compose.production.yml logs
+            exit 1
+          fi
+          
           echo "🧹 Cleaning up deployment files..."
           rm -rf ~/deployment-tmp
           docker image prune -f
           
           echo "✅ Deployment complete!"
+          echo "📍 Services deployed to: ${DEPLOY_DIR}"
           EOF
           
           # Transfer and execute deployment script
