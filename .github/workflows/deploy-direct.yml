@@ -54,7 +54,18 @@ jobs:
           docker save ${{ env.WEB_IMAGE }} | gzip > prism-web.tar.gz
           ls -lah *.tar.gz
 
+      - name: Debug Environment
+        run: |
+          echo "🔍 Debugging workflow environment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Workflow: ${{ github.workflow }}"
+          
       - name: Setup SSH Authentication
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           echo "🔐 Setting up SSH authentication..."
           
@@ -62,19 +73,23 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           
-          # Debug: Check if secret is empty
-          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "❌ EC2_SSH_KEY secret is empty!"
+          # Debug: Check if secret exists by checking its length
+          echo "🔍 Checking if EC2_SSH_KEY secret exists..."
+          SECRET_LENGTH=$(echo -n "${SSH_KEY}" | wc -c)
+          echo "Secret length: ${SECRET_LENGTH} characters"
+          
+          if [ "$SECRET_LENGTH" -lt 10 ]; then
+            echo "❌ EC2_SSH_KEY secret appears to be empty or too short!"
+            echo "Please ensure the secret is properly set in GitHub repository settings."
+            echo "To set it, run: gh secret set EC2_SSH_KEY < citadel.pem"
             exit 1
           fi
           
           # Save SSH key with multiple format attempts
           echo "📝 Attempting to save SSH key..."
           
-          # Method 1: Direct echo with proper line endings
-          cat > ~/.ssh/deploy_key << 'SSHKEY'
-          ${{ secrets.EC2_SSH_KEY }}
-          SSHKEY
+          # Method 1: Use environment variable
+          echo "${SSH_KEY}" > ~/.ssh/deploy_key
           
           # Ensure proper permissions
           chmod 600 ~/.ssh/deploy_key
