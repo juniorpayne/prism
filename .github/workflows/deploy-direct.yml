@@ -58,18 +58,36 @@ jobs:
         run: |
           echo "🚀 Deploying to EC2..."
           
-          # Create SSH key file
-          echo "${{ secrets.EC2_SSH_KEY }}" > citadel.pem
-          chmod 600 citadel.pem
+          # Create SSH key file with proper format
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Test SSH key format
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null || {
+            echo "❌ Invalid SSH key format"
+            exit 1
+          }
+          
+          # Add SSH config for better debugging
+          cat > ~/.ssh/config <<EOF
+          Host ec2-instance
+            HostName ${{ env.EC2_HOST }}
+            User ${{ env.EC2_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+            LogLevel DEBUG
+          EOF
+          chmod 600 ~/.ssh/config
           
           # Create deployment directory on EC2
-          ssh -i citadel.pem -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
             "mkdir -p ~/deployment-tmp"
           
           # Transfer Docker images
           echo "📤 Transferring Docker images to EC2..."
-          scp -i citadel.pem -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             prism-server.tar.gz prism-web.tar.gz \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
           
@@ -148,16 +166,16 @@ jobs:
           EOF
           
           # Transfer and execute deployment script
-          scp -i citadel.pem -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             deploy-script.sh \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
           
-          ssh -i citadel.pem -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
             "chmod +x ~/deployment-tmp/deploy-script.sh && ~/deployment-tmp/deploy-script.sh"
           
           # Clean up
-          rm -f citadel.pem deploy-script.sh
+          rm -f ~/.ssh/deploy_key deploy-script.sh
 
       - name: Verify deployment
         run: |
@@ -188,7 +206,7 @@ jobs:
         if: always()
         run: |
           rm -f prism-server.tar.gz prism-web.tar.gz
-          rm -f citadel.pem deploy-script.sh
+          rm -f ~/.ssh/deploy_key deploy-script.sh
 
       - name: Generate deployment summary
         if: always()

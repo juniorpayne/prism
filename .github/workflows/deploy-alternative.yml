@@ -1,0 +1,169 @@
+name: Alternative Deploy to EC2
+
+on:
+  workflow_dispatch:
+
+env:
+  EC2_HOST: 35.170.180.10
+  EC2_USER: ubuntu
+  SERVER_IMAGE: 'prism-server:latest'
+  WEB_IMAGE: 'prism-web:latest'
+
+jobs:
+  deploy:
+    name: Deploy using SSH Action
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production server image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.production
+          target: production
+          push: false
+          load: true
+          tags: ${{ env.SERVER_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build web interface image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          target: production
+          push: false
+          load: true
+          tags: ${{ env.WEB_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save Docker images
+        run: |
+          echo "💾 Saving Docker images to tarballs..."
+          docker save ${{ env.SERVER_IMAGE }} | gzip > prism-server.tar.gz
+          docker save ${{ env.WEB_IMAGE }} | gzip > prism-web.tar.gz
+          ls -lah *.tar.gz
+
+      - name: Copy files to EC2
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "prism-server.tar.gz,prism-web.tar.gz"
+          target: "deployment-tmp"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            
+            echo "🔄 Loading Docker images..."
+            cd ~/deployment-tmp
+            
+            # Load images
+            docker load < prism-server.tar.gz
+            docker load < prism-web.tar.gz
+            
+            echo "📁 Setting up deployment directory..."
+            cd ~/managedDns || cd ~
+            
+            # Create docker-compose.yml for production
+            cat > docker-compose.production.yml <<'EOF'
+            version: '3.8'
+            
+            services:
+              server:
+                image: prism-server:latest
+                container_name: prism-server
+                restart: unless-stopped
+                environment:
+                  - PRISM_SERVER_HOST=0.0.0.0
+                  - PRISM_SERVER_PORT=8081
+                  - PRISM_API_PORT=8080
+                  - PRISM_LOG_LEVEL=INFO
+                  - PRISM_DATABASE_PATH=/data/prism.db
+                volumes:
+                  - ./data:/data
+                  - ./config:/app/config
+                ports:
+                  - "8080:8080"
+                  - "8081:8081"
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+                  start_period: 40s
+            
+              nginx:
+                image: prism-web:latest
+                container_name: prism-nginx
+                restart: unless-stopped
+                ports:
+                  - "80:80"
+                depends_on:
+                  - server
+                environment:
+                  - API_URL=http://server:8080
+            EOF
+            
+            echo "🛑 Stopping existing containers..."
+            docker compose -f docker-compose.production.yml down || true
+            
+            echo "🚀 Starting new containers..."
+            docker compose -f docker-compose.production.yml up -d
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 30
+            
+            echo "🔍 Checking container status..."
+            docker compose -f docker-compose.production.yml ps
+            
+            echo "🧹 Cleaning up deployment files..."
+            rm -rf ~/deployment-tmp
+            docker image prune -f
+            
+            echo "✅ Deployment complete!"
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+          
+          # Wait for services to stabilize
+          sleep 15
+          
+          # Check API health
+          if curl -f http://${{ env.EC2_HOST }}:8080/api/health; then
+            echo "✅ API health check passed"
+          else
+            echo "❌ API health check failed"
+            exit 1
+          fi
+          
+          # Check web interface
+          if curl -f http://${{ env.EC2_HOST }}; then
+            echo "✅ Web interface check passed"
+          else
+            echo "❌ Web interface check failed"
+            exit 1
+          fi
+          
+          echo "✅ All services are healthy!"
+
+      - name: Clean up local artifacts
+        if: always()
+        run: |
+          rm -f prism-server.tar.gz prism-web.tar.gz
