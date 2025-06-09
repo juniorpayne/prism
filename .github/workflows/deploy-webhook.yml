@@ -1,0 +1,123 @@
+name: Deploy via Webhook
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SERVER_IMAGE: 'prism-server:latest'
+  WEB_IMAGE: 'prism-web:latest'
+
+jobs:
+  build-and-notify:
+    name: Build and Trigger Deployment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.production
+          target: production
+          push: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/prism-server:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/prism-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          target: production
+          push: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/prism-web:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/prism-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger deployment webhook
+        if: ${{ secrets.DEPLOYMENT_WEBHOOK_URL != '' }}
+        run: |
+          echo "🔔 Triggering deployment webhook..."
+          
+          # Prepare deployment payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "ref": "${{ github.ref }}",
+            "sha": "${{ github.sha }}",
+            "repository": "${{ github.repository }}",
+            "pusher": "${{ github.actor }}",
+            "server_image": "${{ secrets.DOCKERHUB_USERNAME }}/prism-server:${{ github.sha }}",
+            "web_image": "${{ secrets.DOCKERHUB_USERNAME }}/prism-web:${{ github.sha }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          )
+          
+          # Send webhook
+          curl -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: deployment" \
+            -H "X-GitHub-Delivery: ${{ github.run_id }}" \
+            -H "X-Hub-Signature: sha256=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}" | cut -d' ' -f2)" \
+            -d "$PAYLOAD" \
+            --fail-with-body || {
+              echo "❌ Webhook failed"
+              exit 1
+            }
+          
+          echo "✅ Deployment webhook triggered successfully"
+
+      - name: Generate summary
+        run: |
+          echo "# 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "## Docker Images Published" >> $GITHUB_STEP_SUMMARY
+            echo "- Server: \`${{ secrets.DOCKERHUB_USERNAME }}/prism-server:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Web: \`${{ secrets.DOCKERHUB_USERNAME }}/prism-web:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ Docker Hub Not Configured" >> $GITHUB_STEP_SUMMARY
+            echo "Set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets to enable image publishing." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ secrets.DEPLOYMENT_WEBHOOK_URL }}" ]; then
+            echo "## Webhook Deployment" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Deployment webhook triggered" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ Webhook Not Configured" >> $GITHUB_STEP_SUMMARY
+            echo "Set DEPLOYMENT_WEBHOOK_URL and DEPLOYMENT_WEBHOOK_SECRET to enable webhook deployments." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Manual Deployment Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "If automated deployment is not configured, SSH into your server and run:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "cd ~/managedDns" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prism-server:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prism-web:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose down" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose up -d" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

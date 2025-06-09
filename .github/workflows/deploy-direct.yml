@@ -54,20 +54,76 @@ jobs:
           docker save ${{ env.WEB_IMAGE }} | gzip > prism-web.tar.gz
           ls -lah *.tar.gz
 
+      - name: Setup SSH Authentication
+        run: |
+          echo "🔐 Setting up SSH authentication..."
+          
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Debug: Check if secret is empty
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "❌ EC2_SSH_KEY secret is empty!"
+            exit 1
+          fi
+          
+          # Save SSH key with multiple format attempts
+          echo "📝 Attempting to save SSH key..."
+          
+          # Method 1: Direct echo with proper line endings
+          cat > ~/.ssh/deploy_key << 'SSHKEY'
+          ${{ secrets.EC2_SSH_KEY }}
+          SSHKEY
+          
+          # Ensure proper permissions
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Debug: Check key file
+          echo "🔍 Key file info:"
+          ls -la ~/.ssh/deploy_key
+          echo "First line of key:"
+          head -n 1 ~/.ssh/deploy_key
+          echo "Last line of key:"
+          tail -n 1 ~/.ssh/deploy_key
+          echo "Line count:"
+          wc -l ~/.ssh/deploy_key
+          
+          # Try to extract public key (this will fail if format is wrong)
+          echo "🔑 Testing key format..."
+          if ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null; then
+            echo "✅ SSH key format appears valid"
+            echo "Public key:"
+            cat ~/.ssh/deploy_key.pub
+          else
+            echo "❌ SSH key format is invalid!"
+            echo "Common issues:"
+            echo "1. Key should start with '-----BEGIN RSA PRIVATE KEY-----' or '-----BEGIN OPENSSH PRIVATE KEY-----'"
+            echo "2. Key should end with '-----END RSA PRIVATE KEY-----' or '-----END OPENSSH PRIVATE KEY-----'"
+            echo "3. Each line should be no more than 64 characters (except first and last)"
+            echo "4. No extra spaces or characters"
+            echo ""
+            echo "Attempting to fix common issues..."
+            
+            # Try to fix common formatting issues
+            # Remove any potential whitespace and reformat
+            tr -d '\r' < ~/.ssh/deploy_key > ~/.ssh/deploy_key.tmp
+            mv ~/.ssh/deploy_key.tmp ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            
+            # Try again
+            if ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null; then
+              echo "✅ Fixed! SSH key format is now valid"
+            else
+              echo "❌ Still invalid. Please check the EC2_SSH_KEY secret format."
+              echo "Instructions for setting up the secret correctly are in docs/SSH_KEY_SETUP.md"
+              exit 1
+            fi
+          fi
+
       - name: Deploy to EC2
         run: |
           echo "🚀 Deploying to EC2..."
-          
-          # Create SSH key file with proper format
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          
-          # Test SSH key format
-          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null || {
-            echo "❌ Invalid SSH key format"
-            exit 1
-          }
           
           # Add SSH config for better debugging
           cat > ~/.ssh/config <<EOF
