@@ -53,28 +53,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Save Docker images
+      - name: Save Docker images with integrity checks
         run: |
           echo "💾 Saving Docker images to tarballs..."
-          # Save and compress separately to avoid pipe issues
+          
+          # Save without piping to avoid potential issues
+          echo "Saving server image..."
           docker save -o prism-server.tar ${{ env.SERVER_IMAGE }}
           gzip -6 prism-server.tar
           
+          echo "Saving web image..."
           docker save -o prism-web.tar ${{ env.WEB_IMAGE }}
           gzip -6 prism-web.tar
           
-          # Verify compressed files
-          echo "🔍 Verifying compressed images..."
-          for file in *.tar.gz; do
-            if gzip -t "$file"; then
-              echo "✅ $file is valid ($(ls -lh $file | awk '{print $5}'))"
-            else
-              echo "❌ $file is corrupted!"
-              exit 1
-            fi
-          done
+          # Generate checksums
+          sha256sum prism-server.tar.gz > prism-server.tar.gz.sha256
+          sha256sum prism-web.tar.gz > prism-web.tar.gz.sha256
           
+          # Verify compressed files
+          echo "Verifying compressed files..."
+          gzip -t prism-server.tar.gz || { echo "Server image compression failed!"; exit 1; }
+          gzip -t prism-web.tar.gz || { echo "Web image compression failed!"; exit 1; }
+          
+          # Display file info
+          echo "File information:"
           ls -lah *.tar.gz
+          echo "Checksums:"
+          cat *.sha256
 
       - name: Debug Environment
         run: |
@@ -158,7 +163,7 @@ jobs:
             fi
           fi
 
-      - name: Deploy to EC2
+      - name: Deploy to EC2 with verification
         run: |
           echo "🚀 Deploying to EC2..."
           
@@ -173,16 +178,24 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
           
-          # Create deployment directory on EC2
+          # Check remote disk space first
+          echo "💾 Checking remote disk space..."
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
-            "mkdir -p ~/deployment-tmp"
+            "df -h ~/ && mkdir -p ~/deployment-tmp"
           
-          # Transfer Docker images
+          # Transfer Docker images with checksums
           echo "📤 Transferring Docker images to EC2..."
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            prism-server.tar.gz prism-web.tar.gz \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -C \
+            prism-server.tar.gz prism-server.tar.gz.sha256 \
+            prism-web.tar.gz prism-web.tar.gz.sha256 \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+          
+          # Verify checksums on remote
+          echo "🔍 Verifying file integrity on remote..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+            "cd ~/deployment-tmp && sha256sum -c *.sha256"
           
           # Transfer monitoring configuration if deploying monitoring
           if [ "${{ inputs.deploy_monitoring }}" == "true" ] || [ "${{ github.event.inputs.deploy_monitoring }}" == "true" ]; then
@@ -198,35 +211,74 @@ jobs:
           #!/bin/bash
           set -e
           
-          echo "🔄 Loading Docker images..."
+          echo "🔄 Starting deployment process..."
           cd ~/deployment-tmp
           
-          # Verify files before loading
-          echo "🔍 Checking tar.gz files..."
+          # Check disk space
+          echo "💾 Disk space available:"
+          df -h .
+          
+          # Verify files exist and are valid
+          echo "🔍 Verifying deployment files..."
           for file in prism-server.tar.gz prism-web.tar.gz; do
             if [ ! -f "$file" ]; then
               echo "❌ Error: $file not found!"
               exit 1
             fi
-            echo "File: $file ($(ls -lh $file | awk '{print $5}'))"
+            
+            echo "Checking $file..."
+            ls -lah "$file"
+            
+            # Check if gzip is valid
             if ! gzip -t "$file"; then
               echo "❌ Error: $file is corrupted!"
               exit 1
             fi
+            
+            # Check if tar is valid
+            if ! gunzip -c "$file" | tar -t > /dev/null 2>&1; then
+              echo "❌ Error: $file has invalid tar format!"
+              exit 1
+            fi
+            
+            echo "✅ $file is valid"
           done
           
-          # Load images with better error handling
-          echo "Loading server image..."
-          if ! docker load < prism-server.tar.gz; then
-            echo "❌ Failed to load server image, trying alternate method..."
-            gunzip -c prism-server.tar.gz | docker load
+          # Load images with multiple methods
+          echo "🐳 Loading Docker images..."
+          
+          # Try method 1: gunzip pipe
+          echo "Loading prism-server image (method 1)..."
+          if gunzip -c prism-server.tar.gz | docker load; then
+            echo "✅ Server image loaded successfully"
+          else
+            echo "⚠️  Method 1 failed, trying method 2..."
+            # Try method 2: direct load
+            if docker load < prism-server.tar.gz; then
+              echo "✅ Server image loaded successfully (method 2)"
+            else
+              echo "❌ Failed to load prism-server image!"
+              exit 1
+            fi
           fi
           
-          echo "Loading web image..."
-          if ! docker load < prism-web.tar.gz; then
-            echo "❌ Failed to load web image, trying alternate method..."
-            gunzip -c prism-web.tar.gz | docker load
+          echo "Loading prism-web image (method 1)..."
+          if gunzip -c prism-web.tar.gz | docker load; then
+            echo "✅ Web image loaded successfully"
+          else
+            echo "⚠️  Method 1 failed, trying method 2..."
+            # Try method 2: direct load
+            if docker load < prism-web.tar.gz; then
+              echo "✅ Web image loaded successfully (method 2)"
+            else
+              echo "❌ Failed to load prism-web image!"
+              exit 1
+            fi
           fi
+          
+          # Verify images were loaded
+          echo "🔍 Verifying loaded images..."
+          docker images | grep prism || { echo "❌ Images not found after loading!"; exit 1; }
           
           # Extract monitoring configuration if present
           if [ -f monitoring.tar.gz ]; then
@@ -402,6 +454,7 @@ jobs:
         if: always()
         run: |
           rm -f prism-server.tar.gz prism-web.tar.gz
+          rm -f prism-server.tar.gz.sha256 prism-web.tar.gz.sha256
           rm -f ~/.ssh/deploy_key deploy-script.sh
 
       - name: Generate deployment summary
