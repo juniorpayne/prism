@@ -42,16 +42,70 @@ Prism DNS - A managed DNS solution with automatic host registration and heartbea
 - Integration tests may fail in CI due to Docker networking
 
 ### Local Development
+
+#### Docker Development Environment
 ```bash
-# Start services
+# Start all services (server, web, database)
 docker compose up -d
 
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+
+# Rebuild after code changes
+docker compose build
+docker compose up -d
+
+# Clean rebuild (removes volumes)
+docker compose down -v
+docker compose up -d --build
+```
+
+#### Service Ports (Local Development)
+- **8080**: REST API (direct access)
+- **8081**: TCP Server (client connections)
+- **8090**: Web Interface (nginx)
+- **5432**: PostgreSQL (if using docker-compose.yml)
+
+#### Development Files
+- `docker-compose.yml`: Main development stack
+- `docker-compose.override.yml`: Local overrides
+- `docker-compose.production.yml`: Production config (on EC2)
+- `docker-compose.monitoring.yml`: Monitoring stack
+- `Dockerfile`: Multi-stage build for server
+- `Dockerfile.production`: Production server image
+- `web/Dockerfile`: Nginx web interface
+
+#### Quick Testing
+```bash
 # Test endpoints
 curl http://localhost:8080/api/health
 curl http://localhost:8080/metrics
 
-# Run client
+# Run client locally against Docker server
 python3 prism_client.py -c prism-client.yaml
+
+# Access web interface
+open http://localhost:8090
+```
+
+#### Docker Commands
+```bash
+# Execute commands in running container
+docker compose exec server bash
+docker compose exec server sqlite3 /data/prism.db
+
+# View real-time logs
+docker compose logs -f server
+docker compose logs -f nginx
+
+# Check container status
+docker compose ps
+
+# Restart specific service
+docker compose restart server
 ```
 
 ### Deployment
@@ -109,6 +163,33 @@ python3 prism_client.py -c prism-client.yaml
 
 ## Development Workflow
 
+### Docker-based Development
+1. Make code changes locally
+2. Rebuild and test in Docker: `docker compose up -d --build`
+3. Run tests: `docker compose exec server pytest`
+4. Check logs: `docker compose logs -f`
+5. Commit and push changes
+6. CI/CD automatically deploys to production
+
+### Hot Reload Development
+For faster development without rebuilding:
+```bash
+# Mount local code into container (add to docker-compose.override.yml)
+volumes:
+  - ./server:/app/server
+  - ./client:/app/client
+```
+
+### Database Access
+```bash
+# Development (SQLite)
+docker compose exec server sqlite3 /data/prism.db ".tables"
+docker compose exec server sqlite3 /data/prism.db "SELECT * FROM hosts;"
+
+# View database file
+ls -la data/prism.db
+```
+
 - Make sure to check in your code into github after each task has been completed.
 
 ## User Story Management
@@ -142,10 +223,38 @@ curl https://prism.thepaynes.ca/metrics | grep prism_
 ```
 
 ### Troubleshooting
+
+#### Docker Development Issues
+- **Ports already in use**: `docker compose down` then `sudo lsof -i :8080`
+- **Container won't start**: Check logs with `docker compose logs server`
+- **Database locked**: Remove volume with `docker compose down -v`
+- **Code changes not reflected**: Rebuild with `docker compose build --no-cache`
+- **Permission issues**: Check file ownership, use `sudo chown -R $USER:$USER .`
+
+#### Production Issues
 - If client can't connect: Check port 8081 is open in AWS security group
 - If web UI shows no data: Check browser console for API errors
 - If deployment fails: Check GitHub Actions logs
 - Container logs: `ssh ubuntu@35.170.180.10 "cd ~/prism-deployment && docker compose logs"`
+
+#### Common Docker Commands for Debugging
+```bash
+# Check what's using a port
+sudo lsof -i :8080
+
+# Remove all stopped containers
+docker container prune
+
+# Remove unused images
+docker image prune -a
+
+# Full cleanup (warning: removes everything)
+docker system prune -a --volumes
+
+# Inspect container
+docker compose exec server sh -c "ps aux"
+docker compose exec server sh -c "netstat -tlnp"
+```
 
 ### Important Files
 - `server/main.py`: Main server entry point
