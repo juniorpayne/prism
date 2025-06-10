@@ -310,7 +310,7 @@ jobs:
           cat > docker-compose.production.yml <<'COMPOSE'
           
           services:
-            server:
+            prism-server:
               image: prism-server:latest
               container_name: prism-server
               restart: unless-stopped
@@ -340,9 +340,9 @@ jobs:
               ports:
                 - "8090:80"
               depends_on:
-                - server
+                - prism-server
               environment:
-                - API_URL=http://server:8080
+                - API_URL=http://server:8081
           COMPOSE
           
           echo "🚀 Starting new containers..."
