@@ -225,18 +225,18 @@ jobs:
               restart: unless-stopped
               environment:
                 - PRISM_SERVER_HOST=0.0.0.0
-                - PRISM_SERVER_TCP_PORT=8081
-                - PRISM_SERVER_API_PORT=8080
+                - PRISM_SERVER_TCP_PORT=8080
+                - PRISM_SERVER_API_PORT=8081
                 - PRISM_LOGGING_LEVEL=INFO
                 - PRISM_DATABASE_PATH=/data/prism.db
               volumes:
                 - ./data:/data
                 - ./config:/app/config
               ports:
-                - "8080:8080"
-                - "8081:8081"
+                - "8080:8080"  # TCP server for client connections
+                - "8081:8081"  # REST API for health checks
               healthcheck:
-                test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+                test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
                 interval: 30s
                 timeout: 10s
                 retries: 3
@@ -296,29 +296,64 @@ jobs:
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
             "chmod +x ~/deployment-tmp/deploy-script.sh && ~/deployment-tmp/deploy-script.sh"
           
-          # Clean up
-          rm -f ~/.ssh/deploy_key deploy-script.sh
+          # Clean up deployment script only (keep SSH key for verification)
+          rm -f deploy-script.sh
 
       - name: Verify deployment
         run: |
           echo "🔍 Verifying deployment..."
           
           # Wait for services to stabilize
-          sleep 15
+          echo "⏳ Waiting for services to stabilize..."
+          sleep 20
           
-          # Check API health
-          if curl -f http://${{ env.EC2_HOST }}:8080/api/health; then
+          # First, verify services are running on EC2
+          echo "🔍 Checking container status on EC2..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+            "cd ~/prism-deployment && docker compose -f docker-compose.production.yml ps"
+          
+          # Check API health (on port 8081)
+          echo "🔍 Checking API health endpoint..."
+          if curl -f -m 10 http://${{ env.EC2_HOST }}:8081/api/health; then
             echo "✅ API health check passed"
           else
             echo "❌ API health check failed"
+            echo "Attempting to get more information..."
+            curl -v http://${{ env.EC2_HOST }}:8081/api/health || true
+            
+            # Check if port is accessible
+            echo "🔍 Testing port connectivity..."
+            nc -zv -w5 ${{ env.EC2_HOST }} 8081 || echo "Port 8081 appears to be blocked"
+            
+            # Get container logs
+            echo "📋 Getting container logs..."
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+              "cd ~/prism-deployment && docker compose -f docker-compose.production.yml logs --tail=50 server"
+            
             exit 1
           fi
           
-          # Check web interface
-          if curl -f http://${{ env.EC2_HOST }}; then
+          # Check web interface (on port 8090)
+          echo "🔍 Checking web interface..."
+          if curl -f -m 10 http://${{ env.EC2_HOST }}:8090/; then
             echo "✅ Web interface check passed"
           else
             echo "❌ Web interface check failed"
+            echo "Attempting to get more information..."
+            curl -v http://${{ env.EC2_HOST }}:8090/ || true
+            
+            # Check if port is accessible
+            echo "🔍 Testing port connectivity..."
+            nc -zv -w5 ${{ env.EC2_HOST }} 8090 || echo "Port 8090 appears to be blocked"
+            
+            # Get nginx logs
+            echo "📋 Getting nginx logs..."
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+              "cd ~/prism-deployment && docker compose -f docker-compose.production.yml logs --tail=50 nginx"
+            
             exit 1
           fi
           
@@ -343,6 +378,6 @@ jobs:
           echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Services" >> $GITHUB_STEP_SUMMARY
-          echo "- **Web Interface**: http://${{ env.EC2_HOST }}/" >> $GITHUB_STEP_SUMMARY
-          echo "- **API**: http://${{ env.EC2_HOST }}:8080/api/health" >> $GITHUB_STEP_SUMMARY
-          echo "- **TCP Server**: ${{ env.EC2_HOST }}:8081" >> $GITHUB_STEP_SUMMARY
+          echo "- **Web Interface**: http://${{ env.EC2_HOST }}:8090/" >> $GITHUB_STEP_SUMMARY
+          echo "- **API**: http://${{ env.EC2_HOST }}:8081/api/health" >> $GITHUB_STEP_SUMMARY
+          echo "- **TCP Server**: ${{ env.EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
