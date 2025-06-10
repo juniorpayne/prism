@@ -5,8 +5,8 @@ server:
   # Server hostname or IP address
   host: "localhost"
   
-  # Server port number
-  port: 8080
+  # Server port number (TCP port for client connections)
+  port: 8081
   
   # Connection timeout in seconds
   timeout: 10

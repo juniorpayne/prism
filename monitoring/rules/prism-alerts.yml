@@ -1,0 +1,118 @@
+groups:
+  - name: prism_dns_alerts
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: PrismServerDown
+        expr: up{job="prism-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: prism-dns
+        annotations:
+          summary: "Prism DNS server is down"
+          description: "The Prism DNS server has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(prism_http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: prism-dns
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 10% for the last 5 minutes."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(prism_http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is above 5 seconds."
+
+      # Host monitoring alerts
+      - alert: ManyHostsOffline
+        expr: (prism_offline_hosts_total / prism_registered_hosts_total) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "Many hosts are offline"
+          description: "More than 50% of registered hosts are offline."
+
+      - alert: NoActiveHosts
+        expr: prism_online_hosts_total == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: prism-dns
+        annotations:
+          summary: "No active hosts"
+          description: "No hosts are currently online."
+
+      # Resource usage alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 80% for the last 10 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 85%."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Less than 10% disk space remaining on root filesystem."
+
+      # Connection alerts
+      - alert: HighTCPConnectionCount
+        expr: prism_tcp_active_connections > 900
+        for: 5m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "High number of TCP connections"
+          description: "TCP connection count is above 900 (limit is 1000)."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: prism_database_connection_pool_used >= prism_database_connection_pool_size
+        for: 2m
+        labels:
+          severity: critical
+          service: prism-dns
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "All database connections are in use."
+
+      # Heartbeat monitoring
+      - alert: HighHeartbeatTimeouts
+        expr: rate(prism_heartbeat_timeouts_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "High heartbeat timeout rate"
+          description: "Heartbeat timeout rate is above 0.1 per second."

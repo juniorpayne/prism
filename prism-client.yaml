@@ -8,8 +8,8 @@ service:
 
 # Server connection settings
 server:
-  host: 35.170.180.10
-  port: 8080
+  host: prism.thepaynes.ca
+  port: 8081
   timeout: 10
 
 # Heartbeat settings

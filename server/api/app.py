@@ -5,6 +5,7 @@ Main FastAPI application for REST API endpoints.
 """
 
 import logging
+import time
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request
@@ -14,7 +15,8 @@ from fastapi.responses import JSONResponse
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
-from server.api.routes import health, hosts
+from server.api.routes import health, hosts, metrics
+from server.monitoring import get_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +68,37 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         )
         logger.info(f"CORS enabled for origins: {cors_origins}")
 
+    # Add request tracking middleware
+    @app.middleware("http")
+    async def track_requests(request: Request, call_next):
+        """Track HTTP request metrics."""
+        start_time = time.time()
+
+        # Process request
+        response = await call_next(request)
+
+        # Calculate duration
+        duration = time.time() - start_time
+
+        # Track metrics (skip metrics endpoint to avoid recursion)
+        if request.url.path != "/metrics":
+            try:
+                collector = get_metrics_collector()
+                collector.record_http_request(
+                    method=request.method,
+                    endpoint=request.url.path,
+                    status=response.status_code,
+                    duration=duration,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record metrics: {e}")
+
+        return response
+
     # Include routers
     app.include_router(hosts.router)
     app.include_router(health.router)
+    app.include_router(metrics.router)
 
     # Add custom exception handlers
     @app.exception_handler(HTTPException)
