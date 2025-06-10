@@ -56,8 +56,24 @@ jobs:
       - name: Save Docker images
         run: |
           echo "💾 Saving Docker images to tarballs..."
-          docker save ${{ env.SERVER_IMAGE }} | gzip > prism-server.tar.gz
-          docker save ${{ env.WEB_IMAGE }} | gzip > prism-web.tar.gz
+          # Save and compress separately to avoid pipe issues
+          docker save -o prism-server.tar ${{ env.SERVER_IMAGE }}
+          gzip -6 prism-server.tar
+          
+          docker save -o prism-web.tar ${{ env.WEB_IMAGE }}
+          gzip -6 prism-web.tar
+          
+          # Verify compressed files
+          echo "🔍 Verifying compressed images..."
+          for file in *.tar.gz; do
+            if gzip -t "$file"; then
+              echo "✅ $file is valid ($(ls -lh $file | awk '{print $5}'))"
+            else
+              echo "❌ $file is corrupted!"
+              exit 1
+            fi
+          done
+          
           ls -lah *.tar.gz
 
       - name: Debug Environment
@@ -185,9 +201,32 @@ jobs:
           echo "🔄 Loading Docker images..."
           cd ~/deployment-tmp
           
-          # Load images
-          docker load < prism-server.tar.gz
-          docker load < prism-web.tar.gz
+          # Verify files before loading
+          echo "🔍 Checking tar.gz files..."
+          for file in prism-server.tar.gz prism-web.tar.gz; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Error: $file not found!"
+              exit 1
+            fi
+            echo "File: $file ($(ls -lh $file | awk '{print $5}'))"
+            if ! gzip -t "$file"; then
+              echo "❌ Error: $file is corrupted!"
+              exit 1
+            fi
+          done
+          
+          # Load images with better error handling
+          echo "Loading server image..."
+          if ! docker load < prism-server.tar.gz; then
+            echo "❌ Failed to load server image, trying alternate method..."
+            gunzip -c prism-server.tar.gz | docker load
+          fi
+          
+          echo "Loading web image..."
+          if ! docker load < prism-web.tar.gz; then
+            echo "❌ Failed to load web image, trying alternate method..."
+            gunzip -c prism-web.tar.gz | docker load
+          fi
           
           # Extract monitoring configuration if present
           if [ -f monitoring.tar.gz ]; then
