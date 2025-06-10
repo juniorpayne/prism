@@ -4,26 +4,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the "prism" project - a managed DNS solution. The repository is currently in its initial state with minimal structure.
+Prism DNS - A managed DNS solution with automatic host registration and heartbeat monitoring. Clients register their hostnames and IPs with the server, which maintains an up-to-date registry of active hosts.
+
+## Architecture
+
+- **Server**: Python-based TCP server (port 8081) and REST API (port 8080)
+- **Client**: Python client that registers and sends heartbeats
+- **Web Interface**: Static HTML/JS frontend served by nginx (port 8090)
+- **Database**: SQLite for development, PostgreSQL ready for production
+- **Deployment**: Docker-based with docker-compose
 
 ## Development Status
 
-This appears to be a newly initialized repository with only a basic README.md file. The project structure and build system have not yet been established.
-
-## Getting Started
-
-Since this is a new project, you may need to:
-- Determine the technology stack and framework
-- Set up the build system and project structure
-- Initialize package management and dependencies
-- Establish development workflows and testing frameworks
+- ✅ Core functionality implemented (registration, heartbeat, API, web UI)
+- ✅ Production deployment on AWS EC2
+- ✅ HTTPS enabled with Let's Encrypt
+- ✅ CI/CD pipeline with GitHub Actions
+- ✅ Monitoring stack (Prometheus, Grafana, AlertManager)
+- ✅ Security hardening implemented
 
 ## Current State
 
-- Repository contains only a README.md with project name "prism"
-- No build scripts, package managers, or development tools configured yet
-- No existing codebase or documentation to reference
+- **Production URL**: https://prism.thepaynes.ca
+- **EC2 Instance**: 35.170.180.10
+- **Ports**:
+  - 8080: REST API (internal, proxied through nginx)
+  - 8081: TCP server for client connections
+  - 8090: Web interface (internal, proxied through nginx)
+  - 80/443: Nginx reverse proxy (public)
 - We use venv in python for this project
+
+## Key Project Specifics
+
+### Testing
+- Run tests with: `pytest`
+- Coverage report: `pytest --cov=server --cov=client`
+- Integration tests may fail in CI due to Docker networking
+
+### Local Development
+```bash
+# Start services
+docker compose up -d
+
+# Test endpoints
+curl http://localhost:8080/api/health
+curl http://localhost:8080/metrics
+
+# Run client
+python3 prism_client.py -c prism-client.yaml
+```
+
+### Deployment
+- All deployments go through GitHub Actions (not manual scripts)
+- Main branch auto-deploys to production
+- Deployment workflow: `.github/workflows/deploy-direct.yml`
+- Monitoring can be deployed separately or with main app
+
+### Configuration
+- Server config: Environment variables (PRISM_SERVER_TCP_PORT, PRISM_SERVER_API_PORT, etc.)
+- Client config: YAML file (prism-client.yaml)
+- Port 8081 must be open in AWS security group for clients
+
+### Known Issues
+- AsyncDatabaseManager not implemented (SCRUM-41)
+- Response builder missing custom fields support (SCRUM-44)
+- Some integration tests are flaky in CI environment
+
+### Environment Variables
+- `PRISM_SERVER_HOST`: Server bind address (default: 0.0.0.0)
+- `PRISM_SERVER_TCP_PORT`: TCP server port (default: 8081)
+- `PRISM_SERVER_API_PORT`: API server port (default: 8080)
+- `PRISM_DATABASE_PATH`: Database file path
+- `PRISM_LOGGING_LEVEL`: Log level (DEBUG, INFO, WARNING, ERROR)
 
 ## Development Practices
 
@@ -74,3 +126,43 @@ Since this is a new project, you may need to:
   python -m flake8 --select=E722 . && \
   echo "✅ All linting passed!"
   ```
+
+## Project-Specific Commands
+
+### Quick Health Checks
+```bash
+# Check API health
+curl https://prism.thepaynes.ca/api/health | jq .
+
+# Check registered hosts
+curl https://prism.thepaynes.ca/api/hosts | jq .
+
+# View metrics
+curl https://prism.thepaynes.ca/metrics | grep prism_
+```
+
+### Troubleshooting
+- If client can't connect: Check port 8081 is open in AWS security group
+- If web UI shows no data: Check browser console for API errors
+- If deployment fails: Check GitHub Actions logs
+- Container logs: `ssh ubuntu@35.170.180.10 "cd ~/prism-deployment && docker compose logs"`
+
+### Important Files
+- `server/main.py`: Main server entry point
+- `client/connection_manager.py`: Client TCP connection logic
+- `server/tcp_server.py`: TCP server implementation
+- `server/api/app.py`: FastAPI application
+- `web/js/api.js`: Frontend API client
+- `.github/workflows/deploy-direct.yml`: Main deployment workflow
+
+### Security Notes
+- Never commit secrets or API keys
+- All production config via environment variables
+- SSL certificates auto-renew via Let's Encrypt
+- Monitoring endpoints should be secured in production
+
+### Common Tasks
+- Add new API endpoint: Update `server/api/routes/` and `server/api/app.py`
+- Add new metric: Update `server/monitoring.py`
+- Update client: Modify `client/` modules and test with `prism_client.py`
+- Add dashboard: Create JSON in `monitoring/grafana/dashboards/`
