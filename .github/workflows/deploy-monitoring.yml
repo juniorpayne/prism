@@ -1,0 +1,159 @@
+name: Deploy Monitoring Stack
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  EC2_HOST: 35.170.180.10
+  EC2_USER: ubuntu
+
+jobs:
+  deploy-monitoring:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy monitoring stack
+        run: |
+          echo "🚀 Deploying monitoring stack to ${{ inputs.environment }}..."
+          
+          # Create monitoring package
+          tar -czf monitoring-package.tar.gz \
+            docker-compose.monitoring.yml \
+            monitoring/ \
+            scripts/deploy-monitoring.sh
+          
+          # Transfer to EC2
+          scp -i ~/.ssh/deploy_key \
+            monitoring-package.tar.gz \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/
+          
+          # Deploy on EC2
+          ssh -i ~/.ssh/deploy_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'DEPLOY'
+          set -e
+          
+          # Extract package
+          tar -xzf monitoring-package.tar.gz
+          
+          # Create monitoring directory
+          mkdir -p ~/prism-monitoring
+          mv docker-compose.monitoring.yml monitoring/ ~/prism-monitoring/
+          
+          cd ~/prism-monitoring
+          
+          # Update Prometheus config for production
+          if [ "${{ inputs.environment }}" == "production" ]; then
+            sed -i 's/host.docker.internal/prism-server/g' monitoring/prometheus.yml
+          fi
+          
+          # Deploy monitoring stack
+          docker compose -f docker-compose.monitoring.yml down
+          docker compose -f docker-compose.monitoring.yml up -d
+          
+          # Wait for services
+          sleep 30
+          
+          # Check status
+          docker compose -f docker-compose.monitoring.yml ps
+          
+          echo "✅ Monitoring stack deployed successfully!"
+          DEPLOY
+
+      - name: Configure nginx for monitoring
+        if: inputs.environment == 'production'
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'NGINX'
+          # Check if monitoring locations already exist
+          if ! grep -q "/prometheus/" /etc/nginx/sites-available/prism; then
+            echo "Adding monitoring endpoints to nginx..."
+            
+            # Add before the last closing brace
+            sudo sed -i '/^}$/i \
+              \n    # Prometheus\
+              location /prometheus/ {\
+                  proxy_pass http://localhost:9090/;\
+                  proxy_http_version 1.1;\
+                  proxy_set_header Host $host;\
+                  proxy_set_header X-Real-IP $remote_addr;\
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+                  proxy_set_header X-Forwarded-Proto $scheme;\
+              }\
+              \n    # Grafana\
+              location /grafana/ {\
+                  proxy_pass http://localhost:3000/;\
+                  proxy_http_version 1.1;\
+                  proxy_set_header Host $host;\
+                  proxy_set_header X-Real-IP $remote_addr;\
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+                  proxy_set_header X-Forwarded-Proto $scheme;\
+              }' /etc/nginx/sites-available/prism
+            
+            # Test and reload nginx
+            sudo nginx -t && sudo systemctl reload nginx
+          fi
+          NGINX
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying monitoring deployment..."
+          
+          # Check Prometheus
+          if curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:9090 | grep -q "200"; then
+            echo "✅ Prometheus is running"
+          else
+            echo "❌ Prometheus is not accessible"
+            exit 1
+          fi
+          
+          # Check Grafana
+          if curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:3000 | grep -q "200"; then
+            echo "✅ Grafana is running"
+          else
+            echo "❌ Grafana is not accessible"
+            exit 1
+          fi
+          
+          # Check AlertManager
+          if curl -s -o /dev/null -w "%{http_code}" http://${{ env.EC2_HOST }}:9093 | grep -q "200"; then
+            echo "✅ AlertManager is running"
+          else
+            echo "❌ AlertManager is not accessible"
+            exit 1
+          fi
+          
+          echo ""
+          echo "📊 Monitoring stack deployed successfully!"
+          echo "Access points:"
+          echo "- Prometheus: http://${{ env.EC2_HOST }}:9090"
+          echo "- Grafana: http://${{ env.EC2_HOST }}:3000 (admin/admin)"
+          echo "- AlertManager: http://${{ env.EC2_HOST }}:9093"
+          
+          if [ "${{ inputs.environment }}" == "production" ]; then
+            echo ""
+            echo "Secure access via nginx:"
+            echo "- https://prism.thepaynes.ca/prometheus/"
+            echo "- https://prism.thepaynes.ca/grafana/"
+          fi
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key

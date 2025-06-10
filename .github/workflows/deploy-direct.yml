@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_monitoring:
+        description: 'Deploy monitoring stack'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   EC2_HOST: 35.170.180.10
@@ -162,6 +168,15 @@ jobs:
             prism-server.tar.gz prism-web.tar.gz \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
           
+          # Transfer monitoring configuration if deploying monitoring
+          if [ "${{ inputs.deploy_monitoring }}" == "true" ] || [ "${{ github.event.inputs.deploy_monitoring }}" == "true" ]; then
+            echo "📊 Transferring monitoring configuration..."
+            tar -czf monitoring.tar.gz docker-compose.monitoring.yml monitoring/
+            scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              monitoring.tar.gz \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+          fi
+          
           # Create deployment script
           cat > deploy-script.sh <<'EOF'
           #!/bin/bash
@@ -173,6 +188,12 @@ jobs:
           # Load images
           docker load < prism-server.tar.gz
           docker load < prism-web.tar.gz
+          
+          # Extract monitoring configuration if present
+          if [ -f monitoring.tar.gz ]; then
+            echo "📊 Extracting monitoring configuration..."
+            tar -xzf monitoring.tar.gz
+          fi
           
           echo "📁 Setting up deployment directory..."
           DEPLOY_DIR=~/prism-deployment
@@ -186,6 +207,12 @@ jobs:
           # Also try to stop and remove using docker-compose if it exists
           if [ -f docker-compose.production.yml ]; then
             docker compose -f docker-compose.production.yml down --remove-orphans || true
+          fi
+          
+          # Copy monitoring configuration if it exists
+          if [ -d ~/deployment-tmp/monitoring ]; then
+            echo "📊 Setting up monitoring configuration..."
+            cp -r ~/deployment-tmp/monitoring ${DEPLOY_DIR}/
           fi
           
           # Create docker-compose.yml for production
@@ -229,6 +256,12 @@ jobs:
           
           echo "🚀 Starting new containers..."
           docker compose -f docker-compose.production.yml up -d
+          
+          # Deploy monitoring stack if configuration exists
+          if [ -f ${DEPLOY_DIR}/docker-compose.monitoring.yml ]; then
+            echo "📊 Deploying monitoring stack..."
+            docker compose -f docker-compose.monitoring.yml up -d
+          fi
           
           echo "⏳ Waiting for services to start..."
           sleep 30

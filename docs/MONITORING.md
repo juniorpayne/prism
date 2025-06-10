@@ -14,11 +14,32 @@ The monitoring stack consists of:
 
 ### Local Deployment
 ```bash
+# For local testing
 ./scripts/deploy-monitoring.sh local
+
+# Or manually:
+docker compose -f docker-compose.monitoring.yml up -d
 ```
 
-### Production Deployment
+### Production Deployment via CI/CD
+
+**Option 1: Deploy with main application**
+1. Go to GitHub Actions
+2. Select "Direct Deploy to EC2" workflow
+3. Click "Run workflow"
+4. Check "Deploy monitoring stack" option
+5. Click "Run workflow"
+
+**Option 2: Deploy monitoring separately**
+1. Go to GitHub Actions
+2. Select "Deploy Monitoring Stack" workflow
+3. Click "Run workflow"
+4. Select environment (production/staging)
+5. Click "Run workflow"
+
+### Manual Deployment (Emergency Only)
 ```bash
+# Only use for emergency deployments
 ./scripts/deploy-monitoring.sh
 ```
 
