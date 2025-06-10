@@ -220,7 +220,7 @@ jobs:
               container_name: prism-nginx
               restart: unless-stopped
               ports:
-                - "80:80"
+                - "8090:80"
               depends_on:
                 - server
               environment:
