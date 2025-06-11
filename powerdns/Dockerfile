@@ -19,10 +19,6 @@ RUN mkdir -p /etc/pdns/conf.d /var/run/pdns && \
 
 # Copy configuration
 COPY pdns.conf /etc/pdns/pdns.conf
-COPY entrypoint.sh /entrypoint.sh
-
-# Make entrypoint executable
-RUN chmod +x /entrypoint.sh
 
 # Expose DNS and API ports
 EXPOSE 53/tcp 53/udp 8053/tcp
@@ -31,8 +27,5 @@ EXPOSE 53/tcp 53/udp 8053/tcp
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD pdns_control ping || exit 1
 
-# Run as pdns user
-USER pdns
-
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["pdns_server", "--daemon=no", "--disable-syslog", "--log-timestamp=yes", "--loglevel=4"]
+# Run as root to bind to privileged port 53
+CMD ["pdns_server", "--daemon=no", "--config-dir=/etc/pdns"]
