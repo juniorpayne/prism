@@ -42,10 +42,12 @@ Prism DNS - A managed DNS solution with automatic host registration and heartbea
 - **8081**: REST API (FastAPI) - NOT exposed externally
   - Only accessible within Docker network
   - Proxied by nginx container
+  - Prometheus metrics available at `/metrics` (not proxied by nginx)
 - **8090**: Nginx container serving web interface
   - Proxies `/api/*` requests to API server on port 8081
   - Serves static web files
   - Only exposed to localhost for reverse proxy access
+  - Note: `/metrics` endpoint is NOT proxied (only `/api/*` paths)
 
 ### Port Flow in Production
 ```
@@ -59,6 +61,10 @@ Prism DNS - A managed DNS solution with automatic host registration and heartbea
     |                                                            └── /* ──→ Static Files
     |
     └── TCP (8080) ──→ [TCP Server Container] ← Direct client connections
+
+[Prometheus Scraping]
+    |
+    └── Direct to EC2:8081/metrics (requires security group access)
 ```
 
 1. User visits https://prism.thepaynes.ca → Reverse proxy (443)
@@ -275,8 +281,15 @@ curl https://prism.thepaynes.ca/api/health | jq .
 # Check registered hosts
 curl https://prism.thepaynes.ca/api/hosts | jq .
 
-# View metrics
-curl https://prism.thepaynes.ca/metrics | grep prism_
+# View metrics (only accessible directly on EC2, not through HTTPS proxy)
+# From EC2 or with security group access:
+curl http://35.170.180.10:8081/metrics | grep prism_
+
+# If you need metrics exposed publicly, add to nginx config:
+# location /metrics {
+#     proxy_pass http://prism_api/metrics;
+#     # Add authentication here for security!
+# }
 ```
 
 ### Troubleshooting
@@ -332,6 +345,44 @@ docker compose exec server sh -c "netstat -tlnp"
 - All production config via environment variables
 - SSL certificates auto-renew via Let's Encrypt
 - Monitoring endpoints should be secured in production
+
+### Prometheus Monitoring Setup
+
+#### Metrics Endpoint
+- **Location**: `http://35.170.180.10:8081/metrics`
+- **Access**: Direct to API server, NOT proxied through nginx
+- **Security**: Currently requires AWS security group access to port 8081
+- **Format**: Prometheus text format with custom prism_* metrics
+
+#### Available Metrics
+- `prism_registered_hosts_total`: Total number of registered hosts
+- `prism_online_hosts`: Number of currently online hosts
+- `prism_offline_hosts`: Number of currently offline hosts
+- `prism_heartbeats_received_total`: Total heartbeats received
+- `prism_registrations_total`: Total host registrations
+- `prism_api_requests_total`: API request count by endpoint
+- `prism_api_request_duration_seconds`: API request duration histogram
+- Plus standard Python process metrics
+
+#### Prometheus Configuration
+To scrape metrics, add to `prometheus.yml`:
+```yaml
+scrape_configs:
+  - job_name: 'prism-dns'
+    static_configs:
+      - targets: ['35.170.180.10:8081']
+    metrics_path: '/metrics'
+```
+
+#### Security Recommendation
+If exposing metrics publicly, add authentication to nginx:
+```nginx
+location /metrics {
+    auth_basic "Prometheus Metrics";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    proxy_pass http://prism_api/metrics;
+}
+```
 
 ### Common Tasks
 - Add new API endpoint: Update `server/api/routes/` and `server/api/app.py`
