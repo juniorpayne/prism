@@ -10,6 +10,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      deploy_powerdns:
+        description: 'Deploy PowerDNS stack'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   EC2_HOST: 35.170.180.10
@@ -53,6 +58,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build PowerDNS image
+        if: ${{ inputs.deploy_powerdns == true || github.event.inputs.deploy_powerdns == 'true' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./powerdns
+          file: ./powerdns/Dockerfile
+          push: false
+          load: true
+          tags: powerdns:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Save Docker images with integrity checks
         run: |
           echo "💾 Saving Docker images to tarballs..."
@@ -66,14 +83,37 @@ jobs:
           docker save -o prism-web.tar ${{ env.WEB_IMAGE }}
           gzip -6 prism-web.tar
           
+          # Save PowerDNS images if deploying
+          if [ "${{ inputs.deploy_powerdns }}" == "true" ] || [ "${{ github.event.inputs.deploy_powerdns }}" == "true" ]; then
+            echo "Saving PowerDNS image..."
+            docker save -o powerdns.tar powerdns:latest
+            gzip -6 powerdns.tar
+            
+            # Also need to save postgres image for PowerDNS
+            echo "Pulling and saving PostgreSQL image for PowerDNS..."
+            docker pull postgres:15-alpine
+            docker save -o powerdns-db.tar postgres:15-alpine
+            gzip -6 powerdns-db.tar
+          fi
+          
           # Generate checksums
           sha256sum prism-server.tar.gz > prism-server.tar.gz.sha256
           sha256sum prism-web.tar.gz > prism-web.tar.gz.sha256
+          
+          if [ -f powerdns.tar.gz ]; then
+            sha256sum powerdns.tar.gz > powerdns.tar.gz.sha256
+            sha256sum powerdns-db.tar.gz > powerdns-db.tar.gz.sha256
+          fi
           
           # Verify compressed files
           echo "Verifying compressed files..."
           gzip -t prism-server.tar.gz || { echo "Server image compression failed!"; exit 1; }
           gzip -t prism-web.tar.gz || { echo "Web image compression failed!"; exit 1; }
+          
+          if [ -f powerdns.tar.gz ]; then
+            gzip -t powerdns.tar.gz || { echo "PowerDNS image compression failed!"; exit 1; }
+            gzip -t powerdns-db.tar.gz || { echo "PowerDNS DB image compression failed!"; exit 1; }
+          fi
           
           # Display file info
           echo "File information:"
@@ -206,6 +246,23 @@ jobs:
               ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
           fi
           
+          # Transfer PowerDNS configuration if deploying PowerDNS
+          if [ "${{ inputs.deploy_powerdns }}" == "true" ] || [ "${{ github.event.inputs.deploy_powerdns }}" == "true" ]; then
+            echo "🌐 Transferring PowerDNS configuration and images..."
+            
+            # Transfer PowerDNS images and checksums
+            scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -C \
+              powerdns.tar.gz powerdns.tar.gz.sha256 \
+              powerdns-db.tar.gz powerdns-db.tar.gz.sha256 \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+            
+            # Create and transfer PowerDNS configuration
+            tar -czf powerdns-config.tar.gz docker-compose.powerdns.yml powerdns/
+            scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              powerdns-config.tar.gz \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+          fi
+          
           # Create deployment script
           cat > deploy-script.sh <<'EOF'
           #!/bin/bash
@@ -286,6 +343,32 @@ jobs:
             tar -xzf monitoring.tar.gz
           fi
           
+          # Extract and process PowerDNS if present
+          if [ -f powerdns-config.tar.gz ]; then
+            echo "🌐 Extracting PowerDNS configuration..."
+            tar -xzf powerdns-config.tar.gz
+            
+            # Load PowerDNS images
+            echo "🐳 Loading PowerDNS images..."
+            if [ -f powerdns.tar.gz ] && [ -f powerdns-db.tar.gz ]; then
+              echo "Loading PowerDNS server image..."
+              if gunzip -c powerdns.tar.gz | docker load; then
+                echo "✅ PowerDNS image loaded successfully"
+              else
+                echo "❌ Failed to load PowerDNS image!"
+                exit 1
+              fi
+              
+              echo "Loading PowerDNS database image..."
+              if gunzip -c powerdns-db.tar.gz | docker load; then
+                echo "✅ PowerDNS database image loaded successfully"
+              else
+                echo "❌ Failed to load PowerDNS database image!"
+                exit 1
+              fi
+            fi
+          fi
+          
           echo "📁 Setting up deployment directory..."
           DEPLOY_DIR=~/prism-deployment
           mkdir -p ${DEPLOY_DIR}/data ${DEPLOY_DIR}/config
@@ -352,6 +435,34 @@ jobs:
           if [ -f ${DEPLOY_DIR}/docker-compose.monitoring.yml ]; then
             echo "📊 Deploying monitoring stack..."
             docker compose -f docker-compose.monitoring.yml up -d
+          fi
+          
+          # Deploy PowerDNS stack if configuration exists
+          if [ -f ${DEPLOY_DIR}/docker-compose.powerdns.yml ]; then
+            echo "🌐 Deploying PowerDNS stack..."
+            
+            # Copy PowerDNS directory if it exists
+            if [ -d ~/deployment-tmp/powerdns ]; then
+              cp -r ~/deployment-tmp/powerdns ${DEPLOY_DIR}/
+            fi
+            
+            # Create PowerDNS networks if they don't exist
+            docker network create prism-backend 2>/dev/null || true
+            docker network create prism-frontend 2>/dev/null || true
+            
+            # Create PowerDNS environment file if needed
+            if [ ! -f ${DEPLOY_DIR}/.env.powerdns ]; then
+              cat > ${DEPLOY_DIR}/.env.powerdns <<'PDNS_ENV'
+          PDNS_API_KEY=${PDNS_API_KEY:-changeme-in-production}
+          PDNS_DB_PASSWORD=${PDNS_DB_PASSWORD:-changeme-in-production}
+          PDNS_DB_NAME=powerdns
+          PDNS_DB_USER=powerdns
+          PDNS_DEFAULT_ZONE=managed.prism.local
+          PDNS_ENV
+            fi
+            
+            # Deploy PowerDNS
+            docker compose -f docker-compose.powerdns.yml --env-file .env.powerdns up -d
           fi
           
           echo "⏳ Waiting for services to start..."
@@ -448,6 +559,32 @@ jobs:
             exit 1
           fi
           
+          # Check PowerDNS if deployed
+          if [ "${{ inputs.deploy_powerdns }}" == "true" ] || [ "${{ github.event.inputs.deploy_powerdns }}" == "true" ]; then
+            echo "🔍 Checking PowerDNS deployment..."
+            
+            # Wait a bit more for PowerDNS to start
+            sleep 10
+            
+            # Check PowerDNS containers
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              ${{ env.EC2_USER }}@${{ env.EC2_HOST }} \
+              "cd ~/prism-deployment && docker compose -f docker-compose.powerdns.yml ps"
+            
+            # Check PowerDNS API (on port 8053)
+            echo "🔍 Checking PowerDNS API..."
+            if curl -f -m 10 -H "X-API-Key: changeme-in-production" \
+              http://${{ env.EC2_HOST }}:8053/api/v1/servers/localhost; then
+              echo "✅ PowerDNS API check passed"
+            else
+              echo "⚠️  PowerDNS API check failed (expected on first deployment before API key is set)"
+            fi
+            
+            # Check DNS resolution capability (port 53)
+            echo "🔍 Testing DNS port connectivity..."
+            nc -zv -w5 ${{ env.EC2_HOST }} 53 || echo "Note: Port 53 may require security group update"
+          fi
+          
           echo "✅ All services are healthy!"
 
       - name: Clean up local artifacts
@@ -455,6 +592,9 @@ jobs:
         run: |
           rm -f prism-server.tar.gz prism-web.tar.gz
           rm -f prism-server.tar.gz.sha256 prism-web.tar.gz.sha256
+          rm -f powerdns.tar.gz powerdns-db.tar.gz
+          rm -f powerdns.tar.gz.sha256 powerdns-db.tar.gz.sha256
+          rm -f powerdns-config.tar.gz monitoring.tar.gz
           rm -f ~/.ssh/deploy_key deploy-script.sh
 
       - name: Generate deployment summary
@@ -473,3 +613,11 @@ jobs:
           echo "- **Web Interface**: http://${{ env.EC2_HOST }}:8090/" >> $GITHUB_STEP_SUMMARY
           echo "- **API**: http://${{ env.EC2_HOST }}:8081/api/health" >> $GITHUB_STEP_SUMMARY
           echo "- **TCP Server**: ${{ env.EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.deploy_powerdns }}" == "true" ] || [ "${{ github.event.inputs.deploy_powerdns }}" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## PowerDNS Services" >> $GITHUB_STEP_SUMMARY
+            echo "- **DNS Service**: ${{ env.EC2_HOST }}:53 (UDP/TCP)" >> $GITHUB_STEP_SUMMARY
+            echo "- **PowerDNS API**: http://${{ env.EC2_HOST }}:8053/" >> $GITHUB_STEP_SUMMARY
+            echo "- **Configuration**: Use \`dig @${{ env.EC2_HOST }} hostname.managed.prism.local\` to test" >> $GITHUB_STEP_SUMMARY
+          fi

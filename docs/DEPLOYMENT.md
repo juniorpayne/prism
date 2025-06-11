@@ -2,6 +2,8 @@
 
 This document describes the automated deployment process for the Prism DNS project using GitHub Actions and EC2.
 
+> **PowerDNS Deployment**: For instructions on deploying the PowerDNS DNS server component, see [POWERDNS_DEPLOYMENT.md](./POWERDNS_DEPLOYMENT.md)
+
 ## Overview
 
 The deployment system provides automated, reliable deployments to multiple environments with health checks, rollback capabilities, and comprehensive monitoring.
