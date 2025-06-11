@@ -1,0 +1,14 @@
+# Production Environment Configuration
+# Copy this file to terraform.tfvars and update with your values
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# EC2 instance where PowerDNS will run
+# Get this from: aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value]' --output table
+ec2_instance_id = "i-XXXXXXXXXXXXXXXXX"
+
+# Network Configuration
+# Update these with your actual IP ranges
+office_cidr     = "203.0.113.0/24"      # Your office public IP range
+monitoring_cidr = "10.0.0.0/16"         # Your monitoring network

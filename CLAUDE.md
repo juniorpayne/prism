@@ -389,3 +389,7 @@ location /metrics {
 - Add new metric: Update `server/monitoring.py`
 - Update client: Modify `client/` modules and test with `prism_client.py`
 - Add dashboard: Create JSON in `monitoring/grafana/dashboards/`
+
+## Guidelines for Development and Configuration
+
+- Always check the overall configurations for port assignment and network configurations as well as other configurations that may conflict with each other.
