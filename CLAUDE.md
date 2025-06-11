@@ -8,7 +8,7 @@ Prism DNS - A managed DNS solution with automatic host registration and heartbea
 
 ## Architecture
 
-- **Server**: Python-based TCP server (port 8081) and REST API (port 8080)
+- **Server**: Python-based TCP server (port 8080) and REST API (port 8081)
 - **Client**: Python client that registers and sends heartbeats
 - **Web Interface**: Static HTML/JS frontend served by nginx (port 8090)
 - **Database**: SQLite for development, PostgreSQL ready for production
@@ -27,12 +27,44 @@ Prism DNS - A managed DNS solution with automatic host registration and heartbea
 
 - **Production URL**: https://prism.thepaynes.ca
 - **EC2 Instance**: 35.170.180.10
-- **Ports**:
-  - 8080: REST API (internal, proxied through nginx)
-  - 8081: TCP server for client connections
-  - 8090: Web interface (internal, proxied through nginx)
-  - 80/443: Nginx reverse proxy (public)
 - We use venv in python for this project
+
+## Production Ports and Services
+
+### Public-Facing Ports
+- **443 (HTTPS)**: Main nginx reverse proxy at prism.thepaynes.ca
+  - Serves web interface from `/`
+  - Proxies API requests from `/api/*` to internal nginx on port 8090
+- **8080**: TCP server for client connections (MUST be open in AWS security group)
+  - Direct client-to-server communication for registration and heartbeats
+
+### Internal Ports (Docker containers on EC2)
+- **8081**: REST API (FastAPI) - NOT exposed externally
+  - Only accessible within Docker network
+  - Proxied by nginx container
+- **8090**: Nginx container serving web interface
+  - Proxies `/api/*` requests to API server on port 8081
+  - Serves static web files
+  - Only exposed to localhost for reverse proxy access
+
+### Port Flow in Production
+```
+[Internet]
+    |
+    ├── HTTPS (443) ──→ [Reverse Proxy @ prism.thepaynes.ca]
+    |                            |
+    |                            └──→ localhost:8090 ──→ [Nginx Container]
+    |                                                            |
+    |                                                            ├── /api/* ──→ prism-server:8081 [API]
+    |                                                            └── /* ──→ Static Files
+    |
+    └── TCP (8080) ──→ [TCP Server Container] ← Direct client connections
+```
+
+1. User visits https://prism.thepaynes.ca → Reverse proxy (443)
+2. Reverse proxy forwards to → Nginx container (8090)
+3. Nginx container serves static files OR proxies `/api/*` to → API server (8081)
+4. Clients connect directly to → TCP server (8080)
 
 ## Key Project Specifics
 
@@ -64,10 +96,10 @@ docker compose up -d --build
 ```
 
 #### Service Ports (Local Development)
-- **8080**: REST API (direct access)
-- **8081**: TCP Server (client connections)
-- **8090**: Web Interface (nginx)
-- **5432**: PostgreSQL (if using docker-compose.yml)
+- **8080**: TCP Server (client connections)
+- **8081**: REST API (direct access)
+- **8090**: Web Interface (nginx) - NOT used in dev by default
+- **5432**: PostgreSQL (if using production docker-compose)
 
 #### Development Files
 - `docker-compose.yml`: Main development stack
@@ -81,14 +113,15 @@ docker compose up -d --build
 #### Quick Testing
 ```bash
 # Test endpoints
-curl http://localhost:8080/api/health
-curl http://localhost:8080/metrics
+curl http://localhost:8081/api/health
+curl http://localhost:8081/metrics
 
 # Run client locally against Docker server
 python3 prism_client.py -c prism-client.yaml
 
-# Access web interface
-open http://localhost:8090
+# Access web interface (dev mode - no nginx)
+# The API is served directly from FastAPI on port 8081
+# To use the web interface in dev, open index.html directly or use a local server
 ```
 
 #### Docker Commands
@@ -117,7 +150,31 @@ docker compose restart server
 ### Configuration
 - Server config: Environment variables (PRISM_SERVER_TCP_PORT, PRISM_SERVER_API_PORT, etc.)
 - Client config: YAML file (prism-client.yaml)
-- Port 8081 must be open in AWS security group for clients
+- Port 8080 must be open in AWS security group for clients (TCP connections)
+
+### Nginx Configuration Differences
+
+#### Development Environment
+- No nginx container by default in `docker-compose.yml`
+- API served directly from FastAPI on port 8081
+- Web interface can be accessed via file:// or python http.server
+- No reverse proxy needed for local development
+
+#### Production Environment
+- Nginx container (`prism-nginx`) runs on port 8090
+- Uses `nginx.simple.conf` configuration
+- Proxies `/api/*` requests to `prism-server:8081`
+- Serves static web files from `/usr/share/nginx/html`
+- Service names in docker-compose MUST match nginx upstream config:
+  - Service name: `prism-server` (not `server`)
+  - Nginx expects: `prism-server:8081`
+
+#### HTTPS Reverse Proxy (prism.thepaynes.ca)
+- Runs on the host system (not in Docker)
+- Configured in `/etc/nginx/sites-available/prism`
+- Forwards all requests to `localhost:8090` (nginx container)
+- Handles SSL termination with Let's Encrypt certificates
+- Must proxy `/api/*` to port 8090, NOT 8080 (common mistake!)
 
 ### Known Issues
 - AsyncDatabaseManager not implemented (SCRUM-41)
@@ -126,8 +183,8 @@ docker compose restart server
 
 ### Environment Variables
 - `PRISM_SERVER_HOST`: Server bind address (default: 0.0.0.0)
-- `PRISM_SERVER_TCP_PORT`: TCP server port (default: 8081)
-- `PRISM_SERVER_API_PORT`: API server port (default: 8080)
+- `PRISM_SERVER_TCP_PORT`: TCP server port (default: 8080)
+- `PRISM_SERVER_API_PORT`: API server port (default: 8081)
 - `PRISM_DATABASE_PATH`: Database file path
 - `PRISM_LOGGING_LEVEL`: Log level (DEBUG, INFO, WARNING, ERROR)
 
@@ -232,10 +289,16 @@ curl https://prism.thepaynes.ca/metrics | grep prism_
 - **Permission issues**: Check file ownership, use `sudo chown -R $USER:$USER .`
 
 #### Production Issues
-- If client can't connect: Check port 8081 is open in AWS security group
+- If client can't connect: Check port 8080 is open in AWS security group
 - If web UI shows no data: Check browser console for API errors
 - If deployment fails: Check GitHub Actions logs
 - Container logs: `ssh ubuntu@35.170.180.10 "cd ~/prism-deployment && docker compose logs"`
+
+#### Common Port Confusion
+- **8080**: TCP server (clients connect here), NOT the API!
+- **8081**: REST API (internal only, never exposed directly)
+- **8090**: Nginx container (proxies API and serves web files)
+- **Easy to remember**: Lower port (8080) = Lower level (TCP), Higher port (8081) = Higher level (HTTP API)
 
 #### Common Docker Commands for Debugging
 ```bash
