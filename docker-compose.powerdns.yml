@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PDNS_DB_NAME:-powerdns}
+      POSTGRES_USER: ${PDNS_DB_USER:-powerdns}
+      POSTGRES_PASSWORD: ${PDNS_DB_PASSWORD:-changeme}
+    volumes:
+      - powerdns-db-data:/var/lib/postgresql/data
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - prism-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PDNS_DB_USER:-powerdns}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  powerdns:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    container_name: powerdns-server
+    restart: unless-stopped
+    environment:
+      PDNS_API_KEY: ${PDNS_API_KEY:-changeme}
+      PDNS_DB_HOST: powerdns-db
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: ${PDNS_DB_NAME:-powerdns}
+      PDNS_DB_USER: ${PDNS_DB_USER:-powerdns}
+      PDNS_DB_PASSWORD: ${PDNS_DB_PASSWORD:-changeme}
+      PDNS_API_ALLOW_FROM: ${PDNS_API_ALLOW_FROM:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      PDNS_DEFAULT_ZONE: ${PDNS_DEFAULT_ZONE:-managed.prism.local}
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "8053:8053/tcp"  # PowerDNS API (changed from 8081 to avoid conflict)
+    depends_on:
+      powerdns-db:
+        condition: service_healthy
+    networks:
+      - prism-backend
+      - prism-frontend
+    cap_add:
+      - NET_BIND_SERVICE
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  powerdns-db-data:
+    driver: local
+
+networks:
+  prism-backend:
+    external: true
+  prism-frontend:
+    external: true
