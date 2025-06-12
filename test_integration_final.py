@@ -4,12 +4,13 @@ Final comprehensive test of PowerDNS integration
 """
 
 import asyncio
-import socket
 import json
+import socket
 import struct
 import time
-import aiohttp
 from datetime import datetime, timezone
+
+import aiohttp
 
 
 def send_registration(hostname, port=8080):
@@ -18,25 +19,25 @@ def send_registration(hostname, port=8080):
         "version": "1.0",
         "type": "registration",
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "hostname": hostname
+        "hostname": hostname,
     }
-    
+
     json_data = json.dumps(message, separators=(",", ":")).encode("utf-8")
     length_prefix = struct.pack(">I", len(json_data))
     framed_message = length_prefix + json_data
-    
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.connect(('localhost', port))
+        sock.connect(("localhost", port))
         sock.settimeout(5.0)
         sock.sendall(framed_message)
-        
+
         # Receive response
         length_data = sock.recv(4)
         response_length = struct.unpack(">I", length_data)[0]
         response_data = sock.recv(response_length)
         response = json.loads(response_data.decode("utf-8"))
-        
+
         sock.close()
         return response.get("status") == "success", response.get("message", "")
     except Exception as e:
@@ -49,7 +50,7 @@ async def verify_dns_record(hostname, expected_ip, zone="managed.prism.local."):
     async with aiohttp.ClientSession() as session:
         headers = {"X-API-Key": "test-api-key"}
         fqdn = f"{hostname}.{zone}"
-        
+
         # Query PowerDNS for the specific record
         url = f"http://localhost:8053/api/v1/servers/localhost/zones/{zone}"
         async with session.get(url, headers=headers) as resp:
@@ -69,13 +70,13 @@ async def check_metrics():
             if resp.status == 200:
                 metrics = await resp.text()
                 dns_metrics = {}
-                for line in metrics.split('\n'):
-                    if 'powerdns_record_operations_total' in line and not line.startswith('#'):
+                for line in metrics.split("\n"):
+                    if "powerdns_record_operations_total" in line and not line.startswith("#"):
                         # Parse metric line
-                        if '{' in line:
-                            metric_name = line.split('{')[0]
-                            labels = line.split('{')[1].split('}')[0]
-                            value = line.split('}')[1].strip()
+                        if "{" in line:
+                            metric_name = line.split("{")[0]
+                            labels = line.split("{")[1].split("}")[0]
+                            value = line.split("}")[1].strip()
                             dns_metrics[f"{metric_name}_{labels}"] = float(value)
                 return dns_metrics
     return {}
@@ -85,15 +86,15 @@ async def run_comprehensive_test():
     """Run comprehensive integration test"""
     print("🧪 PowerDNS Integration - Comprehensive Test")
     print("=" * 60)
-    
+
     test_results = {
         "tcp_registration": False,
         "dns_record_created": False,
         "dns_record_correct": False,
         "metrics_recorded": False,
-        "multiple_hosts": False
+        "multiple_hosts": False,
     }
-    
+
     # Test 1: Single host registration
     print("\n📌 Test 1: Single Host Registration")
     hostname1 = f"integration-test-{int(time.time())}"
@@ -101,10 +102,10 @@ async def run_comprehensive_test():
     if success:
         print(f"✅ Registered {hostname1}: {message}")
         test_results["tcp_registration"] = True
-        
+
         # Wait for DNS sync
         await asyncio.sleep(2)
-        
+
         # Verify DNS record
         dns_ok, actual_ip = await verify_dns_record(hostname1, "172.18.0.1")
         if dns_ok:
@@ -115,7 +116,7 @@ async def run_comprehensive_test():
             print(f"❌ DNS record issue: expected 172.18.0.1, got {actual_ip}")
     else:
         print(f"❌ Registration failed: {message}")
-    
+
     # Test 2: Multiple hosts
     print("\n📌 Test 2: Multiple Host Registration")
     success_count = 0
@@ -125,11 +126,11 @@ async def run_comprehensive_test():
         if success:
             success_count += 1
         await asyncio.sleep(0.5)
-    
+
     print(f"✅ Registered {success_count}/3 hosts")
     if success_count == 3:
         test_results["multiple_hosts"] = True
-    
+
     # Test 3: Check metrics
     print("\n📌 Test 3: Metrics Verification")
     metrics = await check_metrics()
@@ -141,12 +142,12 @@ async def run_comprehensive_test():
         test_results["metrics_recorded"] = len(metrics) > 0
     else:
         print("❌ No DNS metrics found")
-    
+
     # Test 4: IPv6 address (should create AAAA record)
     print("\n📌 Test 4: IPv6 Registration (Optional)")
     # This would need a client that sends IPv6 address
     print("⏭️  Skipped (requires IPv6 client)")
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("📊 Test Results Summary:")
@@ -155,19 +156,19 @@ async def run_comprehensive_test():
     print(f"  DNS Record Correct:  {'✅' if test_results['dns_record_correct'] else '❌'}")
     print(f"  Metrics Recorded:    {'✅' if test_results['metrics_recorded'] else '❌'}")
     print(f"  Bulk Registration:   {'✅' if test_results['multiple_hosts'] else '❌'}")
-    
+
     passed = sum(1 for v in test_results.values() if v)
     total = len(test_results)
-    
+
     print(f"\n🏆 Overall: {passed}/{total} tests passed")
-    
+
     if passed == total:
         print("🎉 PowerDNS integration is fully functional!")
     elif passed >= 3:
         print("✅ PowerDNS integration is working with minor issues")
     else:
         print("⚠️  PowerDNS integration needs attention")
-    
+
     return test_results
 
 
