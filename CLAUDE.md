@@ -208,6 +208,7 @@ docker compose restart server
 - When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format)
 - After you finish reviewing a jira ticket and it has passed its review you need to change the status to done.
 - Jira workflow: todo -> in progress -> waiting for review -> in review -> done
+- Always update the status of jira issues when your work affects it.
 
 ## Review Process
 

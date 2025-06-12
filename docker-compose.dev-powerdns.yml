@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # PowerDNS Database
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: powerdns
+      POSTGRES_USER: powerdns
+      POSTGRES_PASSWORD: test-db-password
+    volumes:
+      - powerdns-db-data:/var/lib/postgresql/data
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powerdns"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PowerDNS Server
+  powerdns:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    container_name: powerdns-server
+    restart: unless-stopped
+    ports:
+      - "5353:53/tcp"
+      - "5353:53/udp"
+      - "8053:8053"
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      PDNS_API_KEY: test-api-key
+      PDNS_DB_HOST: powerdns-db
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: powerdns
+      PDNS_DB_USER: powerdns
+      PDNS_DB_PASSWORD: test-db-password
+      PDNS_API_ALLOW_FROM: 0.0.0.0/0,::/0
+      PDNS_DEFAULT_ZONE: managed.prism.local
+    depends_on:
+      powerdns-db:
+        condition: service_healthy
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prism Server with PowerDNS integration
+  prism-server:
+    build:
+      context: .
+      target: development
+    container_name: prism-server
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - .:/app
+      - server_data:/app/data
+    environment:
+      - PRISM_ENV=development
+      - PRISM_CONFIG_PATH=/app/config/server.yaml
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PRISM_POWERDNS_ENABLED=true
+      - PRISM_POWERDNS_API_URL=http://powerdns:8053/api/v1
+      - PRISM_POWERDNS_API_KEY=test-api-key
+      - PRISM_POWERDNS_DEFAULT_ZONE=managed.prism.local.
+    command: >
+      sh -c "python -m server.main --config /app/config/server.yaml"
+    depends_on:
+      - powerdns
+    networks:
+      - prism-network
+    restart: unless-stopped
+
+volumes:
+  powerdns-db-data:
+  server_data:
+
+networks:
+  prism-network:
+    driver: bridge

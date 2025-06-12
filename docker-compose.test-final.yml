@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Use existing PostgreSQL for PowerDNS
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: test-powerdns-db
+    environment:
+      POSTGRES_DB: powerdns
+      POSTGRES_USER: powerdns
+      POSTGRES_PASSWORD: testpass
+    volumes:
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powerdns"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # PowerDNS using alpine package directly
+  powerdns:
+    image: alpine:3.18
+    container_name: test-powerdns
+    ports:
+      - "5353:53/tcp"
+      - "5353:53/udp"
+      - "8053:8053"
+    networks:
+      - test-network
+    depends_on:
+      powerdns-db:
+        condition: service_healthy
+    volumes:
+      - ./powerdns/pdns.test.conf:/etc/pdns/pdns.conf:ro
+    command: >
+      sh -c "
+        apk add --no-cache pdns pdns-backend-pgsql &&
+        echo 'Starting PowerDNS...' &&
+        pdns_server --daemon=no --config-dir=/etc/pdns
+      "
+
+  # Prism server with PowerDNS enabled
+  prism-server:
+    build:
+      context: .
+      target: development
+    container_name: test-prism-server
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - PRISM_POWERDNS_ENABLED=true
+      - PRISM_POWERDNS_API_URL=http://powerdns:8053/api/v1
+      - PRISM_POWERDNS_API_KEY=test-api-key
+    command: python -m server.main --config /app/config/server.yaml
+    depends_on:
+      - powerdns
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

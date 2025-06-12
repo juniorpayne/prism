@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Use existing PostgreSQL for PowerDNS
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: test-powerdns-db
+    environment:
+      POSTGRES_DB: powerdns
+      POSTGRES_USER: powerdns
+      POSTGRES_PASSWORD: testpass
+    volumes:
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - test-network
+
+  # PowerDNS using alpine package directly
+  powerdns:
+    image: alpine:3.18
+    container_name: test-powerdns
+    ports:
+      - "5353:53/tcp"
+      - "5353:53/udp"
+      - "8053:8053"
+    networks:
+      - test-network
+    depends_on:
+      - powerdns-db
+    volumes:
+      - ./powerdns/pdns.conf:/etc/pdns/pdns.conf:ro
+    environment:
+      PDNS_API_KEY: test-api-key
+      PDNS_DB_HOST: powerdns-db
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: powerdns
+      PDNS_DB_USER: powerdns
+      PDNS_DB_PASSWORD: testpass
+    command: >
+      sh -c "
+        apk add --no-cache pdns pdns-backend-pgsql postgresql-client &&
+        echo 'Waiting for database...' &&
+        while ! pg_isready -h powerdns-db -p 5432 -U powerdns; do sleep 1; done &&
+        echo 'Database ready!' &&
+        sed -i 's/\$${PDNS_DB_HOST}/powerdns-db/g' /etc/pdns/pdns.conf &&
+        sed -i 's/\$${PDNS_DB_PORT}/5432/g' /etc/pdns/pdns.conf &&
+        sed -i 's/\$${PDNS_DB_NAME}/powerdns/g' /etc/pdns/pdns.conf &&
+        sed -i 's/\$${PDNS_DB_USER}/powerdns/g' /etc/pdns/pdns.conf &&
+        sed -i 's/\$${PDNS_DB_PASSWORD}/testpass/g' /etc/pdns/pdns.conf &&
+        sed -i 's/\$${PDNS_API_KEY}/test-api-key/g' /etc/pdns/pdns.conf &&
+        pdns_server --daemon=no --config-dir=/etc/pdns
+      "
+
+  # Prism server with PowerDNS enabled
+  prism-server:
+    build:
+      context: .
+      target: development
+    container_name: test-prism-server
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - PRISM_POWERDNS_ENABLED=true
+      - PRISM_POWERDNS_API_URL=http://powerdns:8053/api/v1
+      - PRISM_POWERDNS_API_KEY=test-api-key
+    command: python -m server.main --config /app/config/server.yaml
+    depends_on:
+      - powerdns
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

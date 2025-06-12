@@ -64,6 +64,9 @@ class PowerDNSClient:
         # API configuration
         self.enabled = powerdns_config.get("enabled", False)
         self.base_url = powerdns_config.get("api_url", "http://powerdns:8053/api/v1")
+        # Ensure base URL ends with slash for proper urljoin behavior
+        if not self.base_url.endswith("/"):
+            self.base_url += "/"
         self.api_key = powerdns_config.get("api_key", "")
         self.default_zone = powerdns_config.get("default_zone", "managed.prism.local.")
         self.default_ttl = powerdns_config.get("default_ttl", 300)
@@ -194,7 +197,7 @@ class PowerDNSClient:
         Returns:
             Response data
         """
-        endpoint = f"/servers/localhost/zones/{zone}"
+        endpoint = f"servers/localhost/zones/{zone}"
         return await self._make_request("PATCH", endpoint, json_data=rrsets_data)
 
     async def create_a_record(
