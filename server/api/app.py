@@ -12,13 +12,21 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
 from server.api.routes import health, hosts, metrics
+from server.auth.routes import router as auth_router
+from server.database.connection import init_async_db
 from server.monitoring import get_metrics_collector
 
 logger = logging.getLogger(__name__)
+
+# Create limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 def create_app(config: Dict[str, Any]) -> FastAPI:
@@ -33,6 +41,9 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     """
     # Set configuration for dependency injection
     set_app_config(config)
+
+    # Initialize async database
+    init_async_db(config)
 
     # Get API configuration
     api_config = config.get("api", {})
@@ -68,6 +79,10 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         )
         logger.info(f"CORS enabled for origins: {cors_origins}")
 
+    # Add rate limiter
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # Add request tracking middleware
     @app.middleware("http")
     async def track_requests(request: Request, call_next):
@@ -99,6 +114,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(hosts.router)
     app.include_router(health.router)
     app.include_router(metrics.router)
+    app.include_router(auth_router, prefix="/api")
 
     # Add custom exception handlers
     @app.exception_handler(HTTPException)
@@ -120,12 +136,22 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         """Handle request validation errors."""
         logger.warning(f"Validation error: {exc} - {request.url}")
 
+        # Format validation errors to be JSON serializable
+        errors = []
+        for error in exc.errors():
+            err_copy = error.copy()
+            # Convert any non-serializable values to strings
+            if "ctx" in err_copy and "error" in err_copy["ctx"]:
+                if hasattr(err_copy["ctx"]["error"], "__str__"):
+                    err_copy["ctx"]["error"] = str(err_copy["ctx"]["error"])
+            errors.append(err_copy)
+
         return JSONResponse(
             status_code=422,
             content={
                 "detail": "Request validation failed",
                 "error_type": "validation_error",
-                "validation_errors": exc.errors(),
+                "validation_errors": errors,
             },
         )
 

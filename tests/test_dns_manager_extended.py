@@ -6,7 +6,7 @@ Additional test coverage for edge cases and error scenarios.
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import aiohttp
 import pytest
@@ -56,7 +56,7 @@ class TestPowerDNSClientExtended:
         }
         client1 = PowerDNSClient(config1)
         assert client1.base_url.endswith("/")
-        
+
         # With trailing slash
         config2 = {
             "powerdns": {
@@ -77,7 +77,7 @@ class TestPowerDNSClientExtended:
             "123-numeric-start",
             "very-long-hostname-that-exceeds-normal-length-limits-but-should-still-work",
         ]
-        
+
         for hostname in special_hostnames:
             with patch.object(client, "_make_request", return_value={}):
                 result = await client.create_a_record(hostname, "192.168.1.100")
@@ -94,7 +94,7 @@ class TestPowerDNSClientExtended:
             "fe80::1",
             "2001:db8:85a3::8a2e:370:7334",
         ]
-        
+
         for ipv6 in valid_ipv6_addresses:
             with patch.object(client, "_make_request", return_value={}):
                 result = await client.create_aaaa_record("host1", ipv6)
@@ -104,16 +104,13 @@ class TestPowerDNSClientExtended:
     async def test_concurrent_requests(self, client):
         """Test handling of concurrent API requests."""
         mock_response = {}
-        
+
         with patch.object(client, "_make_request", return_value=mock_response) as mock_request:
             # Create multiple concurrent requests
-            tasks = [
-                client.create_a_record(f"host{i}", f"192.168.1.{i}")
-                for i in range(10)
-            ]
-            
+            tasks = [client.create_a_record(f"host{i}", f"192.168.1.{i}") for i in range(10)]
+
             results = await asyncio.gather(*tasks)
-            
+
             assert len(results) == 10
             assert all(r["status"] == "success" for r in results)
             assert mock_request.call_count == 10
@@ -123,11 +120,11 @@ class TestPowerDNSClientExtended:
         """Test request timeout handling."""
         mock_session = AsyncMock()
         mock_session.request.side_effect = ClientTimeout("Request timeout")
-        
+
         with patch.object(client, "_get_session", return_value=mock_session):
             with pytest.raises(PowerDNSConnectionError) as exc_info:
                 await client._make_request("GET", "/test")
-            
+
             assert "Failed to connect" in str(exc_info.value)
             # Should retry 3 times
             assert mock_session.request.call_count == 3
@@ -140,16 +137,16 @@ class TestPowerDNSClientExtended:
         mock_response.status = 200
         mock_response.text.return_value = "{}"
         mock_session.request.return_value.__aenter__.return_value = mock_response
-        
+
         with patch("aiohttp.ClientSession", return_value=mock_session):
             # First request creates session
             await client._make_request("GET", "/test1")
             session1 = client._session
-            
+
             # Second request reuses session
             await client._make_request("GET", "/test2")
             session2 = client._session
-            
+
             assert session1 is session2
             assert session1 is mock_session
 
@@ -162,7 +159,7 @@ class TestPowerDNSClientExtended:
             ("sub.zone.com", "sub.zone.com."),
             ("sub.zone.com.", "sub.zone.com."),
         ]
-        
+
         for input_zone, expected_zone in test_cases:
             with patch.object(client, "_make_request", return_value={}):
                 result = await client.create_a_record("host", "192.168.1.1", zone=input_zone)
@@ -174,7 +171,7 @@ class TestPowerDNSClientExtended:
         # Test with FQDN as hostname
         with patch.object(client, "_make_request", return_value={}) as mock_request:
             await client.create_a_record("host.example.com.", "192.168.1.100")
-            
+
             rrsets = mock_request.call_args[1]["json_data"]["rrsets"]
             # Should use FQDN as-is, not append zone
             assert rrsets[0]["name"] == "host.example.com."
@@ -189,19 +186,19 @@ class TestPowerDNSClientExtended:
             ("", {}),
             ("null", {}),
         ]
-        
+
         mock_session = AsyncMock()
-        
+
         for response_text, expected_data in error_responses:
             mock_response = AsyncMock()
             mock_response.status = 400
             mock_response.text.return_value = response_text
             mock_session.request.return_value.__aenter__.return_value = mock_response
-            
+
             with patch.object(client, "_get_session", return_value=mock_session):
                 with pytest.raises(PowerDNSAPIError) as exc_info:
                     await client._make_request("GET", "/test")
-                
+
                 assert exc_info.value.response_data == expected_data
 
     @pytest.mark.asyncio
@@ -212,10 +209,10 @@ class TestPowerDNSClientExtended:
         mock_response.status = 200
         mock_response.text.return_value = "{}"
         mock_session.request.return_value.__aenter__.return_value = mock_response
-        
+
         with patch.object(client, "_get_session", return_value=mock_session):
             await client._make_request("GET", "/test")
-            
+
             # Check headers in session creation
             assert client._headers["X-API-Key"] == "test-api-key"
 
@@ -227,12 +224,12 @@ class TestPowerDNSClientExtended:
             ("host2", "192.168.1.2"),
             ("host3", "192.168.1.3"),
         ]
-        
+
         with patch.object(client, "_make_request", return_value={}) as mock_request:
             # Simulate batch operation
             for hostname, ip in hosts:
                 await client.create_a_record(hostname, ip)
-            
+
             assert mock_request.call_count == len(hosts)
 
     @pytest.mark.asyncio
@@ -241,14 +238,14 @@ class TestPowerDNSClientExtended:
         with patch("server.dns_manager.get_metrics_collector") as mock_metrics:
             mock_collector = MagicMock()
             mock_metrics.return_value = mock_collector
-            
+
             # Successful operation
             with patch.object(client, "_make_request", return_value={}):
                 await client.create_a_record("host1", "192.168.1.100")
                 mock_collector.record_powerdns_record_operation.assert_called_with(
                     "create", "A", "success"
                 )
-            
+
             # Failed operation
             with patch.object(client, "_make_request", side_effect=Exception("Test error")):
                 with pytest.raises(Exception):
@@ -264,7 +261,7 @@ class TestPowerDNSClientExtended:
             # Empty string should use default zone
             result = await client.create_a_record("host1", "192.168.1.100", zone="")
             assert result["zone"] == client.default_zone
-            
+
             # None should use default zone
             result = await client.create_a_record("host2", "192.168.1.101", zone=None)
             assert result["zone"] == client.default_zone
@@ -276,7 +273,7 @@ class TestPowerDNSClientExtended:
             # Update same record multiple times
             for _ in range(3):
                 await client.create_a_record("host1", "192.168.1.100")
-            
+
             # All calls should use REPLACE changetype
             for call in mock_request.call_args_list:
                 rrsets = call[1]["json_data"]["rrsets"]
@@ -287,9 +284,9 @@ class TestPowerDNSClientExtended:
         """Test proper cleanup of connection pool."""
         mock_session = AsyncMock()
         client._session = mock_session
-        
+
         await client.close()
-        
+
         mock_session.close.assert_called_once()
         assert client._session is None
 
@@ -300,18 +297,18 @@ class TestPowerDNSClientExtended:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text.return_value = "{}"
-        
+
         # Fail twice, succeed on third
         mock_session.request.side_effect = [
             ClientError("Failed"),
             ClientError("Failed"),
             mock_response,
         ]
-        
+
         with patch.object(client, "_get_session", return_value=mock_session):
             with patch("asyncio.sleep") as mock_sleep:
                 await client._make_request("GET", "/test")
-                
+
                 # Check exponential backoff delays
                 expected_delays = [
                     client.retry_delay,
@@ -328,7 +325,7 @@ class TestPowerDNSClientExtended:
         mock_response.status = 200
         mock_response.text.return_value = "Invalid JSON {"
         mock_session.request.return_value.__aenter__.return_value = mock_response
-        
+
         with patch.object(client, "_get_session", return_value=mock_session):
             with pytest.raises(PowerDNSError):
                 await client._make_request("GET", "/test")

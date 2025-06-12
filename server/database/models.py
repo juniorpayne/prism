@@ -56,6 +56,11 @@ class Host(Base):
     )  # pending, synced, failed
     dns_last_sync = Column(DateTime(timezone=True), nullable=True)  # Last successful DNS sync
 
+    # Multi-tenancy fields (SCRUM-52)
+    org_id = Column(String(36), nullable=True)  # UUID as string for now, will migrate to UUID type
+    zone_id = Column(String(36), nullable=True)  # UUID as string for now
+    created_by = Column(String(36), nullable=True)  # UUID as string for now
+
     # Audit timestamps
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
@@ -215,6 +220,9 @@ class Host(Base):
             "dns_ttl": self.dns_ttl,
             "dns_sync_status": self.dns_sync_status,
             "dns_last_sync": self.dns_last_sync.isoformat() if self.dns_last_sync else None,
+            "org_id": self.org_id,
+            "zone_id": self.zone_id,
+            "created_by": self.created_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
