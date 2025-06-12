@@ -161,8 +161,10 @@ class Dashboard {
     }
 
     updateServerStatus(health) {
-        if (this.elements.serverUptime && health.uptime_seconds !== undefined) {
-            this.elements.serverUptime.textContent = formatUptime(health.uptime_seconds);
+        // Handle both uptime_seconds and uptime fields
+        const uptimeValue = health.uptime_seconds ?? health.uptime;
+        if (this.elements.serverUptime && uptimeValue !== undefined) {
+            this.elements.serverUptime.textContent = formatUptime(uptimeValue);
         }
     }
 
