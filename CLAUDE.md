@@ -309,6 +309,15 @@ ls -la data/prism.db
   echo "✅ All linting passed!"
   ```
 
+## Pre-Deployment Verification
+
+Before pushing any changes that will auto-deploy to production:
+1. Run linting checks (above)
+2. Test in Docker: `docker compose up -d --build`
+3. Verify web interface works: http://localhost:8090
+4. Run pre-deployment checklist: `./pre-deploy-test.sh`
+5. Only then commit and push
+
 ## Project-Specific Commands
 
 ### Quick Health Checks
@@ -431,3 +440,32 @@ location /metrics {
 ## Guidelines for Development and Configuration
 
 - Always check the overall configurations for port assignment and network configurations as well as other configurations that may conflict with each other.
+
+### Development-Production Parity Principles
+
+1. **Always Mirror Production Architecture**
+   - Use nginx in development (port 8090) just like production uses nginx
+   - Don't use development shortcuts like `web_server.py` when production uses nginx
+   - This helps catch configuration issues before deployment
+
+2. **Service Naming Consistency**
+   - Be aware of service name differences between environments
+   - Development: `server` (in docker-compose.yml)
+   - Production: `prism-server` (in docker-compose.production.yml)
+   - Use environment-specific nginx configs to handle these differences
+
+3. **Pre-Deployment Testing**
+   - ALWAYS test the full stack locally before pushing to production
+   - Access the web interface through nginx at http://localhost:8090
+   - Don't just test the API directly - test through the same path users will use
+   - Run the pre-deployment checklist to avoid production breakages
+
+4. **Debug Production Issues Locally**
+   - When production issues occur, replicate them in the local Docker environment
+   - Use the same tools (Puppeteer, curl through nginx) to debug
+   - If it works locally but not in production, check for environment-specific differences
+
+5. **Configuration Management**
+   - Keep separate configs for dev/prod when needed (nginx.dev.conf vs nginx.simple.conf)
+   - Document all environment differences clearly
+   - Test configuration changes in development first
