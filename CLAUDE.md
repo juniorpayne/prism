@@ -104,7 +104,7 @@ docker compose up -d --build
 #### Service Ports (Local Development)
 - **8080**: TCP Server (client connections)
 - **8081**: REST API (direct access)
-- **8090**: Web Interface (nginx) - NOT used in dev by default
+- **8090**: Web Interface (nginx) - NOW ENABLED in development for production parity
 - **5432**: PostgreSQL (if using production docker-compose)
 
 #### Development Files
@@ -125,9 +125,9 @@ curl http://localhost:8081/metrics
 # Run client locally against Docker server
 python3 prism_client.py -c prism-client.yaml
 
-# Access web interface (dev mode - no nginx)
-# The API is served directly from FastAPI on port 8081
-# To use the web interface in dev, open index.html directly or use a local server
+# Access web interface via nginx (production-like)
+# Nginx serves static files and proxies /api/* to the API server
+http://localhost:8090/
 ```
 
 #### Docker Commands
@@ -160,11 +160,13 @@ docker compose restart server
 
 ### Nginx Configuration Differences
 
-#### Development Environment
-- No nginx container by default in `docker-compose.yml`
-- API served directly from FastAPI on port 8081
-- Web interface can be accessed via file:// or python http.server
-- No reverse proxy needed for local development
+#### Development Environment (UPDATED)
+- Nginx container now included in `docker-compose.yml` for production parity
+- Uses `nginx.dev.conf` configuration
+- Proxies `/api/*` requests to `server:8081` (note: dev uses `server`, prod uses `prism-server`)
+- Serves static web files from `/usr/share/nginx/html`
+- Accessible on port 8090
+- Service name: `nginx` (matches production setup)
 
 #### Production Environment
 - Nginx container (`prism-nginx`) runs on port 8090

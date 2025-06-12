@@ -27,6 +27,24 @@ services:
     networks:
       - prism-network
 
+  # Nginx web server (production-like setup)
+  nginx:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      target: development
+    container_name: prism-nginx
+    ports:
+      - "8090:80"  # Web interface port
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./web/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - server
+    restart: unless-stopped
+    networks:
+      - prism-network
+
   # Database service (SQLite with volume)
   database:
     image: alpine:3.18

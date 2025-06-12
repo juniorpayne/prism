@@ -36,8 +36,11 @@ FROM nginx:1.25-alpine AS development
 # Install curl and basic tools
 RUN apk add --no-cache curl inotify-tools
 
-# Copy development nginx config (if different)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Remove default nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy development nginx config
+COPY nginx.dev.conf /etc/nginx/conf.d/default.conf
 
 # Create directory for live files
 WORKDIR /usr/share/nginx/html
