@@ -212,36 +212,28 @@ class DatabaseMigrations:
         try:
             with self.db_manager.get_session() as session:
                 # Check if columns already exist
-                result = session.execute(
-                    text("PRAGMA table_info(hosts)")
-                )
+                result = session.execute(text("PRAGMA table_info(hosts)"))
                 existing_columns = {row[1] for row in result.fetchall()}
-                
+
                 # Add DNS tracking columns only if they don't exist
                 if "dns_zone" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN dns_zone VARCHAR(255)")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN dns_zone VARCHAR(255)"))
 
                 if "dns_record_id" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN dns_record_id VARCHAR(255)")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN dns_record_id VARCHAR(255)"))
 
                 if "dns_ttl" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN dns_ttl INTEGER")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN dns_ttl INTEGER"))
 
                 if "dns_sync_status" not in existing_columns:
                     session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN dns_sync_status VARCHAR(20) DEFAULT 'pending'")
+                        text(
+                            "ALTER TABLE hosts ADD COLUMN dns_sync_status VARCHAR(20) DEFAULT 'pending'"
+                        )
                     )
 
                 if "dns_last_sync" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN dns_last_sync TIMESTAMP")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN dns_last_sync TIMESTAMP"))
 
                 # Create index for DNS sync status
                 session.execute(
@@ -270,26 +262,18 @@ class DatabaseMigrations:
         try:
             with self.db_manager.get_session() as session:
                 # Check if columns already exist
-                result = session.execute(
-                    text("PRAGMA table_info(hosts)")
-                )
+                result = session.execute(text("PRAGMA table_info(hosts)"))
                 existing_columns = {row[1] for row in result.fetchall()}
-                
+
                 # Add multi-tenancy columns only if they don't exist
                 if "org_id" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN org_id VARCHAR(36)")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN org_id VARCHAR(36)"))
 
                 if "zone_id" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN zone_id VARCHAR(36)")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN zone_id VARCHAR(36)"))
 
                 if "created_by" not in existing_columns:
-                    session.execute(
-                        text("ALTER TABLE hosts ADD COLUMN created_by VARCHAR(36)")
-                    )
+                    session.execute(text("ALTER TABLE hosts ADD COLUMN created_by VARCHAR(36)"))
 
                 # Create indexes for multi-tenancy fields
                 session.execute(

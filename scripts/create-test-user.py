@@ -5,22 +5,25 @@ Run this in the Docker container or locally with the production database.
 """
 
 import sys
-import bcrypt
 from datetime import datetime, timezone
 from uuid import uuid4
+
+import bcrypt
+
 
 def hash_password(password: str) -> str:
     """Hash password using bcrypt."""
     salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
 
 def create_test_user(email: str, username: str, password: str):
     """Generate SQL to create a test user."""
     user_id = str(uuid4())
     password_hash = hash_password(password)
     now = datetime.now(timezone.utc).isoformat()
-    
+
     # SQL for user
     user_sql = f"""
 -- Create test user (already verified)
@@ -53,24 +56,25 @@ INSERT INTO organizations (
     '{now}'
 );
 """
-    
+
     print(f"Generated SQL for user: {username} ({email})")
     print("Password:", password)
     print("\nSQL to execute:")
     print("-" * 60)
     print(user_sql)
     print("-" * 60)
-    
+
     return user_sql
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: python create-test-user.py <email> <username> <password>")
         print("Example: python create-test-user.py test@example.com testuser SecurePass123!")
         sys.exit(1)
-    
+
     email = sys.argv[1]
     username = sys.argv[2]
     password = sys.argv[3]
-    
+
     create_test_user(email, username, password)
