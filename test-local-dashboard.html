@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Local Dashboard Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="web/css/main.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Local Dashboard Test - With Real Data</h2>
+        
+        <!-- Copy of production dashboard structure -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-pie-chart"></i> Host Status Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="status-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-activity"></i> Recent Activity</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-activity">
+                            <p class="text-muted">Loading recent activity...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <strong>API Data:</strong>
+                    <pre id="api-data"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="web/js/api.js"></script>
+    <script src="web/js/utils.js"></script>
+    <script src="web/js/dashboard.js"></script>
+    
+    <script>
+        // Override API base URL to use local server
+        api.baseUrl = 'http://localhost:8081';
+        
+        // Mock app object
+        window.app = {
+            showHost(hostname) {
+                console.log('Show host:', hostname);
+            }
+        };
+        
+        async function testDashboard() {
+            const dashboard = new Dashboard();
+            
+            try {
+                // Load dashboard data
+                await dashboard.loadDashboard();
+                
+                // Also display raw API data
+                const stats = await api.getStats();
+                const hosts = await api.getHosts();
+                
+                document.getElementById('api-data').textContent = JSON.stringify({
+                    stats: stats.host_statistics,
+                    hosts: hosts.hosts.slice(0, 5) // First 5 hosts
+                }, null, 2);
+                
+            } catch (error) {
+                console.error('Dashboard test failed:', error);
+                document.getElementById('api-data').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Run test on load
+        window.onload = testDashboard;
+    </script>
+</body>
+</html>

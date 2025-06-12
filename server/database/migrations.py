@@ -47,6 +47,8 @@ class DatabaseMigrations:
         self._migrations[1] = self._migrate_to_v1
         # Migration from version 1 to version 2 (PowerDNS integration)
         self._migrations[2] = self._migrate_to_v2
+        # Migration from version 2 to version 3 (Multi-tenancy fields)
+        self._migrations[3] = self._migrate_to_v3
 
     def get_current_schema_version(self) -> int:
         """
@@ -209,46 +211,37 @@ class DatabaseMigrations:
 
         try:
             with self.db_manager.get_session() as session:
-                # Add DNS tracking columns
-                session.execute(
-                    text(
-                        """
-                    ALTER TABLE hosts ADD COLUMN dns_zone VARCHAR(255)
-                """
-                    )
+                # Check if columns already exist
+                result = session.execute(
+                    text("PRAGMA table_info(hosts)")
                 )
+                existing_columns = {row[1] for row in result.fetchall()}
+                
+                # Add DNS tracking columns only if they don't exist
+                if "dns_zone" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN dns_zone VARCHAR(255)")
+                    )
 
-                session.execute(
-                    text(
-                        """
-                    ALTER TABLE hosts ADD COLUMN dns_record_id VARCHAR(255)
-                """
+                if "dns_record_id" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN dns_record_id VARCHAR(255)")
                     )
-                )
 
-                session.execute(
-                    text(
-                        """
-                    ALTER TABLE hosts ADD COLUMN dns_ttl INTEGER
-                """
+                if "dns_ttl" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN dns_ttl INTEGER")
                     )
-                )
 
-                session.execute(
-                    text(
-                        """
-                    ALTER TABLE hosts ADD COLUMN dns_sync_status VARCHAR(20) DEFAULT 'pending'
-                """
+                if "dns_sync_status" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN dns_sync_status VARCHAR(20) DEFAULT 'pending'")
                     )
-                )
 
-                session.execute(
-                    text(
-                        """
-                    ALTER TABLE hosts ADD COLUMN dns_last_sync TIMESTAMP
-                """
+                if "dns_last_sync" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN dns_last_sync TIMESTAMP")
                     )
-                )
 
                 # Create index for DNS sync status
                 session.execute(
@@ -264,6 +257,63 @@ class DatabaseMigrations:
 
         except SQLAlchemyError as e:
             logger.error(f"PowerDNS integration migration failed: {e}")
+            raise
+
+    def _migrate_to_v3(self) -> None:
+        """
+        Migration to version 3: Add multi-tenancy fields.
+
+        This migration adds org_id, zone_id, and created_by fields for multi-tenancy support.
+        """
+        logger.info("Applying migration to version 3: Multi-tenancy fields")
+
+        try:
+            with self.db_manager.get_session() as session:
+                # Check if columns already exist
+                result = session.execute(
+                    text("PRAGMA table_info(hosts)")
+                )
+                existing_columns = {row[1] for row in result.fetchall()}
+                
+                # Add multi-tenancy columns only if they don't exist
+                if "org_id" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN org_id VARCHAR(36)")
+                    )
+
+                if "zone_id" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN zone_id VARCHAR(36)")
+                    )
+
+                if "created_by" not in existing_columns:
+                    session.execute(
+                        text("ALTER TABLE hosts ADD COLUMN created_by VARCHAR(36)")
+                    )
+
+                # Create indexes for multi-tenancy fields
+                session.execute(
+                    text(
+                        """
+                    CREATE INDEX IF NOT EXISTS idx_hosts_org_id 
+                    ON hosts(org_id)
+                """
+                    )
+                )
+
+                session.execute(
+                    text(
+                        """
+                    CREATE INDEX IF NOT EXISTS idx_hosts_zone_id 
+                    ON hosts(zone_id)
+                """
+                    )
+                )
+
+            logger.info("Multi-tenancy migration completed")
+
+        except SQLAlchemyError as e:
+            logger.error(f"Multi-tenancy migration failed: {e}")
             raise
 
     def get_migration_history(self) -> List[Dict[str, Any]]:
@@ -332,6 +382,9 @@ class DatabaseMigrations:
                 "dns_ttl",
                 "dns_sync_status",
                 "dns_last_sync",
+                "org_id",
+                "zone_id",
+                "created_by",
                 "created_at",
                 "updated_at",
             ]

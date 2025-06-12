@@ -46,12 +46,12 @@ check_status "Hosts endpoint"
 echo -e "\n${YELLOW}3. Testing web interface...${NC}"
 if command -v python3 &> /dev/null; then
     # Start a simple HTTP server for web files
-    cd web && python3 -m http.server 8888 &
+    cd web && python3 -m http.server 8889 &
     SERVER_PID=$!
     sleep 2
     
     # Test if index.html loads
-    curl -s http://localhost:8888/ > /dev/null
+    curl -s http://localhost:8889/ > /dev/null
     check_status "Web interface loads"
     
     # Kill the server
@@ -63,6 +63,7 @@ fi
 
 # 4. Run linting
 echo -e "\n${YELLOW}4. Running linting checks...${NC}"
+cd /home/junior/managedDns
 source venv/bin/activate
 python -m black --check . > /dev/null 2>&1
 check_status "Black formatting"

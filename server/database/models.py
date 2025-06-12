@@ -241,4 +241,4 @@ def update_timestamps(mapper, connection, target):
 
 
 # Database schema version for migrations
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3

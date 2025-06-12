@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Production Dashboard Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Production Dashboard Simulation</h2>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-pie-chart"></i> Host Status Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="status-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-activity"></i> Recent Activity</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-activity">
+                            <p class="text-muted">Loading recent activity...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <strong>Test Results:</strong>
+                    <ul id="test-results" class="mb-0"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Include the actual production code
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function formatTimestamp(timestamp, relative = true) {
+            if (!timestamp) return 'Never';
+            
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (relative && diff < 86400000) {
+                if (diff < 60000) {
+                    return 'Just now';
+                } else if (diff < 3600000) {
+                    const minutes = Math.floor(diff / 60000);
+                    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+                } else {
+                    const hours = Math.floor(diff / 3600000);
+                    return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+                }
+            }
+            
+            return date.toLocaleString();
+        }
+
+        function getStatusIcon(status) {
+            const statusLower = status.toLowerCase();
+            
+            switch (statusLower) {
+                case 'online':
+                    return '<i class="bi bi-check-circle-fill text-success"></i>';
+                case 'offline':
+                    return '<i class="bi bi-x-circle-fill text-danger"></i>';
+                default:
+                    return '<i class="bi bi-question-circle-fill text-warning"></i>';
+            }
+        }
+
+        // Mock API
+        const api = {
+            async getStats() {
+                // Return production-like response
+                return {
+                    "host_statistics": {
+                        "total_hosts": 0,
+                        "online_hosts": 0,
+                        "offline_hosts": 0,
+                        "recent_activity_24h": 0,
+                        "oldest_host_date": null,
+                        "newest_host_date": null
+                    }
+                };
+            },
+            async getHosts() {
+                // Return empty hosts
+                return {
+                    "hosts": [],
+                    "total": 0,
+                    "page": 1,
+                    "per_page": 50,
+                    "pages": 1
+                };
+            }
+        };
+
+        // Mock app object
+        const app = {
+            showHost(hostname) {
+                console.log('Show host:', hostname);
+            }
+        };
+
+        class Dashboard {
+            constructor() {
+                this.stats = {};
+                this.chart = null;
+                this.initializeElements();
+                this.initializeChart();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    statusChart: document.getElementById('status-chart'),
+                    recentActivity: document.getElementById('recent-activity')
+                };
+            }
+
+            initializeChart() {
+                if (!this.elements.statusChart) {
+                    addTestResult('❌ Chart canvas not found');
+                    return;
+                }
+                
+                addTestResult('✅ Chart canvas found');
+                
+                const ctx = this.elements.statusChart.getContext('2d');
+                
+                try {
+                    this.chart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Online', 'Offline'],
+                            datasets: [{
+                                data: [0, 0],
+                                backgroundColor: [
+                                    '#198754',
+                                    '#dc3545'
+                                ],
+                                borderWidth: 2,
+                                borderColor: '#ffffff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 20,
+                                        usePointStyle: true
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed || 0;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            },
+                            cutout: '60%'
+                        }
+                    });
+                    
+                    addTestResult('✅ Chart initialized successfully');
+                } catch (error) {
+                    addTestResult('❌ Chart initialization failed: ' + error.message);
+                }
+            }
+
+            async loadDashboard() {
+                try {
+                    addTestResult('📊 Loading dashboard data...');
+                    
+                    const stats = await api.getStats();
+                    this.updateChart(stats);
+                    
+                    const hosts = await api.getHosts();
+                    this.renderRecentActivity(hosts.hosts || []);
+                    
+                    addTestResult('✅ Dashboard loaded successfully');
+                    
+                } catch (error) {
+                    addTestResult('❌ Dashboard load failed: ' + error.message);
+                }
+            }
+
+            updateChart(stats) {
+                if (!this.chart) {
+                    addTestResult('❌ Chart not initialized');
+                    return;
+                }
+                
+                const hostStats = stats.host_statistics || stats;
+                const onlineHosts = hostStats.online_hosts || 0;
+                const offlineHosts = hostStats.offline_hosts || 0;
+                
+                addTestResult(`📊 Updating chart with: online=${onlineHosts}, offline=${offlineHosts}`);
+                
+                this.chart.data.datasets[0].data = [onlineHosts, offlineHosts];
+                this.chart.update('none');
+                
+                addTestResult('✅ Chart updated');
+            }
+
+            renderRecentActivity(activities) {
+                if (!this.elements.recentActivity) {
+                    addTestResult('❌ Recent activity element not found');
+                    return;
+                }
+                
+                addTestResult(`📋 Rendering ${activities.length} activities`);
+                
+                if (activities.length === 0) {
+                    this.elements.recentActivity.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="bi bi-clock"></i>
+                            <p class="mb-0">No recent activity</p>
+                        </div>
+                    `;
+                    addTestResult('✅ Rendered "No recent activity" message');
+                    return;
+                }
+                
+                const activityItems = activities.map(host => {
+                    const timeSinceLastSeen = new Date() - new Date(host.last_seen);
+                    const isRecent = timeSinceLastSeen < 300000;
+                    
+                    return `
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="flex-shrink-0 me-3">
+                                ${getStatusIcon(host.status)}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">${escapeHtml(host.hostname)}</div>
+                                <div class="text-muted small">
+                                    ${escapeHtml(host.current_ip)} • ${formatTimestamp(host.last_seen)}
+                                    ${isRecent ? '<span class="text-success ms-1">• Active</span>' : ''}
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <button class="btn btn-sm btn-outline-primary" onclick="app.showHost('${escapeHtml(host.hostname)}')" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                this.elements.recentActivity.innerHTML = activityItems;
+                addTestResult('✅ Rendered activity items');
+            }
+        }
+
+        function addTestResult(message) {
+            const results = document.getElementById('test-results');
+            const li = document.createElement('li');
+            li.innerHTML = message;
+            results.appendChild(li);
+        }
+
+        // Test on load
+        window.onload = async function() {
+            addTestResult('🚀 Starting production dashboard test...');
+            
+            const dashboard = new Dashboard();
+            await dashboard.loadDashboard();
+            
+            addTestResult('✅ Test complete!');
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# Prism Host Client Configuration
+
+# Service configuration
+service:
+  name: test-host-1
+  description: "Test Host Client"
+  pid_file: /tmp/test-host-1.pid
+
+# Server connection settings
+server:
+  host: localhost
+  port: 8080
+  timeout: 10
+
+# Heartbeat settings
+heartbeat:
+  interval: 5  # seconds
+
+# Logging configuration
+logging:
+  level: INFO
+  file: /tmp/test-client.log
+  console: true
+  max_size: 10485760  # 10MB
+  backup_count: 5
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
