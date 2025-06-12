@@ -78,6 +78,7 @@ class TCPServer:
             config: Server configuration dictionary
         """
         self.config = TCPServerConfig(config)
+        self.full_config = config  # Store full config for connection handlers
 
         # Server state
         self._server: Optional[Server] = None
@@ -278,10 +279,11 @@ class TCPServer:
         connection_handler = None
 
         try:
-            # Create connection handler
+            # Create connection handler with full config
             connection_handler = ConnectionHandler(
                 reader,
                 writer,
+                config=self.full_config,
                 db_manager=self.db_manager,
                 stats=self.stats,
                 timeout=self.config.connection_timeout,

@@ -12,8 +12,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .database.connection import DatabaseManager
 from .database.operations import HostOperations
+from .dns_manager import PowerDNSClient, create_dns_client
 from .message_validator import MessageValidator, SecurityValidator
 from .protocol import MessageProtocol, ProtocolError
+from .registration_processor import RegistrationProcessor, create_registration_processor
 from .server_stats import ServerStats
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,7 @@ class ConnectionHandler:
         self,
         reader: StreamReader,
         writer: StreamWriter,
+        config: Dict[str, Any],
         db_manager: Optional[DatabaseManager] = None,
         stats: Optional[ServerStats] = None,
         timeout: float = 30.0,
@@ -50,12 +53,14 @@ class ConnectionHandler:
         Args:
             reader: Asyncio stream reader for client connection
             writer: Asyncio stream writer for client connection
+            config: Server configuration dictionary
             db_manager: Database manager for host operations
             stats: Server statistics tracker
             timeout: Connection timeout in seconds
         """
         self.reader = reader
         self.writer = writer
+        self.config = config
         self.db_manager = db_manager
         self.stats = stats or ServerStats()
         self.timeout = timeout
@@ -79,6 +84,17 @@ class ConnectionHandler:
         self.host_ops = None
         if self.db_manager:
             self.host_ops = HostOperations(self.db_manager)
+
+        # Initialize registration processor with config
+        self.registration_processor = None
+        if config:
+            self.registration_processor = create_registration_processor(config)
+
+        # Initialize DNS client if enabled
+        self.dns_client = None
+        powerdns_config = config.get("powerdns", {})
+        if powerdns_config.get("enabled", False):
+            self.dns_client = create_dns_client(config)
 
         logger.info(f"Connection handler initialized for {self.client_ip}:{self.client_port}")
 
@@ -217,27 +233,90 @@ class ConnectionHandler:
 
             logger.info(f"Processing registration for hostname '{hostname}' from {self.client_ip}")
 
-            # Check if database operations are available
-            if not self.host_ops:
-                logger.error("Database operations not available for registration")
-                await self._send_error_response("Database unavailable")
-                return
-
-            # Process the registration
-            success, response_message = await self._register_host(hostname, self.client_ip)
-
-            if success:
-                logger.info(
-                    f"Successfully registered hostname '{hostname}' with IP {self.client_ip}"
+            # Use registration processor if available
+            if self.registration_processor:
+                # Process registration through the advanced processor
+                result = await self.registration_processor.process_registration(
+                    hostname, self.client_ip, timestamp
                 )
-                await self._send_success_response(response_message)
+
+                if result.success:
+                    # Registration successful, now handle DNS if enabled
+                    if self.dns_client and result.result_type in ["new_registration", "ip_change"]:
+                        await self._handle_dns_registration(hostname, self.client_ip, result)
+
+                    await self._send_success_response(result.message)
+                else:
+                    await self._send_error_response(result.message)
             else:
-                logger.warning(f"Registration failed for hostname '{hostname}': {response_message}")
-                await self._send_error_response(response_message)
+                # Fallback to simple registration
+                if not self.host_ops:
+                    logger.error("Database operations not available for registration")
+                    await self._send_error_response("Database unavailable")
+                    return
+
+                # Process the registration
+                success, response_message = await self._register_host(hostname, self.client_ip)
+
+                if success:
+                    logger.info(
+                        f"Successfully registered hostname '{hostname}' with IP {self.client_ip}"
+                    )
+                    await self._send_success_response(response_message)
+                else:
+                    logger.warning(
+                        f"Registration failed for hostname '{hostname}': {response_message}"
+                    )
+                    await self._send_error_response(response_message)
 
         except Exception as e:
             logger.error(f"Error handling registration from {self.client_ip}: {e}")
             await self._send_error_response("Registration processing failed")
+
+    async def _handle_dns_registration(
+        self, hostname: str, ip_address: str, registration_result: Any
+    ) -> None:
+        """
+        Handle DNS record creation/update for registered host.
+
+        Args:
+            hostname: Hostname to register in DNS
+            ip_address: IP address for DNS record
+            registration_result: Result from registration processor
+        """
+        try:
+            # Determine if this is IPv4 or IPv6
+            import ipaddress as ip_lib
+
+            ip_obj = ip_lib.ip_address(ip_address)
+            record_type = "A" if ip_obj.version == 4 else "AAAA"
+
+            # Create or update DNS record
+            if record_type == "A":
+                dns_result = await self.dns_client.create_a_record(hostname, ip_address)
+            else:
+                dns_result = await self.dns_client.create_aaaa_record(hostname, ip_address)
+
+            # Update host with DNS information
+            if self.host_ops and dns_result.get("status") == "success":
+                zone = dns_result.get("zone", self.dns_client.default_zone)
+                self.host_ops.update_dns_info(
+                    hostname=hostname,
+                    dns_zone=zone,
+                    dns_record_id=dns_result.get("fqdn"),
+                    dns_sync_status="synced",
+                )
+                logger.info(f"DNS record created/updated for {hostname}: {dns_result}")
+            elif self.host_ops:
+                # DNS creation failed
+                self.host_ops.update_dns_info(hostname=hostname, dns_sync_status="failed")
+                logger.warning(f"Failed to create DNS record for {hostname}")
+
+        except Exception as e:
+            logger.error(f"Error handling DNS registration for {hostname}: {e}")
+            # Update sync status to failed
+            if self.host_ops:
+                self.host_ops.update_dns_info(hostname=hostname, dns_sync_status="failed")
 
     async def _register_host(self, hostname: str, ip_address: str) -> Tuple[bool, str]:
         """
@@ -342,6 +421,10 @@ class ConnectionHandler:
             if self.writer and not self.writer.is_closing():
                 self.writer.close()
                 await self.writer.wait_closed()
+
+            # Close DNS client if present
+            if self.dns_client:
+                await self.dns_client.close()
 
             # Record connection closing
             self.stats.connection_closed(self.client_ip)

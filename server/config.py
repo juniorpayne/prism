@@ -208,6 +208,54 @@ class APIConfig:
             raise ConfigValidationError("request_timeout must be a positive integer")
 
 
+@dataclass
+class PowerDNSConfig:
+    """PowerDNS configuration section."""
+
+    enabled: bool = False
+    api_url: str = "http://powerdns:8053/api/v1"
+    api_key: str = ""
+    default_zone: str = "managed.prism.local."
+    default_ttl: int = 300
+    timeout: int = 5
+    retry_attempts: int = 3
+    retry_delay: int = 1
+    record_types: list = field(default_factory=lambda: ["A", "AAAA"])
+    auto_ptr: bool = False
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if not isinstance(self.enabled, bool):
+            raise ConfigValidationError("enabled must be a boolean")
+
+        if not isinstance(self.api_url, str) or not self.api_url.strip():
+            raise ConfigValidationError("api_url must be a non-empty string")
+
+        if not isinstance(self.api_key, str):
+            raise ConfigValidationError("api_key must be a string")
+
+        if not isinstance(self.default_zone, str) or not self.default_zone.strip():
+            raise ConfigValidationError("default_zone must be a non-empty string")
+
+        if not isinstance(self.default_ttl, int) or self.default_ttl <= 0:
+            raise ConfigValidationError("default_ttl must be a positive integer")
+
+        if not isinstance(self.timeout, int) or self.timeout <= 0:
+            raise ConfigValidationError("timeout must be a positive integer")
+
+        if not isinstance(self.retry_attempts, int) or self.retry_attempts <= 0:
+            raise ConfigValidationError("retry_attempts must be a positive integer")
+
+        if not isinstance(self.retry_delay, int) or self.retry_delay <= 0:
+            raise ConfigValidationError("retry_delay must be a positive integer")
+
+        if not isinstance(self.record_types, list) or not self.record_types:
+            raise ConfigValidationError("record_types must be a non-empty list")
+
+        if not isinstance(self.auto_ptr, bool):
+            raise ConfigValidationError("auto_ptr must be a boolean")
+
+
 class ServerConfiguration:
     """
     Main server configuration management class.
@@ -232,6 +280,7 @@ class ServerConfiguration:
             self.heartbeat = HeartbeatConfig(**config_dict.get("heartbeat", {}))
             self.logging = LoggingConfig(**config_dict.get("logging", {}))
             self.api = APIConfig(**config_dict.get("api", {}))
+            self.powerdns = PowerDNSConfig(**config_dict.get("powerdns", {}))
 
         except TypeError as e:
             raise ConfigValidationError(f"Configuration initialization error: {e}")
@@ -299,6 +348,11 @@ class ServerConfiguration:
             "PRISM_LOGGING_FILE": ("logging", "file", str),
             "PRISM_LOGGING_MAX_SIZE": ("logging", "max_size", int),
             "PRISM_LOGGING_BACKUP_COUNT": ("logging", "backup_count", int),
+            "PRISM_POWERDNS_ENABLED": ("powerdns", "enabled", bool),
+            "PRISM_POWERDNS_API_URL": ("powerdns", "api_url", str),
+            "PRISM_POWERDNS_API_KEY": ("powerdns", "api_key", str),
+            "PRISM_POWERDNS_DEFAULT_ZONE": ("powerdns", "default_zone", str),
+            "PRISM_POWERDNS_DEFAULT_TTL": ("powerdns", "default_ttl", int),
         }
 
         for env_var, (section, key, value_type) in env_mappings.items():
@@ -358,6 +412,18 @@ class ServerConfiguration:
                 "enable_cors": self.api.enable_cors,
                 "cors_origins": self.api.cors_origins,
                 "request_timeout": self.api.request_timeout,
+            },
+            "powerdns": {
+                "enabled": self.powerdns.enabled,
+                "api_url": self.powerdns.api_url,
+                "api_key": self.powerdns.api_key,
+                "default_zone": self.powerdns.default_zone,
+                "default_ttl": self.powerdns.default_ttl,
+                "timeout": self.powerdns.timeout,
+                "retry_attempts": self.powerdns.retry_attempts,
+                "retry_delay": self.powerdns.retry_delay,
+                "record_types": self.powerdns.record_types,
+                "auto_ptr": self.powerdns.auto_ptr,
             },
         }
 

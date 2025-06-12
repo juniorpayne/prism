@@ -45,6 +45,8 @@ class DatabaseMigrations:
         """Register all available migrations."""
         # Migration from version 0 (initial) to version 1
         self._migrations[1] = self._migrate_to_v1
+        # Migration from version 1 to version 2 (PowerDNS integration)
+        self._migrations[2] = self._migrate_to_v2
 
     def get_current_schema_version(self) -> int:
         """
@@ -197,6 +199,73 @@ class DatabaseMigrations:
             logger.error(f"Initial schema migration failed: {e}")
             raise
 
+    def _migrate_to_v2(self) -> None:
+        """
+        Migration to version 2: Add PowerDNS integration fields.
+
+        This migration adds DNS tracking fields to the hosts table.
+        """
+        logger.info("Applying migration to version 2: PowerDNS integration")
+
+        try:
+            with self.db_manager.get_session() as session:
+                # Add DNS tracking columns
+                session.execute(
+                    text(
+                        """
+                    ALTER TABLE hosts ADD COLUMN dns_zone VARCHAR(255)
+                """
+                    )
+                )
+
+                session.execute(
+                    text(
+                        """
+                    ALTER TABLE hosts ADD COLUMN dns_record_id VARCHAR(255)
+                """
+                    )
+                )
+
+                session.execute(
+                    text(
+                        """
+                    ALTER TABLE hosts ADD COLUMN dns_ttl INTEGER
+                """
+                    )
+                )
+
+                session.execute(
+                    text(
+                        """
+                    ALTER TABLE hosts ADD COLUMN dns_sync_status VARCHAR(20) DEFAULT 'pending'
+                """
+                    )
+                )
+
+                session.execute(
+                    text(
+                        """
+                    ALTER TABLE hosts ADD COLUMN dns_last_sync TIMESTAMP
+                """
+                    )
+                )
+
+                # Create index for DNS sync status
+                session.execute(
+                    text(
+                        """
+                    CREATE INDEX IF NOT EXISTS idx_hosts_dns_sync_status 
+                    ON hosts(dns_sync_status)
+                """
+                    )
+                )
+
+            logger.info("PowerDNS integration migration completed")
+
+        except SQLAlchemyError as e:
+            logger.error(f"PowerDNS integration migration failed: {e}")
+            raise
+
     def get_migration_history(self) -> List[Dict[str, Any]]:
         """
         Get migration history.
@@ -258,6 +327,11 @@ class DatabaseMigrations:
                 "first_seen",
                 "last_seen",
                 "status",
+                "dns_zone",
+                "dns_record_id",
+                "dns_ttl",
+                "dns_sync_status",
+                "dns_last_sync",
                 "created_at",
                 "updated_at",
             ]

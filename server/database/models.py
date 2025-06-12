@@ -47,6 +47,15 @@ class Host(Base):
     # Status tracking
     status = Column(String(20), nullable=False, default="online", index=True)
 
+    # DNS tracking fields (SCRUM-49)
+    dns_zone = Column(String(255), nullable=True)  # DNS zone for this host
+    dns_record_id = Column(String(255), nullable=True)  # PowerDNS record identifier
+    dns_ttl = Column(Integer, nullable=True)  # Custom TTL for this host
+    dns_sync_status = Column(
+        String(20), nullable=True, default="pending"
+    )  # pending, synced, failed
+    dns_last_sync = Column(DateTime(timezone=True), nullable=True)  # Last successful DNS sync
+
     # Audit timestamps
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
@@ -201,6 +210,11 @@ class Host(Base):
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "status": self.status,
+            "dns_zone": self.dns_zone,
+            "dns_record_id": self.dns_record_id,
+            "dns_ttl": self.dns_ttl,
+            "dns_sync_status": self.dns_sync_status,
+            "dns_last_sync": self.dns_last_sync.isoformat() if self.dns_last_sync else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -219,4 +233,4 @@ def update_timestamps(mapper, connection, target):
 
 
 # Database schema version for migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2

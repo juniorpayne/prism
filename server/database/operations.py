@@ -471,3 +471,129 @@ class HostOperations:
                 "oldest_host_date": None,
                 "newest_host_date": None,
             }
+
+    def update_dns_info(
+        self,
+        hostname: str,
+        dns_zone: Optional[str] = None,
+        dns_record_id: Optional[str] = None,
+        dns_ttl: Optional[int] = None,
+        dns_sync_status: Optional[str] = None,
+    ) -> bool:
+        """
+        Update DNS information for a host.
+
+        Args:
+            hostname: Hostname to update
+            dns_zone: DNS zone
+            dns_record_id: PowerDNS record ID
+            dns_ttl: DNS TTL value
+            dns_sync_status: Sync status (pending, synced, failed)
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        try:
+            with self.db_manager.get_session() as session:
+                host = session.query(Host).filter(Host.hostname == hostname).first()
+
+                if not host:
+                    logger.warning(f"Host not found for DNS update: {hostname}")
+                    return False
+
+                # Update provided fields
+                if dns_zone is not None:
+                    host.dns_zone = dns_zone
+                if dns_record_id is not None:
+                    host.dns_record_id = dns_record_id
+                if dns_ttl is not None:
+                    host.dns_ttl = dns_ttl
+                if dns_sync_status is not None:
+                    host.dns_sync_status = dns_sync_status
+                    if dns_sync_status == "synced":
+                        host.dns_last_sync = datetime.now(timezone.utc)
+
+                logger.info(f"Updated DNS info for {hostname}")
+                return True
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error updating DNS info for {hostname}: {e}")
+            return False
+
+    def get_hosts_pending_dns_sync(self, limit: Optional[int] = None) -> List[Host]:
+        """
+        Get hosts that need DNS synchronization.
+
+        Args:
+            limit: Maximum number of hosts to return
+
+        Returns:
+            List of Host instances pending DNS sync
+        """
+        try:
+            with self.db_manager.get_session() as session:
+                query = (
+                    session.query(Host)
+                    .filter(Host.dns_sync_status.in_(["pending", "failed", None]))
+                    .order_by(Host.created_at)
+                )
+
+                if limit:
+                    query = query.limit(limit)
+
+                hosts = query.all()
+                return hosts
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error getting hosts pending DNS sync: {e}")
+            return []
+
+    def get_dns_statistics(self) -> Dict[str, Any]:
+        """
+        Get DNS synchronization statistics.
+
+        Returns:
+            Dictionary with DNS sync statistics
+        """
+        try:
+            with self.db_manager.get_session() as session:
+                total_hosts = session.query(func.count(Host.id)).scalar() or 0
+
+                synced_hosts = (
+                    session.query(func.count(Host.id))
+                    .filter(Host.dns_sync_status == "synced")
+                    .scalar()
+                    or 0
+                )
+
+                pending_hosts = (
+                    session.query(func.count(Host.id))
+                    .filter(Host.dns_sync_status.in_(["pending", None]))
+                    .scalar()
+                    or 0
+                )
+
+                failed_hosts = (
+                    session.query(func.count(Host.id))
+                    .filter(Host.dns_sync_status == "failed")
+                    .scalar()
+                    or 0
+                )
+
+                return {
+                    "total_hosts": total_hosts,
+                    "dns_synced": synced_hosts,
+                    "dns_pending": pending_hosts,
+                    "dns_failed": failed_hosts,
+                    "sync_percentage": (synced_hosts / total_hosts * 100) if total_hosts > 0 else 0,
+                }
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error getting DNS statistics: {e}")
+            return {
+                "total_hosts": 0,
+                "dns_synced": 0,
+                "dns_pending": 0,
+                "dns_failed": 0,
+                "sync_percentage": 0,
+            }

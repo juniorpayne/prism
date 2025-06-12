@@ -110,6 +110,45 @@ host_updates_total = Counter(
     "prism_host_updates_total", "Total host updates", ["status"]  # 'success', 'failed'
 )
 
+# PowerDNS integration metrics
+powerdns_api_requests_total = Counter(
+    "prism_powerdns_api_requests_total",
+    "Total PowerDNS API requests",
+    [
+        "method",
+        "endpoint",
+        "status",
+    ],  # 'GET', 'POST', 'PATCH', 'DELETE' / endpoint / 'success', 'error'
+)
+
+powerdns_api_request_duration_seconds = Histogram(
+    "prism_powerdns_api_request_duration_seconds",
+    "PowerDNS API request duration in seconds",
+    ["method", "endpoint"],
+)
+
+powerdns_record_operations_total = Counter(
+    "prism_powerdns_record_operations_total",
+    "Total PowerDNS record operations",
+    [
+        "operation",
+        "record_type",
+        "status",
+    ],  # 'create', 'update', 'delete' / 'A', 'AAAA' / 'success', 'failed'
+)
+
+powerdns_zone_operations_total = Counter(
+    "prism_powerdns_zone_operations_total",
+    "Total PowerDNS zone operations",
+    ["operation", "status"],  # 'create', 'check' / 'success', 'failed'
+)
+
+dns_sync_status_gauge = Gauge(
+    "prism_dns_sync_status",
+    "DNS synchronization status by state",
+    ["status"],  # 'pending', 'synced', 'failed'
+)
+
 
 class MetricsCollector:
     """Centralized metrics collection and management."""
@@ -184,6 +223,29 @@ class MetricsCollector:
     def record_host_update(self, status: str):
         """Record host update event."""
         host_updates_total.labels(status=status).inc()
+
+    def record_powerdns_api_request(self, method: str, endpoint: str, status: str, duration: float):
+        """Record PowerDNS API request metrics."""
+        powerdns_api_requests_total.labels(method=method, endpoint=endpoint, status=status).inc()
+        powerdns_api_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(
+            duration
+        )
+
+    def record_powerdns_record_operation(self, operation: str, record_type: str, status: str):
+        """Record PowerDNS record operation."""
+        powerdns_record_operations_total.labels(
+            operation=operation, record_type=record_type, status=status
+        ).inc()
+
+    def record_powerdns_zone_operation(self, operation: str, status: str):
+        """Record PowerDNS zone operation."""
+        powerdns_zone_operations_total.labels(operation=operation, status=status).inc()
+
+    def update_dns_sync_status(self, pending: int, synced: int, failed: int):
+        """Update DNS synchronization status gauges."""
+        dns_sync_status_gauge.labels(status="pending").set(pending)
+        dns_sync_status_gauge.labels(status="synced").set(synced)
+        dns_sync_status_gauge.labels(status="failed").set(failed)
 
     def get_metrics(self) -> bytes:
         """Get all metrics in Prometheus format."""

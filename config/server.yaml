@@ -25,3 +25,18 @@ logging:
   file: "/app/data/server.log"
   max_size: 104857600  # 100MB
   backup_count: 5
+
+# PowerDNS integration settings
+powerdns:
+  enabled: true
+  api_url: "http://powerdns:8053/api/v1"
+  api_key: "${PRISM_POWERDNS_API_KEY:-test-api-key-change-in-production}"
+  default_zone: "managed.prism.local."
+  default_ttl: 300
+  timeout: 5
+  retry_attempts: 3
+  retry_delay: 1
+  record_types:
+    - A
+    - AAAA
+  auto_ptr: false

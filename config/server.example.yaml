@@ -37,6 +37,21 @@ api:
     - "http://127.0.0.1:8080"
   request_timeout: 30         # API request timeout in seconds
 
+# PowerDNS integration settings
+powerdns:
+  enabled: false              # Set to true to enable PowerDNS integration
+  api_url: "http://powerdns:8053/api/v1"  # PowerDNS API endpoint
+  api_key: ""                 # API key for PowerDNS authentication
+  default_zone: "managed.prism.local."     # Default DNS zone for records
+  default_ttl: 300            # Default TTL for DNS records (seconds)
+  timeout: 5                  # API request timeout in seconds
+  retry_attempts: 3           # Number of retry attempts for failed requests
+  retry_delay: 1              # Delay between retries in seconds
+  record_types:               # Supported record types
+    - A
+    - AAAA
+  auto_ptr: false             # Automatically create PTR records
+
 # Environment Variable Overrides:
 # PRISM_SERVER_TCP_PORT        - Override TCP server port
 # PRISM_SERVER_API_PORT        - Override API server port
@@ -44,3 +59,8 @@ api:
 # PRISM_DATABASE_PATH          - Override database file path
 # PRISM_LOGGING_LEVEL          - Override logging level
 # PRISM_LOGGING_FILE           - Override log file path
+# PRISM_POWERDNS_ENABLED       - Enable/disable PowerDNS integration
+# PRISM_POWERDNS_API_URL       - Override PowerDNS API URL
+# PRISM_POWERDNS_API_KEY       - Set PowerDNS API key
+# PRISM_POWERDNS_DEFAULT_ZONE  - Override default DNS zone
+# PRISM_POWERDNS_DEFAULT_TTL   - Override default TTL
