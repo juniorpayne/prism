@@ -1,0 +1,221 @@
+groups:
+  - name: powerdns_alerts
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: PowerDNSDown
+        expr: up{job="powerdns"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "PowerDNS exporter is down"
+          description: "PowerDNS exporter has been down for more than 2 minutes. DNS service monitoring is unavailable."
+
+      - alert: DNSMonitorDown
+        expr: dns_monitor_up == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: dns-monitor
+        annotations:
+          summary: "DNS Monitor is down"
+          description: "DNS health monitoring service has been down for more than 5 minutes."
+
+      # Query performance alerts
+      - alert: HighDNSQueryLatency
+        expr: histogram_quantile(0.95, rate(dns_monitor_query_duration_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "High DNS query latency detected"
+          description: "95th percentile DNS query latency is above 100ms (current: {{ $value | humanizeDuration }})"
+
+      - alert: VeryHighDNSQueryLatency
+        expr: histogram_quantile(0.95, rate(dns_monitor_query_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "Very high DNS query latency detected"
+          description: "95th percentile DNS query latency is above 500ms (current: {{ $value | humanizeDuration }})"
+
+      # Query failure alerts
+      - alert: HighDNSQueryFailureRate
+        expr: |
+          (
+            sum(rate(dns_monitor_queries_total{status!="success"}[5m])) /
+            sum(rate(dns_monitor_queries_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "High DNS query failure rate"
+          description: "More than 5% of DNS queries are failing (current: {{ $value | humanizePercentage }})"
+
+      - alert: CriticalDNSQueryFailureRate
+        expr: |
+          (
+            sum(rate(dns_monitor_queries_total{status!="success"}[5m])) /
+            sum(rate(dns_monitor_queries_total[5m]))
+          ) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "Critical DNS query failure rate"
+          description: "More than 25% of DNS queries are failing (current: {{ $value | humanizePercentage }})"
+
+      # DNS specific domain alerts
+      - alert: DNSDomainNotResolvable
+        expr: dns_query_success == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "DNS domain not resolvable"
+          description: "Domain {{ $labels.domain }} ({{ $labels.record_type }} record) has been failing DNS resolution for 5 minutes"
+
+      # Query rate alerts
+      - alert: HighDNSQueryRate
+        expr: sum(rate(powerdns_queries_total[5m])) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "High DNS query rate"
+          description: "DNS query rate is above 10,000 QPS (current: {{ $value | humanize }} QPS)"
+
+      - alert: VeryHighDNSQueryRate
+        expr: sum(rate(powerdns_queries_total[5m])) > 50000
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "Very high DNS query rate"
+          description: "DNS query rate is above 50,000 QPS (current: {{ $value | humanize }} QPS). Possible DDoS attack."
+
+      # Cache performance alerts
+      - alert: LowDNSCacheHitRate
+        expr: |
+          (
+            sum(rate(powerdns_cache_hits_total[5m])) /
+            (sum(rate(powerdns_cache_hits_total[5m])) + sum(rate(powerdns_cache_misses_total[5m])))
+          ) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "Low DNS cache hit rate"
+          description: "DNS cache hit rate is below 70% (current: {{ $value | humanizePercentage }})"
+
+      # Resource alerts
+      - alert: HighPowerDNSMemoryUsage
+        expr: |
+          (
+            process_resident_memory_bytes{job="powerdns"} /
+            node_memory_MemTotal_bytes{job="node"}
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "High PowerDNS memory usage"
+          description: "PowerDNS is using more than 80% of system memory"
+
+      - alert: HighPowerDNSCPUUsage
+        expr: rate(process_cpu_seconds_total{job="powerdns"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "High PowerDNS CPU usage"
+          description: "PowerDNS CPU usage is above 80% (current: {{ $value | humanizePercentage }})"
+
+      # Security alerts
+      - alert: PossibleDNSAmplificationAttack
+        expr: |
+          (
+            sum(rate(powerdns_queries_total{type="ANY"}[1m])) > 1000
+          ) OR (
+            sum(rate(powerdns_queries_total{type="TXT"}[1m])) > 5000
+          )
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns
+          security: true
+        annotations:
+          summary: "Possible DNS amplification attack detected"
+          description: "Unusually high rate of ANY or TXT queries detected, possible amplification attack"
+
+      - alert: DNSQueryFromUnauthorizedSource
+        expr: sum(rate(powerdns_queries_total{source!~"10\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|192\\.168\\..*"}[5m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+          security: true
+        annotations:
+          summary: "DNS queries from unauthorized source"
+          description: "Receiving DNS queries from non-RFC1918 addresses at {{ $value | humanize }} QPS"
+
+      # API alerts
+      - alert: HighPowerDNSAPIErrors
+        expr: |
+          (
+            sum(rate(prism_powerdns_api_requests_total{status="error"}[5m])) /
+            sum(rate(prism_powerdns_api_requests_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns-api
+        annotations:
+          summary: "High PowerDNS API error rate"
+          description: "More than 10% of PowerDNS API requests are failing (current: {{ $value | humanizePercentage }})"
+
+      # DNS record operation alerts
+      - alert: DNSRecordCreationFailures
+        expr: sum(rate(prism_powerdns_record_operations_total{operation="create",status="failed"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "DNS record creation failures"
+          description: "DNS record creation operations are failing at {{ $value | humanize }} per second"
+
+      # Database alerts
+      - alert: PowerDNSDBConnectionFailure
+        expr: powerdns_postgresql_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: powerdns-db
+        annotations:
+          summary: "PowerDNS database connection failure"
+          description: "PowerDNS cannot connect to PostgreSQL database"
+
+      - alert: PowerDNSDBSlowQueries
+        expr: histogram_quantile(0.95, rate(powerdns_postgresql_query_duration_seconds_bucket[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: powerdns-db
+        annotations:
+          summary: "Slow PowerDNS database queries"
+          description: "95th percentile database query time is above 100ms"

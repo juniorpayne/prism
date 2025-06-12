@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PowerDNS Prometheus Exporter
+  powerdns-exporter:
+    image: powerdnsadmin/exporter:latest
+    container_name: powerdns-exporter
+    restart: unless-stopped
+    environment:
+      # PowerDNS API Configuration
+      PDNS_STATS_URL: "http://powerdns:8053/api/v1"
+      PDNS_API_KEY: "${PDNS_API_KEY:-test-api-key-change-in-production}"
+      
+      # Exporter Configuration
+      LISTEN_ADDRESS: ":9120"
+      LOG_LEVEL: "info"
+      
+      # Metrics Collection
+      COLLECT_QUERY_STATS: "true"
+      COLLECT_CACHE_STATS: "true"
+      COLLECT_BACKEND_STATS: "true"
+      COLLECT_DNSSEC_STATS: "false"  # Not using DNSSEC yet
+      
+    ports:
+      - "9120:9120"
+    networks:
+      - prism-backend
+      - monitoring
+    depends_on:
+      - powerdns
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9120/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+  # DNS Query Testing Tool (for monitoring)
+  dns-monitor:
+    image: prism-dns-monitor:latest
+    build:
+      context: ./monitoring/dns-monitor
+      dockerfile: Dockerfile
+    container_name: dns-monitor
+    restart: unless-stopped
+    environment:
+      DNS_SERVER: "powerdns"
+      DNS_PORT: "53"
+      TEST_DOMAINS: "test.managed.prism.local,health.managed.prism.local"
+      CHECK_INTERVAL: "30"
+      PROMETHEUS_PORT: "9121"
+    ports:
+      - "9121:9121"
+    networks:
+      - prism-backend
+      - monitoring
+    depends_on:
+      - powerdns
+
+  # Update Prometheus to scrape PowerDNS metrics
+  prometheus:
+    volumes:
+      - ./monitoring/prometheus/prometheus-powerdns.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts-powerdns.yml:/etc/prometheus/alerts/powerdns.yml:ro
+      
+networks:
+  prism-backend:
+    external: true
+  monitoring:
+    external: true

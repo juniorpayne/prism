@@ -1,0 +1,72 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'production'
+    service: 'prism-dns'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Load alert rules
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # PowerDNS metrics via exporter
+  - job_name: 'powerdns'
+    static_configs:
+      - targets: ['powerdns-exporter:9120']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'powerdns-primary'
+
+  # DNS Monitor metrics
+  - job_name: 'dns-monitor'
+    static_configs:
+      - targets: ['dns-monitor:9121']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'dns_monitor_.*'
+        target_label: __name__
+        replacement: '${1}'
+
+  # Prism Server metrics (includes DNS operation metrics)
+  - job_name: 'prism-server'
+    static_configs:
+      - targets: ['prism-server:8081']
+    metrics_path: '/metrics'
+    metric_relabel_configs:
+      # Keep PowerDNS-related metrics from Prism
+      - source_labels: [__name__]
+        regex: '(prism_powerdns_.*|prism_dns_.*)'
+        action: keep
+
+  # Node Exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: instance
+        replacement: '${1}'
+
+  # PostgreSQL exporter for PowerDNS database
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'powerdns-db'
