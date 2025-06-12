@@ -203,6 +203,41 @@ docker compose restart server
   4. Unit Tests
   5. Acceptance criteria
 
+## 🚨 CRITICAL: Pre-Deployment Testing Requirements
+
+**NEVER push to production without completing ALL local testing!**
+
+### Before ANY deployment:
+1. **Start full stack locally**: `docker compose up -d`
+2. **Test ALL web pages**: 
+   - Open http://localhost:8090 (or nginx port)
+   - Click through: Home, Dashboard (#dashboard), About (#about)
+   - Check browser console for JavaScript errors
+   - Verify all data loads correctly
+3. **Test ALL API endpoints**:
+   - Core: `/api/health`, `/api/stats`, `/api/hosts`
+   - Any new endpoints you added
+   - Verify response formats match what frontend expects
+4. **Run automated tests**: `pytest` and `./scripts/run-tests-docker.sh`
+5. **Check for breaking changes**:
+   - API field name changes (common issue!)
+   - JavaScript/API contract mismatches
+   - Configuration differences
+
+### Common Breaking Issues:
+- **API/Frontend mismatches**: e.g., `uptime` vs `uptime_seconds`
+- **Missing nginx configuration** for new routes
+- **Database migrations** not run
+- **Environment variable** differences
+- **Port mapping** issues
+
+### If you break production:
+1. Check `PRE_DEPLOYMENT_CHECKLIST.md` immediately
+2. Roll back if necessary
+3. Fix locally FIRST before re-deploying
+
+**Remember**: It's better to spend 10 minutes testing locally than to break production!
+
 ## Jira Workflow Notes
 
 - When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format)

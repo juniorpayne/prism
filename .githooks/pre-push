@@ -1,0 +1,42 @@
+#!/bin/bash
+#
+# Git pre-push hook - Prevents pushing without testing
+#
+
+# Colors
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${YELLOW}🚨 PRE-PUSH CHECK${NC}"
+echo "===================="
+
+# Check if we're pushing to main/master
+protected_branch='main|master'
+current_branch=$(git symbolic-ref HEAD | sed -e 's,.*/\(.*\),\1,')
+
+if [[ "$current_branch" =~ $protected_branch ]]; then
+    echo -e "${YELLOW}Pushing to protected branch: $current_branch${NC}"
+    
+    # Ask for confirmation
+    read -p "Have you run ./scripts/pre-deploy-test.sh and verified everything works? (y/N) " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Push cancelled. Please run tests first!${NC}"
+        echo "Run: ./scripts/pre-deploy-test.sh"
+        exit 1
+    fi
+    
+    # Additional safety check
+    read -p "Have you tested the DASHBOARD at http://localhost:8090/#dashboard? (y/N) " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Push cancelled. Please test the dashboard!${NC}"
+        exit 1
+    fi
+fi
+
+echo "✅ Pre-push checks passed"
+exit 0
