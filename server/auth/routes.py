@@ -16,16 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.auth.dependencies import get_current_user, get_current_verified_user
 from server.auth.email import get_email_service
 from server.auth.jwt_handler import get_jwt_handler
-from server.auth.models import RefreshToken, User
+from server.auth.models import PasswordResetToken, RefreshToken, User
 from server.auth.schemas import (
     EmailVerificationResponse,
     ErrorResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    PasswordResetResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
     RegisterRequest,
     RegisterResponse,
+    ResetPasswordRequest,
     UserResponse,
 )
 from server.auth.service import AuthService
@@ -400,3 +403,156 @@ async def get_me(
     Requires a valid access token and verified email address.
     """
     return UserResponse.model_validate(current_user)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=dict,
+    summary="Request password reset",
+    description="Request a password reset email",
+)
+@limiter.limit("3 per hour" if os.getenv("TESTING") != "true" else "100 per minute")
+async def forgot_password(
+    request: Request,
+    forgot_data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_db),
+) -> dict:
+    """
+    Request password reset email.
+
+    - **email**: Email address or username
+
+    This endpoint always returns the same message to prevent user enumeration.
+    If the email/username exists and is verified, a reset email will be sent.
+    """
+    # Always return same message to prevent enumeration
+    response_message = "If the email exists, a password reset link has been sent."
+
+    try:
+        # Find user by email or username
+        from sqlalchemy import or_
+
+        result = await db.execute(
+            select(User).where(
+                or_(
+                    User.email == forgot_data.email.lower(),
+                    User.username == forgot_data.email.lower(),
+                )
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user and user.email_verified and user.is_active:
+            # Generate reset token
+            import secrets
+
+            token = secrets.token_urlsafe(32)
+            token_hash = hash_token(token)
+
+            # Store token
+            reset_token = PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("User-Agent"),
+            )
+            db.add(reset_token)
+            await db.commit()
+
+            # Send email in background
+            email_service = get_email_service()
+            background_tasks.add_task(
+                email_service.send_password_reset_email,
+                email=user.email,
+                username=user.username,
+                token=token,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("User-Agent"),
+            )
+
+            logger.info(f"Password reset requested for user: {user.username}")
+
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        # Don't reveal error to user
+
+    return {"message": response_message}
+
+
+@router.post(
+    "/reset-password",
+    response_model=PasswordResetResponse,
+    summary="Reset password",
+    description="Reset password using token from email",
+)
+async def reset_password(
+    request: Request,
+    reset_data: ResetPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_db),
+) -> PasswordResetResponse:
+    """
+    Reset password using token.
+
+    - **token**: Reset token from email
+    - **password**: New password (min 12 chars with complexity requirements)
+
+    After successful reset, all refresh tokens are invalidated.
+    """
+    # Verify token
+    token_hash = hash_token(reset_data.token)
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),
+            PasswordResetToken.used_at.is_(None),
+        )
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset token",
+        )
+
+    # Get user
+    user = await db.get(User, reset_token.user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset token",
+        )
+
+    # Update password
+    from server.auth.utils import hash_password
+
+    user.password_hash = hash_password(reset_data.password)
+    user.updated_at = datetime.now(timezone.utc)
+
+    # Mark token as used
+    reset_token.used_at = datetime.now(timezone.utc)
+
+    # Invalidate all refresh tokens
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(timezone.utc))
+    )
+
+    await db.commit()
+
+    # Send confirmation email
+    email_service = get_email_service()
+    background_tasks.add_task(
+        email_service.send_password_changed_email,
+        email=user.email,
+        username=user.username,
+    )
+
+    logger.info(f"Password reset successful for user: {user.username}")
+
+    return PasswordResetResponse(message="Password reset successfully")
