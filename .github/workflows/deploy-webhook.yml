@@ -1,8 +1,9 @@
 name: Deploy via Webhook
 
 on:
-  push:
-    branches: [main]
+  # Disabled automatic trigger - only manual dispatch
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 env:

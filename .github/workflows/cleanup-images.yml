@@ -1,9 +1,10 @@
 name: Cleanup Container Images
 
 on:
-  schedule:
-    # Run weekly on Sundays at 02:00 UTC
-    - cron: '0 2 * * 0'
+  # Schedule trigger - DISABLED (not using container registry)
+  # schedule:
+  #   # Run weekly on Sundays at 02:00 UTC
+  #   - cron: '0 2 * * 0'
   workflow_dispatch:
     inputs:
       dry_run:

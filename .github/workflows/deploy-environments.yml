@@ -1,11 +1,11 @@
 name: Deploy to Environments
 
 on:
-  # Automatic deployment triggers
-  push:
-    branches:
-      - main        # Deploy to production
-      - develop     # Deploy to staging
+  # Automatic deployment triggers - DISABLED
+  # push:
+  #   branches:
+  #     - main        # Deploy to production
+  #     - develop     # Deploy to staging
   
   # Manual deployment trigger
   workflow_dispatch:

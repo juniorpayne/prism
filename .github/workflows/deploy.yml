@@ -1,10 +1,11 @@
 name: Deploy to EC2
 
 on:
-  workflow_run:
-    workflows: ["CI Pipeline"]
-    types: [completed]
-    branches: [main, develop]
+  # Automatic trigger after CI - DISABLED
+  # workflow_run:
+  #   workflows: ["CI Pipeline"]
+  #   types: [completed]
+  #   branches: [main, develop]
   workflow_dispatch:
     inputs:
       environment:
