@@ -4,27 +4,41 @@ Authentication routes for user registration, login, and email verification.
 """
 
 import logging
+import os
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 
 from server.auth.email import get_email_service
 from server.auth.schemas import (
     EmailVerificationResponse,
     ErrorResponse,
+    LoginRequest,
+    LoginResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     RegisterRequest,
     RegisterResponse,
     UserResponse,
 )
 from server.auth.service import AuthService
 from server.database.connection import get_async_db
+from server.auth.dependencies import get_current_user, get_current_verified_user
+from server.auth.jwt_handler import get_jwt_handler
+from server.auth.utils import hash_token, verify_password
+from server.auth.models import RefreshToken, User
 
 logger = logging.getLogger(__name__)
 
 # Create limiter
 limiter = Limiter(key_func=get_remote_address)
+
+# Create auth service instance
+auth_service = AuthService()
 
 # Create router
 router = APIRouter(
@@ -159,3 +173,232 @@ async def resend_verification(
     except Exception as e:
         logger.error(f"Resend verification error: {e}")
         return {"message": response_message}
+
+
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="Login",
+    description="Login with username/email and password to get JWT tokens",
+)
+@limiter.limit("5 per minute" if os.getenv("TESTING") != "true" else "100 per minute")
+async def login(
+    request: Request,
+    response: Response,
+    login_data: LoginRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_db),
+) -> LoginResponse:
+    """
+    Login with username/email and password.
+
+    - **username**: Username or email address
+    - **password**: User password
+
+    Returns JWT access and refresh tokens on successful authentication.
+    The access token expires in 15 minutes and should be used for API requests.
+    The refresh token expires in 7 days and can be used to get new access tokens.
+    """
+    # Authenticate user
+    user = await auth_service.authenticate_user(
+        db=db, username_or_email=login_data.username, password=login_data.password
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Email not verified. Please verify your email before logging in.",
+        )
+
+    # Get user organizations
+    orgs = await auth_service.get_user_organizations(db, user.id)
+
+    # Create tokens
+    jwt_handler = get_jwt_handler()
+    access_token = jwt_handler.create_access_token(
+        {
+            "id": str(user.id),
+            "email": user.email,
+            "username": user.username,
+            "organizations": [
+                {"id": str(org.id), "slug": org.slug, "role": role}
+                for org, role in orgs
+            ],
+        }
+    )
+
+    refresh_token, token_id = jwt_handler.create_refresh_token(str(user.id))
+
+    # Store refresh token
+    db_token = RefreshToken(
+        user_id=user.id,
+        token_id=token_id,
+        token_hash=hash_token(refresh_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        user_agent=request.headers.get("User-Agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+    db.add(db_token)
+    await db.commit()
+
+    # Set secure cookie for refresh token (optional)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=7 * 24 * 60 * 60,  # 7 days
+    )
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="Bearer",
+        expires_in=900,  # 15 minutes
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+    summary="Refresh access token",
+    description="Get new access token using refresh token",
+)
+async def refresh_token(
+    refresh_data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_async_db),
+) -> RefreshTokenResponse:
+    """
+    Get new access token using refresh token.
+
+    - **refresh_token**: Valid refresh token
+
+    Returns a new access token. The refresh token remains valid until it expires.
+    """
+    jwt_handler = get_jwt_handler()
+
+    try:
+        payload = jwt_handler.decode_token(refresh_data.refresh_token)
+    except HTTPException:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify token type
+    jwt_handler.verify_token_type(payload, "refresh")
+
+    # Verify refresh token in database
+    from sqlalchemy import select
+
+    from uuid import UUID
+    user_id = UUID(payload["sub"])
+    db_token = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.token_id == payload["token_id"],
+            RefreshToken.user_id == user_id,
+            RefreshToken.expires_at > datetime.now(timezone.utc),
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    db_token = db_token.scalar_one_or_none()
+
+    if not db_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token not found or expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Update last used
+    db_token.last_used_at = datetime.now(timezone.utc)
+
+    # Get user and create new access token
+    from uuid import UUID
+    user_id = UUID(payload["sub"])
+    user = await db.get(User, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    orgs = await auth_service.get_user_organizations(db, user.id)
+
+    access_token = jwt_handler.create_access_token(
+        {
+            "id": str(user.id),
+            "email": user.email,
+            "username": user.username,
+            "organizations": [
+                {"id": str(org.id), "slug": org.slug, "role": role}
+                for org, role in orgs
+            ],
+        }
+    )
+
+    await db.commit()
+
+    return RefreshTokenResponse(
+        access_token=access_token, token_type="Bearer", expires_in=900
+    )
+
+
+@router.post(
+    "/logout",
+    response_model=dict,
+    summary="Logout",
+    description="Logout and revoke refresh tokens",
+)
+async def logout(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+) -> dict:
+    """
+    Logout and revoke all user's refresh tokens.
+
+    Requires a valid access token. This will invalidate all refresh tokens
+    for the user, effectively logging them out from all devices.
+    """
+    from sqlalchemy import update
+
+    # Revoke all user's refresh tokens
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == current_user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+
+    # Clear refresh token cookie
+    response.delete_cookie(key="refresh_token")
+
+    return {"message": "Logged out successfully"}
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get current user",
+    description="Get current authenticated user information",
+)
+async def get_me(
+    current_user: User = Depends(get_current_verified_user),
+) -> UserResponse:
+    """
+    Get current authenticated user information.
+
+    Requires a valid access token and verified email address.
+    """
+    return UserResponse.model_validate(current_user)

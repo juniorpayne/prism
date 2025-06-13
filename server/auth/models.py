@@ -342,6 +342,7 @@ class RefreshToken(Base):
     revoked_at = Column(DateTime(timezone=True), nullable=True)
 
     # Metadata
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
     user_agent = Column(Text, nullable=True)
     ip_address = Column(String(45), nullable=True)  # Support IPv4/IPv6
 
@@ -396,6 +397,32 @@ class PasswordResetToken(Base):
         """Check if token is valid (not expired or used)."""
         now = datetime.now(timezone.utc)
         return self.expires_at > now and self.used_at is None
+
+
+
+
+class TokenBlacklist(Base):
+    """
+    Token blacklist for emergency token revocation.
+
+    Stores JTIs of tokens that should be rejected.
+    """
+
+    __tablename__ = "token_blacklist"
+
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Token data
+    jti = Column(String(255), unique=True, nullable=False, index=True)
+    token_type = Column(String(20), nullable=False)  # "access" or "refresh"
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    # Metadata
+    blacklisted_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    reason = Column(Text, nullable=True)
 
 
 class APIKey(Base):

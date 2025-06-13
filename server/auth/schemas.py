@@ -77,6 +77,10 @@ class TokenResponse(BaseModel):
     expires_in: int = 900  # 15 minutes
 
 
+LoginResponse = TokenResponse  # Alias for compatibility
+RefreshTokenResponse = TokenResponse  # Alias for compatibility
+
+
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
 

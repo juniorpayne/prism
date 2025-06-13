@@ -267,7 +267,7 @@ class AuthService:
 
         return user
 
-    async def get_user_organizations(self, db: AsyncSession, user_id: str) -> list[dict]:
+    async def get_user_organizations(self, db: AsyncSession, user_id: str) -> list[tuple[Organization, str]]:
         """
         Get user's organizations with roles.
 
@@ -276,7 +276,7 @@ class AuthService:
             user_id: User ID
 
         Returns:
-            List of organization dicts with roles
+            List of tuples (Organization, role)
         """
         result = await db.execute(
             select(Organization, UserOrganization.role)
@@ -284,8 +284,4 @@ class AuthService:
             .where(UserOrganization.user_id == user_id)
         )
 
-        orgs = []
-        for org, role in result:
-            orgs.append({"id": str(org.id), "name": org.name, "slug": org.slug, "role": role})
-
-        return orgs
+        return result.all()
