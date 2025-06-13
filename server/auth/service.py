@@ -267,7 +267,9 @@ class AuthService:
 
         return user
 
-    async def get_user_organizations(self, db: AsyncSession, user_id: str) -> list[tuple[Organization, str]]:
+    async def get_user_organizations(
+        self, db: AsyncSession, user_id: str
+    ) -> list[tuple[Organization, str]]:
         """
         Get user's organizations with roles.
 

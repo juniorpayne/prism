@@ -44,22 +44,9 @@ check_status "Hosts endpoint"
 
 # 3. Check web interface
 echo -e "\n${YELLOW}3. Testing web interface...${NC}"
-if command -v python3 &> /dev/null; then
-    # Start a simple HTTP server for web files
-    cd web && python3 -m http.server 8889 &
-    SERVER_PID=$!
-    sleep 2
-    
-    # Test if index.html loads
-    curl -s http://localhost:8889/ > /dev/null
-    check_status "Web interface loads"
-    
-    # Kill the server
-    kill $SERVER_PID 2>/dev/null || true
-    cd ..
-else
-    echo -e "${YELLOW}Skipping web test (python3 not found)${NC}"
-fi
+# Test if index.html loads from nginx container
+curl -s http://localhost:8090/ > /dev/null
+check_status "Web interface loads"
 
 # 4. Run linting
 echo -e "\n${YELLOW}4. Running linting checks...${NC}"
@@ -86,7 +73,7 @@ echo -e "${GREEN}========================================${NC}"
 
 echo -e "\n${YELLOW}Remember to also:${NC}"
 echo "- Open http://localhost:8081/docs to check API documentation"
-echo "- Manually test the dashboard at http://localhost:8888/#dashboard"
+echo "- Manually test the dashboard at http://localhost:8090/#dashboard"
 echo "- Check browser console for JavaScript errors"
 
 echo -e "\n${YELLOW}Stopping services...${NC}"

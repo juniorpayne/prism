@@ -8,9 +8,9 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auth.models import User, Organization, UserOrganization
-from server.auth.utils import hash_password
 from server.auth.jwt_handler import get_jwt_handler
+from server.auth.models import Organization, User, UserOrganization
+from server.auth.utils import hash_password
 
 
 @pytest_asyncio.fixture
@@ -54,7 +54,7 @@ async def verified_user_with_org(db_session: AsyncSession) -> tuple[User, Organi
     )
     db_session.add(user)
     await db_session.flush()
-    
+
     org = Organization(
         name="Test Organization",
         slug="test-org",
@@ -62,18 +62,18 @@ async def verified_user_with_org(db_session: AsyncSession) -> tuple[User, Organi
     )
     db_session.add(org)
     await db_session.flush()
-    
+
     membership = UserOrganization(
         user_id=user.id,
         org_id=org.id,
         role="owner",
     )
     db_session.add(membership)
-    
+
     await db_session.commit()
     await db_session.refresh(user)
     await db_session.refresh(org)
-    
+
     return user, org
 
 

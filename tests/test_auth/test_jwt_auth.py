@@ -3,13 +3,14 @@
 Tests for JWT authentication functionality.
 """
 
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auth.models import User, RefreshToken
 from server.auth.jwt_handler import get_jwt_handler
+from server.auth.models import RefreshToken, User
 from server.auth.utils import hash_password
 
 
@@ -23,7 +24,7 @@ class TestJWTAuthentication:
             "/api/auth/login",
             json={"username": verified_user.username, "password": "TestPassword123!"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
@@ -38,7 +39,7 @@ class TestJWTAuthentication:
             "/api/auth/login",
             json={"username": verified_user.email, "password": "TestPassword123!"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
@@ -50,7 +51,7 @@ class TestJWTAuthentication:
             "/api/auth/login",
             json={"username": verified_user.username, "password": "WrongPassword123!"},
         )
-        
+
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid credentials"
 
@@ -61,7 +62,7 @@ class TestJWTAuthentication:
             "/api/auth/login",
             json={"username": unverified_user.username, "password": "TestPassword123!"},
         )
-        
+
         assert response.status_code == 400
         assert "Email not verified" in response.json()["detail"]
 
@@ -69,7 +70,7 @@ class TestJWTAuthentication:
     async def test_access_protected_endpoint(self, async_client: AsyncClient, auth_headers: dict):
         """Test accessing protected endpoint with valid token."""
         response = await async_client.get("/api/auth/me", headers=auth_headers)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "id" in data
@@ -80,7 +81,7 @@ class TestJWTAuthentication:
     async def test_access_protected_endpoint_no_token(self, async_client: AsyncClient):
         """Test accessing protected endpoint without token."""
         response = await async_client.get("/api/auth/me")
-        
+
         assert response.status_code == 403  # FastAPI returns 403 for missing credentials
 
     @pytest.mark.asyncio
@@ -90,7 +91,7 @@ class TestJWTAuthentication:
             "/api/auth/me",
             headers={"Authorization": "Bearer invalid_token_here"},
         )
-        
+
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid authentication credentials"
 
@@ -105,13 +106,13 @@ class TestJWTAuthentication:
             json={"username": verified_user.username, "password": "TestPassword123!"},
         )
         refresh_token = login_response.json()["refresh_token"]
-        
+
         # Use refresh token to get new access token
         response = await async_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
@@ -125,7 +126,7 @@ class TestJWTAuthentication:
             "/api/auth/refresh",
             json={"refresh_token": "invalid_refresh_token"},
         )
-        
+
         assert response.status_code == 401
         assert "Invalid refresh token" in response.json()["detail"]
 
@@ -133,7 +134,7 @@ class TestJWTAuthentication:
     async def test_logout_success(self, async_client: AsyncClient, auth_headers: dict):
         """Test successful logout."""
         response = await async_client.post("/api/auth/logout", headers=auth_headers)
-        
+
         assert response.status_code == 200
         assert response.json()["message"] == "Logged out successfully"
 
@@ -152,19 +153,19 @@ class TestJWTAuthentication:
         assert login_response.status_code == 200
         access_token = login_response.json()["access_token"]
         refresh_token = login_response.json()["refresh_token"]
-        
+
         # Logout
         await async_client.post(
             "/api/auth/logout",
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        
+
         # Try to use refresh token after logout
         response = await async_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token},
         )
-        
+
         assert response.status_code == 401
 
     @pytest.mark.asyncio
@@ -173,7 +174,7 @@ class TestJWTAuthentication:
         # Create an expired token
         jwt_handler = get_jwt_handler()
         jwt_handler.access_token_expire = timedelta(seconds=-1)  # Expired
-        
+
         expired_token = jwt_handler.create_access_token(
             {
                 "id": str(verified_user.id),
@@ -182,12 +183,12 @@ class TestJWTAuthentication:
                 "organizations": [],
             }
         )
-        
+
         response = await async_client.get(
             "/api/auth/me",
             headers={"Authorization": f"Bearer {expired_token}"},
         )
-        
+
         assert response.status_code == 401
         # The error is caught and returned as a generic invalid credentials error
         assert response.json()["detail"] == "Invalid authentication credentials"
@@ -196,23 +197,24 @@ class TestJWTAuthentication:
     async def test_jwt_token_claims(self, async_client: AsyncClient, verified_user_with_org: tuple):
         """Test that JWT token contains correct claims."""
         user, org = verified_user_with_org
-        
+
         # Reset JWT handler to ensure it has correct expiration times
         import server.auth.jwt_handler
+
         server.auth.jwt_handler._jwt_handler = None
-        
+
         response = await async_client.post(
             "/api/auth/login",
             json={"username": user.username, "password": "TestPassword123!"},
         )
-        
+
         assert response.status_code == 200
         access_token = response.json()["access_token"]
-        
+
         # Decode token to check claims
         jwt_handler = get_jwt_handler()
         payload = jwt_handler.decode_token(access_token)
-        
+
         assert payload["sub"] == str(user.id)
         assert payload["email"] == user.email
         assert payload["username"] == user.username

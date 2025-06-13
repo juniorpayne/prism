@@ -399,8 +399,6 @@ class PasswordResetToken(Base):
         return self.expires_at > now and self.used_at is None
 
 
-
-
 class TokenBlacklist(Base):
     """
     Token blacklist for emergency token revocation.

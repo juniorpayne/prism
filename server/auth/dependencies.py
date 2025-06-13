@@ -70,6 +70,7 @@ async def get_current_user(
 
     # Get user from database
     from uuid import UUID
+
     user_id = UUID(payload["sub"])
     user = await db.execute(select(User).where(User.id == user_id))
     user = user.scalar_one_or_none()
@@ -115,9 +116,7 @@ async def get_current_verified_user(
 
 
 async def get_optional_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        HTTPBearer(auto_error=False)
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[User]:
     """
@@ -163,9 +162,7 @@ def require_role(allowed_roles: list[str]):
         """Check if user has required role in any organization."""
         # Get user's roles across all organizations
         user_roles = await db.execute(
-            select(UserOrganization.role).where(
-                UserOrganization.user_id == current_user.id
-            )
+            select(UserOrganization.role).where(UserOrganization.user_id == current_user.id)
         )
         roles = [r[0] for r in user_roles]
 

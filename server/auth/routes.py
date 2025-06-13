@@ -10,10 +10,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.auth.dependencies import get_current_user, get_current_verified_user
 from server.auth.email import get_email_service
+from server.auth.jwt_handler import get_jwt_handler
+from server.auth.models import RefreshToken, User
 from server.auth.schemas import (
     EmailVerificationResponse,
     ErrorResponse,
@@ -26,11 +29,8 @@ from server.auth.schemas import (
     UserResponse,
 )
 from server.auth.service import AuthService
-from server.database.connection import get_async_db
-from server.auth.dependencies import get_current_user, get_current_verified_user
-from server.auth.jwt_handler import get_jwt_handler
 from server.auth.utils import hash_token, verify_password
-from server.auth.models import RefreshToken, User
+from server.database.connection import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +228,7 @@ async def login(
             "email": user.email,
             "username": user.username,
             "organizations": [
-                {"id": str(org.id), "slug": org.slug, "role": role}
-                for org, role in orgs
+                {"id": str(org.id), "slug": org.slug, "role": role} for org, role in orgs
             ],
         }
     )
@@ -298,9 +297,10 @@ async def refresh_token(
     jwt_handler.verify_token_type(payload, "refresh")
 
     # Verify refresh token in database
+    from uuid import UUID
+
     from sqlalchemy import select
 
-    from uuid import UUID
     user_id = UUID(payload["sub"])
     db_token = await db.execute(
         select(RefreshToken).where(
@@ -324,6 +324,7 @@ async def refresh_token(
 
     # Get user and create new access token
     from uuid import UUID
+
     user_id = UUID(payload["sub"])
     user = await db.get(User, user_id)
     if not user or not user.is_active:
@@ -341,17 +342,14 @@ async def refresh_token(
             "email": user.email,
             "username": user.username,
             "organizations": [
-                {"id": str(org.id), "slug": org.slug, "role": role}
-                for org, role in orgs
+                {"id": str(org.id), "slug": org.slug, "role": role} for org, role in orgs
             ],
         }
     )
 
     await db.commit()
 
-    return RefreshTokenResponse(
-        access_token=access_token, token_type="Bearer", expires_in=900
-    )
+    return RefreshTokenResponse(access_token=access_token, token_type="Bearer", expires_in=900)
 
 
 @router.post(
