@@ -496,6 +496,60 @@ body {
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
+/* Forgot Password Page Styles */
+#forgot-password-view {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+}
+
+#forgot-password-view .card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+#forgot-password-view .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#forgot-password-view .btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transition: all 0.3s ease;
+}
+
+#forgot-password-view .btn-primary:hover:not(:disabled) {
+    background-color: #0b5ed7;
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+#forgot-password-view .btn-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Success state styling */
+#forgotPasswordSuccess .bi-envelope-check {
+    animation: pulse 2s infinite;
+}
+
+/* Rate limit warning */
+#rateLimitWarning {
+    margin-top: 1rem;
+}
+
+#rateLimitWarning .alert {
+    margin-bottom: 0;
+}
+
+/* Resend link hover effect */
+#resendResetLink:hover {
+    text-decoration: underline !important;
+}
+
 /* Print Styles */
 @media print {
     .navbar,

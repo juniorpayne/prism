@@ -227,3 +227,51 @@ Let's start by examining the existing web structure...
   - Success and error states display correctly
   - Auto-redirect to login after success
   - All visual elements and animations working
+
+#### SCRUM-63: Forgot Password UI
+
+**Starting Implementation (June 14, 2025)**
+- Story requires implementing a forgot password request page
+- Key requirements:
+  - Email input form with validation
+  - Success state showing email sent confirmation
+  - Rate limiting with UI feedback
+  - Client-side validation
+  - Resend functionality
+  - Loading states during API calls
+  - Error handling
+
+**Implementation Plan:**
+1. Create forgot password page view in index.html
+2. Create ForgotPasswordPage class with form handling
+3. Implement rate limiting logic with visual feedback
+4. Add CSS styling for the page
+5. Update router to handle forgot-password route
+6. Test all scenarios including rate limiting
+
+**Implementation Complete (June 14, 2025)**
+- Created forgot password view in `/web/index.html` with form and success states
+- Implemented `/web/js/forgot-password.js` with ForgotPasswordPage class
+- Added comprehensive rate limiting with cooldown periods
+- Added CSS styling for forgot password page in `/web/css/main.css`
+- Updated router to handle forgot-password route
+- API integration using existing forgotPassword method
+- Implemented all required features:
+  - Email validation with real-time feedback
+  - Success state with email confirmation
+  - Rate limiting (3 requests per minute, 5-minute cooldown)
+  - Visual rate limit warnings with countdown
+  - Loading states during API calls
+  - Error handling with user-friendly messages
+  - Resend functionality from success view
+
+**Testing Results:**
+- Created comprehensive test suite in `/web/tests/test-forgot-password.js`
+- All acceptance criteria verified:
+  - Form elements present and functional
+  - Email validation working correctly
+  - Success state displays properly
+  - Rate limiting enforces limits
+  - Loading states show appropriately
+  - Error messages display correctly
+  - Navigation between states works
