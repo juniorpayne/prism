@@ -9,12 +9,31 @@ class PrismAPI {
         this.timeout = 10000; // 10 seconds
         this.retryAttempts = 3;
         this.retryDelay = 1000; // 1 second
+        this.tokenManager = null; // Will be initialized after TokenManager is loaded
+    }
+    
+    /**
+     * Initialize token manager
+     */
+    initTokenManager() {
+        if (window.TokenManager) {
+            this.tokenManager = new TokenManager();
+        }
     }
 
     /**
      * Make HTTP request with error handling and retry logic
      */
     async request(endpoint, options = {}) {
+        // Check if token needs refresh before making request
+        if (this.tokenManager && this.tokenManager.shouldRefreshToken()) {
+            try {
+                await this.tokenManager.refreshAccessToken();
+            } catch (error) {
+                console.warn('Token refresh failed before request:', error);
+            }
+        }
+        
         const url = `${this.baseUrl}${endpoint}`;
         const config = {
             timeout: this.timeout,
@@ -24,8 +43,14 @@ class PrismAPI {
             },
             ...options
         };
+        
+        // Add authentication header if token is available
+        if (this.tokenManager && this.tokenManager.getAccessToken()) {
+            config.headers['Authorization'] = `Bearer ${this.tokenManager.getAccessToken()}`;
+        }
 
         let lastError;
+        let tokenRefreshed = false;
         
         for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
             try {
@@ -38,6 +63,22 @@ class PrismAPI {
                 });
                 
                 clearTimeout(timeoutId);
+                
+                // Handle 401 Unauthorized
+                if (response.status === 401 && this.tokenManager && !tokenRefreshed) {
+                    tokenRefreshed = true;
+                    try {
+                        // Try to refresh token
+                        const newToken = await this.tokenManager.refreshAccessToken();
+                        // Update authorization header with new token
+                        config.headers['Authorization'] = `Bearer ${newToken}`;
+                        // Retry the request
+                        continue;
+                    } catch (refreshError) {
+                        console.error('Token refresh failed:', refreshError);
+                        // Let the 401 error propagate
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new APIError(
@@ -53,8 +94,8 @@ class PrismAPI {
             } catch (error) {
                 lastError = error;
                 
-                // Don't retry on client errors (4xx)
-                if (error.status >= 400 && error.status < 500) {
+                // Don't retry on client errors (4xx) except 401
+                if (error.status >= 400 && error.status < 500 && error.status !== 401) {
                     throw error;
                 }
                 
@@ -143,6 +184,116 @@ class PrismAPI {
             return response;
         } catch (error) {
             throw new APIError(`Search failed: ${error.message}`, error.status, '/api/hosts');
+        }
+    }
+    
+    /**
+     * Login user
+     */
+    async login(username, password) {
+        try {
+            const response = await this.request('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
+            
+            // Store tokens
+            if (this.tokenManager && response.access_token) {
+                this.tokenManager.setTokens(response.access_token, response.refresh_token);
+            }
+            
+            return response;
+        } catch (error) {
+            throw new APIError(`Login failed: ${error.message}`, error.status, '/api/auth/login');
+        }
+    }
+    
+    /**
+     * Logout user
+     */
+    async logout() {
+        try {
+            await this.request('/api/auth/logout', {
+                method: 'POST'
+            });
+        } catch (error) {
+            console.warn('Logout request failed:', error);
+        } finally {
+            // Always clear tokens locally
+            if (this.tokenManager) {
+                this.tokenManager.clearTokens();
+            }
+        }
+    }
+    
+    /**
+     * Register new user
+     */
+    async register(userData) {
+        try {
+            const response = await this.request('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify(userData)
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Registration failed: ${error.message}`, error.status, '/api/auth/register');
+        }
+    }
+    
+    /**
+     * Get current user info
+     */
+    async getCurrentUser() {
+        try {
+            const response = await this.request('/api/auth/me');
+            return response;
+        } catch (error) {
+            throw new APIError(`Failed to get user info: ${error.message}`, error.status, '/api/auth/me');
+        }
+    }
+    
+    /**
+     * Request password reset
+     */
+    async forgotPassword(email) {
+        try {
+            const response = await this.request('/api/auth/forgot-password', {
+                method: 'POST',
+                body: JSON.stringify({ email })
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Password reset request failed: ${error.message}`, error.status, '/api/auth/forgot-password');
+        }
+    }
+    
+    /**
+     * Reset password with token
+     */
+    async resetPassword(token, newPassword) {
+        try {
+            const response = await this.request('/api/auth/reset-password', {
+                method: 'POST',
+                body: JSON.stringify({ token, password: newPassword })
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Password reset failed: ${error.message}`, error.status, '/api/auth/reset-password');
+        }
+    }
+    
+    /**
+     * Verify email with token
+     */
+    async verifyEmail(token) {
+        try {
+            const response = await this.request(`/api/auth/verify-email/${encodeURIComponent(token)}`, {
+                method: 'POST'
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Email verification failed: ${error.message}`, error.status, '/api/auth/verify-email');
         }
     }
 

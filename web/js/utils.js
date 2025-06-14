@@ -355,3 +355,117 @@ const url = {
         window.history.replaceState({}, '', newUrl);
     }
 };
+
+/**
+ * JWT helpers
+ */
+const jwt = {
+    /**
+     * Parse JWT token
+     * @param {string} token - JWT token to parse
+     * @returns {Object|null} Parsed token object with header, payload, and signature
+     */
+    parse: (token) => {
+        if (!token || typeof token !== 'string') return null;
+        
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        
+        try {
+            const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            
+            return {
+                header,
+                payload,
+                signature: parts[2],
+                raw: token
+            };
+        } catch (error) {
+            console.error('Failed to parse JWT:', error);
+            return null;
+        }
+    },
+    
+    /**
+     * Get token expiration date
+     * @param {string} token - JWT token
+     * @returns {Date|null} Expiration date or null
+     */
+    getExpiration: (token) => {
+        const parsed = jwt.parse(token);
+        if (!parsed || !parsed.payload.exp) return null;
+        
+        return new Date(parsed.payload.exp * 1000);
+    },
+    
+    /**
+     * Check if token is expired
+     * @param {string} token - JWT token
+     * @returns {boolean} True if token is expired
+     */
+    isExpired: (token) => {
+        const expiration = jwt.getExpiration(token);
+        if (!expiration) return false;
+        
+        return expiration < new Date();
+    },
+    
+    /**
+     * Get time until expiration
+     * @param {string} token - JWT token
+     * @returns {number} Milliseconds until expiration (negative if expired)
+     */
+    timeUntilExpiry: (token) => {
+        const expiration = jwt.getExpiration(token);
+        if (!expiration) return Infinity;
+        
+        return expiration.getTime() - Date.now();
+    },
+    
+    /**
+     * Format time until expiry in human-readable format
+     * @param {string} token - JWT token
+     * @returns {string} Formatted time string
+     */
+    formatTimeUntilExpiry: (token) => {
+        const ms = jwt.timeUntilExpiry(token);
+        
+        if (ms === Infinity) return 'Never expires';
+        if (ms < 0) return 'Expired';
+        
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        
+        if (days > 0) return `${days} day${days !== 1 ? 's' : ''}`;
+        if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+        if (minutes > 0) return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+        return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+    },
+    
+    /**
+     * Get user info from token
+     * @param {string} token - JWT token
+     * @returns {Object|null} User info object
+     */
+    getUserInfo: (token) => {
+        const parsed = jwt.parse(token);
+        if (!parsed) return null;
+        
+        const { payload } = parsed;
+        return {
+            id: payload.sub,
+            username: payload.username,
+            email: payload.email,
+            isActive: payload.is_active,
+            isVerified: payload.is_verified,
+            exp: payload.exp,
+            iat: payload.iat
+        };
+    }
+};
+
+// Export jwt utilities to window
+window.jwt = jwt;

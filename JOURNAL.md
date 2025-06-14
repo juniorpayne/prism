@@ -47,3 +47,42 @@ Let's start by examining the existing web structure...
 - Deep linking functional
 
 **Note:** Temporarily disabled authentication enforcement in development mode since login UI is not yet implemented. Will re-enable when SCRUM-59 (Login Page UI) is complete.
+
+#### SCRUM-59: JWT Token Management and API Client Update
+
+**Starting Implementation (June 14, 2025)**
+- Story requires implementing secure JWT token management
+- Key requirements:
+  - API client automatically includes JWT token in requests
+  - Tokens stored securely in localStorage
+  - Access token automatically refreshed before expiry
+  - Failed requests with 401 trigger token refresh
+  - User logged out on refresh token expiry
+  - Token expiry checked before API calls
+
+**Implementation Complete (June 14, 2025)**
+- Created `/web/js/token-manager.js` with comprehensive TokenManager class
+- Updated `/web/js/api.js` to integrate TokenManager for all requests
+- Added JWT parsing utilities to `/web/js/utils.js`
+- Implemented all required functionality:
+  - Automatic token inclusion in API requests
+  - Secure token storage/retrieval from localStorage
+  - Token expiry checking and auto-refresh
+  - 401 response handling with token refresh retry
+  - Token clearing on logout
+  - Event dispatching for token updates/clears
+  
+**Testing Results:**
+- All acceptance criteria verified with automated tests
+- Token storage and retrieval working correctly
+- JWT parsing utilities functional
+- Auto-refresh timer implemented
+- 401 handling triggers token refresh
+- Events fire on token updates/clears
+
+**Security Features Implemented:**
+- Token validation before storage
+- Automatic token clearing on errors
+- No token logging to console
+- Race condition prevention for refresh
+- Secure token format validation

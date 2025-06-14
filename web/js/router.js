@@ -140,6 +140,12 @@ class Router {
      * @returns {boolean} True if user has valid JWT token
      */
     isAuthenticated() {
+        // Use TokenManager if available
+        if (window.api && window.api.tokenManager) {
+            return window.api.tokenManager.isAuthenticated();
+        }
+        
+        // Fallback to direct localStorage check
         const token = localStorage.getItem('accessToken');
         return token && !this.isTokenExpired(token);
     }
