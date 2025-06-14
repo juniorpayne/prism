@@ -15,6 +15,14 @@
                 <i class="bi bi-globe"></i> Prism DNS
             </a>
             <div class="navbar-nav ms-auto">
+                <!-- Session Timer (only shown when authenticated) -->
+                <span class="navbar-text me-3 d-none" id="sessionTimerContainer">
+                    <small id="sessionTimer" class="text-muted">
+                        <i class="bi bi-clock me-1"></i>
+                        Session: --:--
+                    </small>
+                </span>
+                
                 <a class="nav-link" href="/dashboard" id="nav-dashboard">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
@@ -753,6 +761,7 @@
     <script src="js/utils.js"></script>
     <script src="js/password-validator.js"></script>
     <script src="js/token-manager.js"></script>
+    <script src="js/session-manager.js"></script>
     <script src="js/api.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/hosts.js"></script>

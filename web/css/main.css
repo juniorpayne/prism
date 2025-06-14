@@ -550,6 +550,57 @@ body {
     text-decoration: underline !important;
 }
 
+/* Session Management Styles */
+#sessionTimer {
+    font-size: 0.875rem;
+    transition: color 0.3s ease;
+}
+
+#sessionTimer i {
+    font-size: 0.875rem;
+}
+
+#sessionTimerContainer {
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    padding-right: 1rem;
+}
+
+/* Session Warning Modal */
+#sessionWarningModal .modal-content {
+    border: 2px solid #ffc107;
+}
+
+#sessionWarningModal .modal-header {
+    background-color: #fff3cd;
+    border-bottom: 1px solid #ffeaa7;
+}
+
+#sessionWarningModal .bi-clock-history {
+    font-size: 1.5rem;
+}
+
+#sessionCountdown {
+    font-size: 1.25rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+/* Auto-logout notification */
+#autoLogoutNotification {
+    animation: slideInDown 0.3s ease-out;
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translate(-50%, -100%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
 /* Reset Password Page Styles */
 #reset-password-view {
     min-height: calc(100vh - 60px);

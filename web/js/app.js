@@ -6,6 +6,7 @@
 class PrismApp {
     constructor() {
         this.router = null;
+        this.sessionManager = null;
         this.isInitialized = false;
         this.connectionStatus = 'unknown';
         this.lastUpdate = null;
@@ -37,6 +38,9 @@ class PrismApp {
             // Setup router handlers
             this.setupRouterHandlers();
             
+            // Initialize session manager after token manager is ready
+            this.initializeSessionManager();
+            
             this.isInitialized = true;
             this.updateStatusBar('Ready', 'success');
             
@@ -46,6 +50,63 @@ class PrismApp {
             console.error('Failed to initialize app:', error);
             this.updateStatusBar('Initialization failed', 'danger');
             showToast('Failed to initialize application', 'danger');
+        }
+    }
+
+    initializeSessionManager() {
+        if (!window.SessionManager) {
+            console.warn('SessionManager not available');
+            return;
+        }
+        
+        // Create session manager with configuration
+        this.sessionManager = new SessionManager({
+            inactivityTimeout: 30 * 60 * 1000, // 30 minutes
+            warningTime: 5 * 60 * 1000, // 5 minutes warning
+            checkInterval: 60 * 1000, // Check every minute
+            enableSessionTimer: true,
+            enableWarningModal: true,
+            crossTabSync: true
+        });
+        
+        // Listen for authentication state changes
+        window.addEventListener('tokenUpdate', () => {
+            this.handleAuthStateChange();
+        });
+        
+        window.addEventListener('tokenClear', () => {
+            this.handleAuthStateChange();
+        });
+        
+        // Check initial auth state
+        this.handleAuthStateChange();
+    }
+    
+    handleAuthStateChange() {
+        const isAuthenticated = window.api && window.api.tokenManager && window.api.tokenManager.isAuthenticated();
+        
+        if (isAuthenticated) {
+            // Show session timer
+            const timerContainer = document.getElementById('sessionTimerContainer');
+            if (timerContainer) {
+                timerContainer.classList.remove('d-none');
+            }
+            
+            // Initialize session manager if not running
+            if (this.sessionManager && !this.sessionManager.isRunning) {
+                this.sessionManager.init();
+            }
+        } else {
+            // Hide session timer
+            const timerContainer = document.getElementById('sessionTimerContainer');
+            if (timerContainer) {
+                timerContainer.classList.add('d-none');
+            }
+            
+            // Cleanup session manager
+            if (this.sessionManager && this.sessionManager.isRunning) {
+                this.sessionManager.cleanup();
+            }
         }
     }
 

@@ -324,3 +324,50 @@ Let's start by examining the existing web structure...
   - Show/hide toggles functioning
   - Form submission handling correct
   - All states display properly
+
+#### SCRUM-65: Session Management and Auto-Logout
+
+**Starting Implementation (June 14, 2025)**
+- Story requires implementing session timeout and auto-logout functionality
+- Key requirements:
+  - Monitor user activity (mouse, keyboard, API calls)
+  - Auto-logout after 30 minutes of inactivity
+  - Warning modal at 25 minutes with option to extend
+  - Clean logout with token cleanup
+  - Session timer display in UI (optional)
+  - Persist activity across browser tabs
+
+**Implementation Plan:**
+1. Create SessionManager class with activity monitoring
+2. Implement cross-tab synchronization
+3. Add warning modal with countdown
+4. Add session timer to navbar
+5. Integrate with app.js and auth state
+6. Test all scenarios
+
+**Implementation Complete (June 14, 2025)**
+- Created `/web/js/session-manager.js` with comprehensive SessionManager class
+- Updated `/web/js/app.js` to initialize and manage session lifecycle
+- Added session timer display to navbar in `/web/index.html`
+- Added CSS styling for warning modal and timer
+- Implemented all required features:
+  - Activity monitoring for mouse, keyboard, scroll, touch, and click events
+  - API call interception to track activity
+  - Auto-logout after 30 minutes of inactivity
+  - Warning modal at 25 minutes with countdown timer
+  - Cross-tab activity synchronization via localStorage
+  - Session timer display with color coding (danger < 5min, warning < 10min)
+  - Clean logout with token cleanup and navigation to login
+  - Automatic initialization on authentication
+  - Cleanup on logout
+
+**Testing Results:**
+- Created comprehensive test suite in `/web/tests/test-session-manager.js`
+- All acceptance criteria verified:
+  - Activity detection working for all event types
+  - Warning modal appears at correct time
+  - Auto-logout triggers after timeout
+  - Session extension works via continue button
+  - Cross-tab activity syncs properly
+  - Session timer updates correctly
+  - Cleanup removes all timers and listeners
