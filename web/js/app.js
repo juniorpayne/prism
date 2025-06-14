@@ -5,7 +5,7 @@
 
 class PrismApp {
     constructor() {
-        this.currentView = 'dashboard';
+        this.router = null;
         this.isInitialized = false;
         this.connectionStatus = 'unknown';
         this.lastUpdate = null;
@@ -15,8 +15,10 @@ class PrismApp {
 
     async initializeApp() {
         try {
+            // Initialize router first
+            this.router = new Router();
+            
             // Initialize components
-            this.initializeNavigation();
             this.initializeStatusBar();
             
             // Create component instances
@@ -29,14 +31,11 @@ class PrismApp {
             // Check API connectivity (non-blocking)
             this.checkApiConnection();
             
-            // Load initial view
-            this.showView(this.currentView);
-            
             // Start periodic connection checks
             this.startConnectionMonitoring();
             
-            // Handle browser navigation
-            this.initializeRouting();
+            // Setup router handlers
+            this.setupRouterHandlers();
             
             this.isInitialized = true;
             this.updateStatusBar('Ready', 'success');
@@ -50,16 +49,13 @@ class PrismApp {
         }
     }
 
-    initializeNavigation() {
-        // Navigation click handlers
-        document.getElementById('nav-dashboard')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.showView('dashboard');
-        });
-        
-        document.getElementById('nav-hosts')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.showView('hosts');
+    setupRouterHandlers() {
+        // Setup router after route handlers
+        this.router.afterRoute(async (route, path) => {
+            // Handle loading data for specific routes
+            if (route.component === 'dashboard' || route.component === 'hosts') {
+                await this.loadViewData(route.component);
+            }
         });
         
         // Keyboard shortcuts
@@ -67,12 +63,12 @@ class PrismApp {
             // Alt+D for dashboard
             if (e.altKey && e.key === 'd') {
                 e.preventDefault();
-                this.showView('dashboard');
+                this.router.navigate('/dashboard');
             }
             // Alt+H for hosts
             else if (e.altKey && e.key === 'h') {
                 e.preventDefault();
-                this.showView('hosts');
+                this.router.navigate('/hosts');
             }
             // F5 or Ctrl+R for refresh
             else if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
@@ -98,26 +94,7 @@ class PrismApp {
         }
     }
 
-    initializeRouting() {
-        // Handle browser back/forward buttons
-        window.addEventListener('popstate', (e) => {
-            const view = this.getViewFromUrl();
-            this.showView(view, false); // Don't update URL again
-        });
-        
-        // Load view from URL on page load
-        const initialView = this.getViewFromUrl();
-        if (initialView !== this.currentView) {
-            this.showView(initialView);
-        }
-    }
-
-    getViewFromUrl() {
-        const hash = window.location.hash.substring(1);
-        return ['dashboard', 'hosts'].includes(hash) ? hash : 'dashboard';
-    }
-
-    showView(viewName, updateUrl = true) {
+    showView(viewName) {
         // Hide all views
         document.querySelectorAll('.view').forEach(view => {
             view.style.display = 'none';
@@ -141,12 +118,12 @@ class PrismApp {
             navElement.classList.add('active');
         }
         
-        // Update URL
-        if (updateUrl) {
-            window.history.pushState({}, '', `#${viewName}`);
+        // Router handles navigation now
+        if (this.router) {
+            const path = viewName === 'dashboard' ? '/' : `/${viewName}`;
+            this.router.navigate(path);
+            return;
         }
-        
-        this.currentView = viewName;
         
         // Load view data immediately - components are already initialized
         console.log(`Loading data for view: ${viewName}`);
@@ -197,9 +174,12 @@ class PrismApp {
         this.updateStatusBar('Refreshing...', 'info');
         
         try {
-            await this.loadViewData(this.currentView);
-            this.updateStatusBar('Refreshed', 'success');
-            showToast('Data refreshed', 'success', 2000);
+            const currentRoute = this.router.getCurrentRoute();
+            if (currentRoute.component) {
+                await this.loadViewData(currentRoute.component);
+                this.updateStatusBar('Refreshed', 'success');
+                showToast('Data refreshed', 'success', 2000);
+            }
         } catch (error) {
             this.updateStatusBar('Refresh failed', 'danger');
             showToast('Failed to refresh data', 'danger');
@@ -286,11 +266,11 @@ class PrismApp {
     // Public methods for other components to use
 
     showHost(hostname) {
-        this.showView('hosts');
+        this.router.navigate('/hosts');
         // Wait for view to load, then show host detail
         setTimeout(() => {
-            if (hostManager) {
-                hostManager.showHostDetail(hostname);
+            if (window.hostManager) {
+                window.hostManager.showHostDetail(hostname);
             }
         }, 100);
     }
@@ -313,9 +293,11 @@ class PrismApp {
     }
 
     getAppInfo() {
+        const currentRoute = this.router ? this.router.getCurrentRoute() : {};
         return {
             version: '1.0.0',
-            currentView: this.currentView,
+            currentView: currentRoute.component || 'unknown',
+            currentPath: currentRoute.path || '/',
             connectionStatus: this.connectionStatus,
             lastUpdate: this.lastUpdate,
             isInitialized: this.isInitialized,
