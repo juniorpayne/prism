@@ -193,8 +193,9 @@ class Router {
             link.classList.remove('active');
         });
         
-        // Special handling for existing views (dashboard, hosts, login, register)
-        if (['dashboard', 'hosts', 'login', 'register'].includes(componentName)) {
+        // Special handling for existing views
+        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email'];
+        if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
             
@@ -207,7 +208,7 @@ class Router {
                 navElement.classList.add('active');
             }
             
-            // Handle authentication page initialization
+            // Handle page-specific initialization
             if (componentName === 'login') {
                 // Clean up any existing login page instance
                 if (window.currentLoginPage) {
@@ -215,6 +216,12 @@ class Router {
                 }
                 // Create new login page instance
                 window.currentLoginPage = new window.LoginPage();
+                
+                // Check for verification success message
+                if (sessionStorage.getItem('verificationSuccess') === 'true') {
+                    sessionStorage.removeItem('verificationSuccess');
+                    showToast('Email verified successfully! You can now login.', 'success');
+                }
             } else if (componentName === 'register') {
                 // Clean up any existing register page instance
                 if (window.currentRegisterPage) {
@@ -222,6 +229,20 @@ class Router {
                 }
                 // Create new register page instance
                 window.currentRegisterPage = new window.RegisterPage();
+            } else if (componentName === 'verify-email-sent') {
+                // Clean up any existing email sent page instance
+                if (window.currentEmailSentPage) {
+                    window.currentEmailSentPage.destroy();
+                }
+                // Create new email sent page instance
+                window.currentEmailSentPage = new window.EmailSentPage();
+            } else if (componentName === 'verify-email') {
+                // Clean up any existing verification page instance
+                if (window.currentEmailVerificationPage) {
+                    window.currentEmailVerificationPage.destroy();
+                }
+                // Create new verification page instance
+                window.currentEmailVerificationPage = new window.EmailVerificationPage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

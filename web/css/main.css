@@ -424,6 +424,78 @@ body {
     margin-bottom: 1rem;
 }
 
+/* Email Verification Pages */
+#verify-email-sent-view,
+#verify-email-view {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+}
+
+/* Small alerts */
+.alert-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+/* Animated envelope icon */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.bi-envelope-check {
+    animation: pulse 2s infinite;
+}
+
+/* Success check animation */
+@keyframes checkmark {
+    0% { transform: scale(0) rotate(0deg); }
+    50% { transform: scale(1.2) rotate(5deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+
+.bi-check-circle[style*="animation"] {
+    animation: checkmark 0.5s ease-out !important;
+}
+
+/* Resend button states */
+#resendBtn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Verification states */
+#verifyingState .spinner-border {
+    animation: spinner-border .75s linear infinite;
+}
+
+#errorState .bi-x-circle {
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* Instructions list styling */
+.alert-info ol {
+    padding-left: 1.5rem;
+}
+
+.alert-info ol li {
+    margin-bottom: 0.25rem;
+}
+
+/* Email verification card shadows */
+#verify-email-sent-view .card,
+#verify-email-view .card {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
 /* Print Styles */
 @media print {
     .navbar,
