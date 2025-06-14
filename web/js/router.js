@@ -193,8 +193,8 @@ class Router {
             link.classList.remove('active');
         });
         
-        // Special handling for existing views (dashboard, hosts, login)
-        if (['dashboard', 'hosts', 'login'].includes(componentName)) {
+        // Special handling for existing views (dashboard, hosts, login, register)
+        if (['dashboard', 'hosts', 'login', 'register'].includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
             
@@ -207,7 +207,7 @@ class Router {
                 navElement.classList.add('active');
             }
             
-            // Handle login page initialization
+            // Handle authentication page initialization
             if (componentName === 'login') {
                 // Clean up any existing login page instance
                 if (window.currentLoginPage) {
@@ -215,6 +215,13 @@ class Router {
                 }
                 // Create new login page instance
                 window.currentLoginPage = new window.LoginPage();
+            } else if (componentName === 'register') {
+                // Clean up any existing register page instance
+                if (window.currentRegisterPage) {
+                    window.currentRegisterPage.destroy();
+                }
+                // Create new register page instance
+                window.currentRegisterPage = new window.RegisterPage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

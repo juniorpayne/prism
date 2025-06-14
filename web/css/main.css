@@ -364,6 +364,66 @@ body {
     margin-bottom: 1rem;
 }
 
+/* Registration Page Styles */
+#register-view {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+}
+
+#register-view .card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Password strength indicator */
+.password-strength .progress {
+    background-color: #e9ecef;
+}
+
+.password-requirements {
+    background-color: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid #dee2e6;
+}
+
+.req-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.req-item:last-child {
+    margin-bottom: 0;
+}
+
+.req-item i {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.req-item i.text-success {
+    color: #28a745 !important;
+}
+
+/* Registration form validation */
+#register-view .form-control.is-valid {
+    border-color: #28a745;
+    padding-right: calc(1.5em + 0.75rem);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2328a745' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+}
+
+/* Registration alert */
+#registerAlert {
+    margin-bottom: 1rem;
+}
+
 /* Print Styles */
 @media print {
     .navbar,
