@@ -550,6 +550,96 @@ body {
     text-decoration: underline !important;
 }
 
+/* Reset Password Page Styles */
+#reset-password-view {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+}
+
+#reset-password-view .card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+#reset-password-view .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#reset-password-view .btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transition: all 0.3s ease;
+}
+
+#reset-password-view .btn-primary:hover:not(:disabled) {
+    background-color: #0b5ed7;
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+#reset-password-view .btn-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Token validation spinner */
+#validatingState .spinner-border {
+    animation: spinner-border .75s linear infinite;
+}
+
+/* Success state animation */
+#resetSuccessState .bi-check-circle {
+    animation: checkmark 0.5s ease-out;
+}
+
+/* Password toggle buttons */
+#toggleNewPassword,
+#toggleConfirmPassword {
+    border-left: none;
+    background-color: white;
+}
+
+#toggleNewPassword:hover,
+#toggleConfirmPassword:hover {
+    background-color: #f8f9fa;
+}
+
+/* Invalid token state */
+#invalidTokenState .alert-danger {
+    border-radius: 0.5rem;
+}
+
+/* Password requirements for reset page */
+#resetPasswordReqs {
+    background-color: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid #dee2e6;
+}
+
+#resetPasswordReqs .req-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+#resetPasswordReqs .req-item:last-child {
+    margin-bottom: 0;
+}
+
+#resetPasswordReqs .req-item i {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+#resetPasswordReqs .req-item i.text-success {
+    color: #28a745 !important;
+}
+
 /* Print Styles */
 @media print {
     .navbar,

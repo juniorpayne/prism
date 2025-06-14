@@ -275,3 +275,52 @@ Let's start by examining the existing web structure...
   - Loading states show appropriately
   - Error messages display correctly
   - Navigation between states works
+
+#### SCRUM-64: Reset Password UI
+
+**Starting Implementation (June 14, 2025)**
+- Story requires implementing a password reset page with token validation
+- Key requirements:
+  - Password reset form with new password and confirmation fields
+  - Extract and validate token from URL
+  - Password strength indicator (reuse from registration)
+  - Error handling for invalid/expired tokens
+  - Success message and redirect to login
+  - Show/hide password toggles
+
+**Implementation Plan:**
+1. Create reset password page view in index.html
+2. Extract password strength validator to shared component
+3. Create ResetPasswordPage class with token validation
+4. Implement password validation and matching
+5. Add CSS styling for the page
+6. Update router to handle reset-password route
+7. Test all scenarios including token validation
+
+**Implementation Complete (June 14, 2025)**
+- Created reset password view in `/web/index.html` with all states
+- Extracted password strength checking to `/web/js/password-validator.js`
+- Implemented `/web/js/reset-password.js` with ResetPasswordPage class
+- Added comprehensive token validation from URL
+- Added CSS styling for reset password page in `/web/css/main.css`
+- Updated router to handle reset-password route with query parameters
+- Updated register.js to use shared PasswordValidator
+- Implemented all required features:
+  - Token extraction and validation from URL
+  - Password strength indicator with requirements
+  - Password confirmation with matching validation
+  - Show/hide toggles for both password fields
+  - Loading states during password reset
+  - Success state with auto-redirect to login
+  - Invalid/expired token error handling
+
+**Testing Results:**
+- Created comprehensive test suite in `/web/tests/test-reset-password.js`
+- All acceptance criteria verified:
+  - Page elements present and functional
+  - Token validation working correctly
+  - Password strength indicator functional
+  - Password matching validation works
+  - Show/hide toggles functioning
+  - Form submission handling correct
+  - All states display properly

@@ -194,7 +194,7 @@ class Router {
         });
         
         // Special handling for existing views
-        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password'];
+        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password'];
         if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
@@ -250,6 +250,13 @@ class Router {
                 }
                 // Create new forgot password page instance
                 window.currentForgotPasswordPage = new window.ForgotPasswordPage();
+            } else if (componentName === 'reset-password') {
+                // Clean up any existing reset password page instance
+                if (window.currentResetPasswordPage) {
+                    window.currentResetPasswordPage.destroy();
+                }
+                // Create new reset password page instance
+                window.currentResetPasswordPage = new window.ResetPasswordPage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

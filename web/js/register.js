@@ -14,13 +14,8 @@ class RegisterPage {
         this.registerBtn = document.getElementById('registerBtn');
         this.passwordReqs = document.getElementById('passwordReqs');
         
-        this.passwordRequirements = {
-            length: false,
-            uppercase: false,
-            lowercase: false,
-            number: false,
-            special: false
-        };
+        // Password validator
+        this.passwordValidator = new PasswordValidator();
         
         this.initEventListeners();
     }
@@ -57,58 +52,7 @@ class RegisterPage {
      */
     checkPasswordStrength() {
         const password = this.passwordInput.value;
-        const strengthBar = document.getElementById('passwordStrength');
-        const strengthText = document.getElementById('strengthText');
-        
-        // Check requirements
-        this.passwordRequirements.length = password.length >= 12;
-        this.passwordRequirements.uppercase = /[A-Z]/.test(password);
-        this.passwordRequirements.lowercase = /[a-z]/.test(password);
-        this.passwordRequirements.number = /[0-9]/.test(password);
-        this.passwordRequirements.special = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-        
-        // Update requirement indicators
-        Object.keys(this.passwordRequirements).forEach(req => {
-            const element = document.querySelector(`[data-req="${req}"]`);
-            if (element) {
-                const icon = element.querySelector('i');
-                if (this.passwordRequirements[req]) {
-                    icon.classList.remove('bi-circle');
-                    icon.classList.add('bi-check-circle-fill', 'text-success');
-                } else {
-                    icon.classList.remove('bi-check-circle-fill', 'text-success');
-                    icon.classList.add('bi-circle');
-                }
-            }
-        });
-        
-        // Calculate strength
-        const metRequirements = Object.values(this.passwordRequirements).filter(v => v).length;
-        const strength = (metRequirements / 5) * 100;
-        
-        // Update progress bar
-        strengthBar.style.width = `${strength}%`;
-        strengthBar.className = 'progress-bar';
-        
-        if (password.length === 0) {
-            strengthBar.style.width = '0%';
-            strengthText.textContent = 'Enter password';
-        } else if (strength <= 20) {
-            strengthBar.classList.add('bg-danger');
-            strengthText.textContent = 'Very weak';
-        } else if (strength <= 40) {
-            strengthBar.classList.add('bg-warning');
-            strengthText.textContent = 'Weak';
-        } else if (strength <= 60) {
-            strengthBar.classList.add('bg-info');
-            strengthText.textContent = 'Fair';
-        } else if (strength <= 80) {
-            strengthBar.classList.add('bg-primary');
-            strengthText.textContent = 'Good';
-        } else {
-            strengthBar.classList.add('bg-success');
-            strengthText.textContent = 'Strong';
-        }
+        this.passwordValidator.checkStrength(password);
         
         // Also check password match if confirm field has value
         if (this.confirmPasswordInput.value) {
@@ -195,8 +139,7 @@ class RegisterPage {
         this.clearError();
         
         // Validate all requirements met
-        const allRequirementsMet = Object.values(this.passwordRequirements).every(v => v);
-        if (!allRequirementsMet) {
+        if (!this.passwordValidator.isValid()) {
             this.showError('Password does not meet all requirements');
             this.passwordInput.focus();
             return;
