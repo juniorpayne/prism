@@ -371,3 +371,50 @@ Let's start by examining the existing web structure...
   - Cross-tab activity syncs properly
   - Session timer updates correctly
   - Cleanup removes all timers and listeners
+
+#### SCRUM-66: Remember Me and Persistent Sessions
+
+**Starting Implementation (June 14, 2025)**
+- Story requires implementing remember me functionality with persistent sessions
+- Key requirements:
+  - Remember me checkbox on login form
+  - Persist refresh token securely when remember me is checked
+  - Auto-login on return visit if valid refresh token exists
+  - Clear persistent session on explicit logout
+  - Expire persistent sessions after 30 days
+  - Show 'remembered' indicator on login form
+
+**Implementation Plan:**
+1. Create PersistentTokenManager extending TokenManager
+2. Add persistent session storage methods
+3. Update login page to handle remember me
+4. Implement auto-login on page load
+5. Add session storage sync for cross-tab coordination
+6. Update logout to clear persistent sessions
+7. Create comprehensive test suite
+
+**Implementation Complete (June 14, 2025)**
+- Created `/web/js/persistent-token-manager.js` with PersistentTokenManager class
+- Extended TokenManager with persistent session support
+- Updated `/web/js/api.js` to use PersistentTokenManager
+- Enhanced `/web/js/login.js` to handle remember me functionality
+- Added logout button to navbar with proper visibility toggle
+- Updated `/web/js/app.js` to handle logout and auth state changes
+- Implemented all required features:
+  - Remember me checkbox functionality with state persistence
+  - Secure refresh token storage in localStorage (30-day expiry)
+  - Auto-login on page load with visual indicator
+  - Username pre-fill when remembered
+  - Cross-tab session synchronization
+  - Logout clears all persistent data
+  - Session change events broadcast to other tabs
+
+**Testing Results:**
+- Created comprehensive test suite in `/web/tests/test-remember-me.js`
+- All acceptance criteria verified:
+  - Remember me checkbox works correctly
+  - Persistent sessions stored with expiration
+  - Auto-login restores session on page load
+  - Logout clears persistent data
+  - Cross-tab sync functioning
+  - Helper functions for manual testing included

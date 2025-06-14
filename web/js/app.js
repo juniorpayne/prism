@@ -41,6 +41,9 @@ class PrismApp {
             // Initialize session manager after token manager is ready
             this.initializeSessionManager();
             
+            // Setup logout button handler
+            this.setupLogoutHandler();
+            
             this.isInitialized = true;
             this.updateStatusBar('Ready', 'success');
             
@@ -92,6 +95,12 @@ class PrismApp {
                 timerContainer.classList.remove('d-none');
             }
             
+            // Show logout button
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.classList.remove('d-none');
+            }
+            
             // Initialize session manager if not running
             if (this.sessionManager && !this.sessionManager.isRunning) {
                 this.sessionManager.init();
@@ -103,10 +112,45 @@ class PrismApp {
                 timerContainer.classList.add('d-none');
             }
             
+            // Hide logout button
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.classList.add('d-none');
+            }
+            
             // Cleanup session manager
             if (this.sessionManager && this.sessionManager.isRunning) {
                 this.sessionManager.cleanup();
             }
+        }
+    }
+
+    setupLogoutHandler() {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try {
+                    // Show loading state
+                    logoutBtn.disabled = true;
+                    logoutBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Logging out...';
+                    
+                    // Call logout API
+                    await window.api.logout();
+                    
+                    // Show success message
+                    showToast('Logged out successfully', 'success');
+                    
+                    // Navigate to login page
+                    this.router.navigate('/login');
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    showToast('Logout failed', 'danger');
+                    
+                    // Reset button state
+                    logoutBtn.disabled = false;
+                    logoutBtn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Logout';
+                }
+            });
         }
     }
 

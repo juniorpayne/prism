@@ -16,7 +16,15 @@ class PrismAPI {
      * Initialize token manager
      */
     initTokenManager() {
-        if (window.TokenManager) {
+        // Use PersistentTokenManager if available, otherwise fall back to regular TokenManager
+        if (window.PersistentTokenManager) {
+            this.tokenManager = new PersistentTokenManager();
+            
+            // Initialize session sync for cross-tab coordination
+            if (window.SessionStorageSync) {
+                this.sessionSync = new SessionStorageSync(this.tokenManager);
+            }
+        } else if (window.TokenManager) {
             this.tokenManager = new TokenManager();
         }
     }
@@ -78,6 +86,11 @@ class PrismAPI {
                         console.error('Token refresh failed:', refreshError);
                         // Let the 401 error propagate
                     }
+                }
+                
+                // For raw fetch methods (used in other parts of the app), return the response directly
+                if (options.returnResponse) {
+                    return response;
                 }
                 
                 if (!response.ok) {
@@ -185,6 +198,17 @@ class PrismAPI {
         } catch (error) {
             throw new APIError(`Search failed: ${error.message}`, error.status, '/api/hosts');
         }
+    }
+    
+    /**
+     * Make POST request that returns the full response
+     */
+    async post(endpoint, body) {
+        return this.request(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body),
+            returnResponse: true
+        });
     }
     
     /**

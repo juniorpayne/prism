@@ -25,15 +25,52 @@ class LoginPage {
      * Check if user selected "Remember me" previously
      */
     checkRememberedUser() {
-        const remembered = localStorage.getItem('rememberMe');
-        if (remembered === 'true') {
-            this.rememberMe.checked = true;
-            // Optionally pre-fill username if stored
-            const savedUsername = localStorage.getItem('rememberedUsername');
+        // Check if using PersistentTokenManager
+        const tokenManager = window.api?.tokenManager;
+        
+        if (tokenManager && tokenManager.isRemembered && tokenManager.isRemembered()) {
+            // Show remembered indicator
+            this.showRememberedIndicator();
+            
+            // Pre-fill username if stored
+            const savedUsername = tokenManager.getRememberedUsername 
+                ? tokenManager.getRememberedUsername() 
+                : localStorage.getItem('rememberedUsername');
+                
             if (savedUsername) {
                 this.usernameInput.value = savedUsername;
+                this.rememberMe.checked = true;
+                // Focus on password field instead
+                this.passwordInput.focus();
+            }
+        } else {
+            // Fallback to localStorage check
+            const remembered = localStorage.getItem('rememberMe');
+            if (remembered === 'true') {
+                this.rememberMe.checked = true;
+                const savedUsername = localStorage.getItem('rememberedUsername');
+                if (savedUsername) {
+                    this.usernameInput.value = savedUsername;
+                }
             }
         }
+    }
+    
+    /**
+     * Show indicator that user was remembered
+     */
+    showRememberedIndicator() {
+        // Check if indicator already exists
+        if (document.getElementById('rememberedIndicator')) return;
+        
+        const indicator = document.createElement('div');
+        indicator.id = 'rememberedIndicator';
+        indicator.className = 'alert alert-info alert-sm mb-3';
+        indicator.innerHTML = `
+            <i class="bi bi-info-circle me-2"></i>
+            Welcome back! You were remembered on this device.
+        `;
+        this.form.insertBefore(indicator, this.form.firstChild);
     }
     
     /**
@@ -74,12 +111,27 @@ class LoginPage {
             if (response.ok) {
                 const data = await response.json();
                 
-                // Store tokens using TokenManager
+                // Store tokens using TokenManager with remember me preference
                 if (window.api.tokenManager) {
-                    window.api.tokenManager.setTokens(data.access_token, data.refresh_token);
+                    // If using PersistentTokenManager, pass rememberMe flag
+                    if (window.api.tokenManager.setTokens.length === 3) {
+                        window.api.tokenManager.setTokens(
+                            data.access_token, 
+                            data.refresh_token,
+                            this.rememberMe.checked
+                        );
+                    } else {
+                        // Fallback for regular TokenManager
+                        window.api.tokenManager.setTokens(data.access_token, data.refresh_token);
+                    }
+                    
+                    // Remember username if using PersistentTokenManager
+                    if (this.rememberMe.checked && window.api.tokenManager.rememberUsername) {
+                        window.api.tokenManager.rememberUsername(this.usernameInput.value.trim());
+                    }
                 }
                 
-                // Handle remember me
+                // Fallback: Handle remember me with localStorage
                 if (this.rememberMe.checked) {
                     localStorage.setItem('rememberMe', 'true');
                     localStorage.setItem('rememberedUsername', this.usernameInput.value.trim());
