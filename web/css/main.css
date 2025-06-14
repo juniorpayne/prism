@@ -308,6 +308,62 @@ body {
     user-select: none;
 }
 
+/* Login Page Styles */
+#login-view {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+}
+
+#login-view .card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+#login-view .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#login-view .btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transition: all 0.3s ease;
+}
+
+#login-view .btn-primary:hover:not(:disabled) {
+    background-color: #0b5ed7;
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+#login-view .btn-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Password toggle button */
+#togglePassword {
+    border-left: none;
+    background-color: white;
+}
+
+#togglePassword:hover {
+    background-color: #f8f9fa;
+}
+
+/* Remember me checkbox */
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Login error alert */
+#loginError {
+    margin-bottom: 1rem;
+}
+
 /* Print Styles */
 @media print {
     .navbar,
