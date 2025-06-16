@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auth.models import EmailVerificationToken, Organization, User
+from server.auth.models import EmailVerificationToken, Organization, User, UserActivity
 from server.auth.service import AuthService
 
 # Configure pytest-asyncio
@@ -56,6 +56,27 @@ class TestUserRegistration:
         token = result.scalar_one_or_none()
         assert token is not None
         assert token.used_at is None
+        
+        # Verify profile fields are initialized
+        assert user.full_name is None
+        assert user.bio is None
+        assert user.avatar_url is None
+        assert user.settings == "{}"
+        
+        # Verify activity was logged
+        result = await db_session.execute(
+            select(UserActivity).where(UserActivity.user_id == user.id)
+        )
+        activity = result.scalar_one_or_none()
+        assert activity is not None
+        assert activity.activity_type == "registration"
+        assert "registered with email" in activity.activity_description
+        assert activity.ip_address is not None  # From test client
+        import json
+        metadata = json.loads(activity.activity_metadata)
+        assert metadata["email"] == "test@example.com"
+        assert metadata["username"] == "testuser"
+        assert metadata["email_verified"] is False
 
     async def test_duplicate_email(self, async_client: AsyncClient, db_session: AsyncSession):
         """Test registration with duplicate email."""
@@ -176,6 +197,154 @@ class TestUserRegistration:
             },
         )
         assert response.status_code == 422
+    
+    async def test_password_strength_validation(self, async_client: AsyncClient):
+        """Test comprehensive password strength validation."""
+        test_cases = [
+            # (password, should_pass, description)
+            ("Short1!", False, "Too short"),
+            ("nouppercase123!", False, "No uppercase"),
+            ("NOLOWERCASE123!", False, "No lowercase"),
+            ("NoNumbers!ABC", False, "No numbers"),
+            ("NoSpecialChar123ABC", False, "No special characters"),
+            ("ValidPassword123!", True, "Valid password"),
+            ("Another$ecure1Pass", True, "Another valid password"),
+            ("12345678901!Aa", True, "Valid with mostly numbers"),
+            ("!@#$%^&*()_+Aa1", True, "Valid with many special chars"),
+        ]
+        
+        for password, should_pass, description in test_cases:
+            response = await async_client.post(
+                "/api/auth/register",
+                json={
+                    "email": f"{description.replace(' ', '_').lower()}@example.com",
+                    "username": f"user_{description.replace(' ', '_').lower()}",
+                    "password": password,
+                },
+            )
+            
+            if should_pass:
+                assert response.status_code == 201, f"Failed for {description}: {password}"
+            else:
+                assert response.status_code == 422, f"Failed for {description}: {password}"
+    
+    async def test_username_validation_edge_cases(self, async_client: AsyncClient):
+        """Test username validation edge cases."""
+        test_cases = [
+            # (username, should_pass, description)
+            ("abc", True, "Minimum length"),
+            ("a" * 30, True, "Maximum length"),
+            ("user_123", True, "With underscore and numbers"),
+            ("USER123", True, "Uppercase (will be lowercased)"),
+            ("ab", False, "Too short"),
+            ("a" * 31, False, "Too long"),
+            ("user-name", False, "With hyphen"),
+            ("user.name", False, "With dot"),
+            ("user name", False, "With space"),
+            ("user@name", False, "With @"),
+            ("123user", True, "Starting with number"),
+            ("_user", True, "Starting with underscore"),
+        ]
+        
+        for username, should_pass, description in test_cases:
+            response = await async_client.post(
+                "/api/auth/register",
+                json={
+                    "email": f"{username.replace(' ', '_').lower()}_test@example.com",
+                    "username": username,
+                    "password": "ValidPassword123!",
+                },
+            )
+            
+            if should_pass:
+                assert response.status_code in [201, 400], f"Failed for {description}: {username}"  # 400 if duplicate
+            else:
+                assert response.status_code == 422, f"Failed for {description}: {username}"
+    
+    async def test_registration_with_case_insensitive_duplicates(
+        self, async_client: AsyncClient, db_session: AsyncSession
+    ):
+        """Test that email and username are case-insensitive for duplicates."""
+        # Register first user
+        response = await async_client.post(
+            "/api/auth/register",
+            json={
+                "email": "Test@Example.COM",
+                "username": "TestUser",
+                "password": "SecurePass123!",
+            },
+        )
+        assert response.status_code == 201
+        
+        # Try with different case email
+        response = await async_client.post(
+            "/api/auth/register",
+            json={
+                "email": "test@example.com",  # lowercase
+                "username": "different",
+                "password": "SecurePass123!",
+            },
+        )
+        assert response.status_code == 400
+        assert "already registered" in response.json()["detail"]
+        
+        # Try with different case username
+        response = await async_client.post(
+            "/api/auth/register",
+            json={
+                "email": "different@example.com",
+                "username": "testuser",  # lowercase
+                "password": "SecurePass123!",
+            },
+        )
+        assert response.status_code == 400
+        assert "already registered" in response.json()["detail"]
+    
+    async def test_registration_stores_lowercase_values(
+        self, async_client: AsyncClient, db_session: AsyncSession
+    ):
+        """Test that email and username are stored in lowercase."""
+        response = await async_client.post(
+            "/api/auth/register",
+            json={
+                "email": "MiXeDcAsE@ExAmPlE.CoM",
+                "username": "MiXeDuSeR",
+                "password": "SecurePass123!",
+            },
+        )
+        assert response.status_code == 201
+        
+        # Check database
+        result = await db_session.execute(
+            select(User).where(User.email == "mixedcase@example.com")
+        )
+        user = result.scalar_one_or_none()
+        assert user is not None
+        assert user.email == "mixedcase@example.com"
+        assert user.username == "mixeduser"
+    
+    async def test_user_is_active_by_default(
+        self, async_client: AsyncClient, db_session: AsyncSession
+    ):
+        """Test that new users are created with is_active=True."""
+        response = await async_client.post(
+            "/api/auth/register",
+            json={
+                "email": "active@example.com",
+                "username": "activeuser",
+                "password": "SecurePass123!",
+            },
+        )
+        assert response.status_code == 201
+        
+        # Check database
+        result = await db_session.execute(
+            select(User).where(User.email == "active@example.com")
+        )
+        user = result.scalar_one_or_none()
+        assert user is not None
+        assert user.is_active is True
+        assert user.email_verified is False  # But not verified yet
 
     # async def test_rate_limiting(self, async_client: AsyncClient):
     #     """Test rate limiting on registration endpoint."""

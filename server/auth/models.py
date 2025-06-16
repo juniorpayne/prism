@@ -95,6 +95,14 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(255), nullable=True)
+    
+    # Profile fields
+    full_name = Column(String(255), nullable=True)
+    bio = Column(Text, nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+    
+    # Settings (JSON field for flexible configuration)
+    settings = Column(Text, nullable=True, default='{}')  # Will store JSON
 
     # Timestamps
     created_at = Column(
@@ -124,6 +132,7 @@ class User(Base):
         "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
     )
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
+    activities = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
 
     @validates("email")
     def validate_email_field(self, key: str, email: str) -> str:
@@ -155,6 +164,8 @@ class User(Base):
 
     def to_dict(self) -> dict:
         """Convert User instance to dictionary."""
+        import json
+        
         return {
             "id": str(self.id),
             "email": self.email,
@@ -165,6 +176,10 @@ class User(Base):
             ),
             "is_active": self.is_active,
             "mfa_enabled": self.mfa_enabled,
+            "full_name": self.full_name,
+            "bio": self.bio,
+            "avatar_url": self.avatar_url,
+            "settings": json.loads(self.settings) if self.settings else {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -513,6 +528,61 @@ class DNSZone(Base):
     def __str__(self) -> str:
         """String representation of DNSZone."""
         return f"DNSZone(name='{self.name}', type='{self.type}')"
+
+
+class UserActivity(Base):
+    """
+    User activity log for tracking user actions.
+    
+    Logs important user activities like registration, login, logout,
+    profile updates, password changes, etc.
+    """
+    
+    __tablename__ = "user_activities"
+    
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    
+    # User reference
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    # Activity details
+    activity_type = Column(String(50), nullable=False)  # e.g., 'registration', 'login', 'logout'
+    activity_description = Column(String(255), nullable=False)
+    
+    # Request metadata
+    ip_address = Column(String(45), nullable=True)  # Supports IPv6
+    user_agent = Column(String(500), nullable=True)
+    
+    # Additional data (JSON field for flexibility)
+    activity_metadata = Column(Text, nullable=True, default='{}')  # Will store JSON
+    
+    # Timestamp
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    
+    # Relationships
+    user = relationship("User", back_populates="activities")
+    
+    def __str__(self) -> str:
+        """String representation of UserActivity."""
+        return f"UserActivity(user_id='{self.user_id}', type='{self.activity_type}')"
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        import json
+        
+        return {
+            "id": str(self.id),
+            "user_id": str(self.user_id),
+            "activity_type": self.activity_type,
+            "activity_description": self.activity_description,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "metadata": json.loads(self.activity_metadata) if self.activity_metadata else {},
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
 
 
 # Create indexes for performance

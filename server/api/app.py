@@ -5,6 +5,7 @@ Main FastAPI application for REST API endpoints.
 """
 
 import logging
+import os
 import time
 from typing import Any, Dict
 
@@ -42,8 +43,14 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     # Set configuration for dependency injection
     set_app_config(config)
 
-    # Initialize async database
-    init_async_db(config)
+    # Initialize async database with auth database path
+    auth_db_config = {
+        'database': {
+            'path': os.environ.get('PRISM_DATABASE_PATH', '/app/data/prism.db'),
+            'connection_pool_size': config.get('database', {}).get('connection_pool_size', 20)
+        }
+    }
+    init_async_db(auth_db_config)
 
     # Get API configuration
     api_config = config.get("api", {})

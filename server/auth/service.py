@@ -7,7 +7,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import bcrypt
 from fastapi import HTTPException
@@ -287,3 +287,39 @@ class AuthService:
         )
 
         return result.all()
+    
+    async def log_user_activity(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        activity_type: str,
+        activity_description: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        metadata: Optional[dict] = None
+    ) -> None:
+        """
+        Log user activity.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            activity_type: Type of activity (e.g., 'registration', 'login')
+            activity_description: Human-readable description
+            ip_address: Client IP address
+            user_agent: Client user agent
+            metadata: Additional metadata as dict
+        """
+        import json
+        from .models import UserActivity
+        
+        activity = UserActivity(
+            user_id=user_id,
+            activity_type=activity_type,
+            activity_description=activity_description,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            activity_metadata=json.dumps(metadata or {})
+        )
+        db.add(activity)
+        # Note: Caller is responsible for committing the transaction
