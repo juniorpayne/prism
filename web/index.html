@@ -800,6 +800,116 @@
             </div>
         </div>
         
+        <!-- Profile View -->
+        <div id="profile-view" class="view" style="display: none;">
+            <div class="container mt-5">
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h3 class="mb-0">My Profile</h3>
+                                <button id="editProfileBtn" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-pencil"></i> Edit Profile
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <!-- View Mode -->
+                                <div id="profileViewMode">
+                                    <div class="row mb-4">
+                                        <div class="col-md-3 text-center">
+                                            <img src="https://ui-avatars.com/api/?name=User&background=0d6efd&color=fff&size=150" 
+                                                 class="rounded-circle img-fluid" 
+                                                 id="profileAvatar"
+                                                 alt="Profile Avatar"
+                                                 style="max-width: 150px;">
+                                        </div>
+                                        <div class="col-md-9">
+                                            <h4 id="profileDisplayName">Loading...</h4>
+                                            <p class="text-muted mb-1">
+                                                <i class="bi bi-envelope"></i> 
+                                                <span id="profileEmail"></span>
+                                            </p>
+                                            <p class="text-muted mb-1">
+                                                <i class="bi bi-person"></i> 
+                                                <span id="profileUsername"></span>
+                                            </p>
+                                            <p class="text-muted">
+                                                <i class="bi bi-calendar"></i> 
+                                                Member since <span id="profileCreatedAt"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h5>Profile Information</h5>
+                                            <dl>
+                                                <dt>Full Name</dt>
+                                                <dd id="profileFullName">Not provided</dd>
+                                                <dt>Bio</dt>
+                                                <dd id="profileBio">No bio added yet</dd>
+                                            </dl>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h5>Account Information</h5>
+                                            <dl>
+                                                <dt>Email Verified</dt>
+                                                <dd><span id="profileEmailVerified" class="badge">Checking...</span></dd>
+                                                <dt>Status</dt>
+                                                <dd><span id="profileStatus" class="badge bg-success">Active</span></dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Edit Mode -->
+                                <div id="profileEditMode" style="display: none;">
+                                    <form id="editProfileForm" novalidate>
+                                        <div class="mb-3">
+                                            <label for="editFullName" class="form-label">Full Name</label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="editFullName" 
+                                                   placeholder="John Doe"
+                                                   maxlength="255">
+                                            <div class="invalid-feedback">
+                                                Please enter a valid name (letters, spaces, hyphens, and apostrophes only).
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <label for="editBio" class="form-label">Bio</label>
+                                            <textarea class="form-control" 
+                                                      id="editBio" 
+                                                      rows="3" 
+                                                      maxlength="500"
+                                                      placeholder="Tell us about yourself..."></textarea>
+                                            <small class="form-text text-muted">
+                                                <span id="bioCharCount">0</span>/500 characters
+                                            </small>
+                                        </div>
+                                        
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary" id="saveProfileBtn">
+                                                <span class="spinner-border spinner-border-sm d-none" 
+                                                      id="saveProfileSpinner"></span>
+                                                Save Changes
+                                            </button>
+                                            <button type="button" class="btn btn-secondary" id="cancelEditBtn">
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 404 Not Found View -->
         <div id="404-view" class="view" style="display: none;">
             <div class="row justify-content-center">
@@ -874,6 +984,7 @@
     <script src="js/email-verification.js"></script>
     <script src="js/forgot-password.js"></script>
     <script src="js/reset-password.js"></script>
+    <script src="js/profile.js"></script>
     <script src="js/router.js"></script>
     <script src="js/route-guard.js"></script>
     <script src="js/navigation.js"></script>

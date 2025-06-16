@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Page Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Profile Page Test</h1>
+        <p>Open browser console to see test results</p>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Test Actions</h5>
+                <button class="btn btn-primary" onclick="navigateToProfile()">Navigate to Profile</button>
+                <button class="btn btn-secondary" onclick="testProfileAPI()">Test Profile API</button>
+                <button class="btn btn-info" onclick="mockLogin()">Mock Login</button>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Test Results</h5>
+                <div id="test-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const testResults = document.getElementById('test-results');
+        
+        function log(message, success = true) {
+            const div = document.createElement('div');
+            div.className = success ? 'text-success' : 'text-danger';
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            testResults.appendChild(div);
+            console.log(message);
+        }
+        
+        function mockLogin() {
+            // Mock successful login
+            localStorage.setItem('accessToken', 'mock-jwt-token');
+            localStorage.setItem('refreshToken', 'mock-refresh-token');
+            localStorage.setItem('userEmail', 'test@example.com');
+            window.dispatchEvent(new Event('tokenUpdate'));
+            log('✓ Mock login successful');
+        }
+        
+        function navigateToProfile() {
+            if (window.router) {
+                window.router.navigate('/profile');
+                log('✓ Navigated to profile page');
+            } else {
+                log('✗ Router not available', false);
+            }
+        }
+        
+        async function testProfileAPI() {
+            try {
+                // Mock user data
+                const mockUserData = {
+                    id: 1,
+                    username: 'testuser',
+                    email: 'test@example.com',
+                    full_name: 'Test User',
+                    bio: 'This is a test bio',
+                    email_verified: true,
+                    created_at: '2024-01-01T00:00:00Z'
+                };
+                
+                // Override API get method temporarily
+                if (window.api) {
+                    const originalGet = window.api.get;
+                    window.api.get = async (endpoint) => {
+                        if (endpoint === '/api/users/me') {
+                            log('✓ Intercepted API call to /api/users/me');
+                            return mockUserData;
+                        }
+                        return originalGet.call(window.api, endpoint);
+                    };
+                    
+                    // Test profile page
+                    if (window.currentProfilePage) {
+                        await window.currentProfilePage.loadUserProfile();
+                        log('✓ Profile loaded successfully');
+                    } else {
+                        log('✗ Profile page not initialized', false);
+                    }
+                    
+                    // Restore original method
+                    window.api.get = originalGet;
+                } else {
+                    log('✗ API not available', false);
+                }
+            } catch (error) {
+                log(`✗ Error: ${error.message}`, false);
+            }
+        }
+        
+        // Auto-run tests when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                log('Starting profile page tests...');
+                
+                // Check if required components exist
+                if (window.ProfilePage) {
+                    log('✓ ProfilePage class available');
+                } else {
+                    log('✗ ProfilePage class not found', false);
+                }
+                
+                if (window.router && window.router.routes['/profile']) {
+                    log('✓ Profile route configured');
+                } else {
+                    log('✗ Profile route not configured', false);
+                }
+                
+                // Check if profile view exists
+                const profileView = document.getElementById('profile-view');
+                if (profileView) {
+                    log('✓ Profile view HTML exists');
+                } else {
+                    log('✗ Profile view HTML not found', false);
+                }
+                
+                log('Tests completed. Use the buttons above to test functionality.');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

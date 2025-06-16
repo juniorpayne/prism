@@ -882,6 +882,50 @@ body.route-loading::after {
     }
 }
 
+/* Profile Page Styles */
+#profile-view .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+#profile-view dl {
+    margin-bottom: 0;
+}
+
+#profile-view dt {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+}
+
+#profile-view dd {
+    color: #6c757d;
+    margin-bottom: 1rem;
+}
+
+#profile-view dd:last-child {
+    margin-bottom: 0;
+}
+
+#profileAvatar {
+    border: 3px solid #dee2e6;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+#editProfileForm .form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+#editProfileForm textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+#bioCharCount {
+    transition: color 0.3s ease;
+}
+
 /* Print Styles */
 @media print {
     .navbar,
