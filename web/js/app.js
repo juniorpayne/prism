@@ -6,6 +6,7 @@
 class PrismApp {
     constructor() {
         this.router = null;
+        this.navigation = null;
         this.sessionManager = null;
         this.isInitialized = false;
         this.connectionStatus = 'unknown';
@@ -18,6 +19,9 @@ class PrismApp {
         try {
             // Initialize router first
             this.router = new Router();
+            
+            // Initialize navigation
+            this.navigation = new Navigation();
             
             // Initialize components
             this.initializeStatusBar();
@@ -41,8 +45,13 @@ class PrismApp {
             // Initialize session manager after token manager is ready
             this.initializeSessionManager();
             
-            // Setup logout button handler
-            this.setupLogoutHandler();
+            // Handle navigation visibility based on auth state
+            this.updateNavigationVisibility();
+            
+            // Listen for auth state changes
+            window.addEventListener('authStateChanged', () => {
+                this.updateNavigationVisibility();
+            });
             
             this.isInitialized = true;
             this.updateStatusBar('Ready', 'success');
@@ -125,38 +134,16 @@ class PrismApp {
         }
     }
 
-    setupLogoutHandler() {
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', async () => {
-                try {
-                    // Show loading state
-                    logoutBtn.disabled = true;
-                    logoutBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Logging out...';
-                    
-                    // Call logout API
-                    await window.api.logout();
-                    
-                    // Show success message
-                    showToast('Logged out successfully', 'success');
-                    
-                    // Navigate to login page
-                    this.router.navigate('/login');
-                } catch (error) {
-                    console.error('Logout error:', error);
-                    showToast('Logout failed', 'danger');
-                    
-                    // Reset button state
-                    logoutBtn.disabled = false;
-                    logoutBtn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Logout';
-                }
-            });
-        }
-    }
 
     setupRouterHandlers() {
         // Setup router after route handlers
         this.router.afterRoute(async (route, path) => {
+            // Update navigation visibility after route change
+            this.updateNavigationVisibility();
+            
+            // Update active nav item
+            this.navigation?.updateActiveNavItem();
+            
             // Handle loading data for specific routes
             if (route.component === 'dashboard' || route.component === 'hosts') {
                 await this.loadViewData(route.component);
@@ -409,6 +396,22 @@ class PrismApp {
             apiConfig: api ? api.getConfig() : null,
             browser: getBrowserInfo()
         };
+    }
+
+    updateNavigationVisibility() {
+        const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+        const currentPath = window.location.pathname;
+        const isPublicPage = publicPaths.some(path => currentPath.startsWith(path));
+        
+        if (isPublicPage) {
+            this.navigation?.hide();
+        } else if (window.api?.tokenManager?.isAuthenticated()) {
+            this.navigation?.show();
+            // Update navigation user info
+            this.navigation?.updateUserInfo();
+        } else {
+            this.navigation?.hide();
+        }
     }
 
     // Error handling

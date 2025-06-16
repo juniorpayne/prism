@@ -297,12 +297,20 @@ class SessionManager {
      * Update session timer in navbar
      */
     updateSessionTimer(timeRemaining) {
-        const timerEl = document.getElementById('sessionTimer');
-        if (!timerEl) return;
+        const timerEl = document.getElementById('sessionTime');
+        const timerContainer = document.getElementById('sessionTimerContainer');
+        const sessionTimerEl = document.getElementById('sessionTimer');
+        
+        if (!timerEl || !timerContainer) return;
+        
+        // Show timer container when authenticated
+        if (timerContainer.classList.contains('d-none')) {
+            timerContainer.classList.remove('d-none');
+        }
         
         if (timeRemaining <= 0) {
-            timerEl.textContent = 'Session: Expired';
-            timerEl.className = 'text-danger';
+            timerEl.textContent = 'Expired';
+            sessionTimerEl.className = 'text-danger';
             return;
         }
         
@@ -310,16 +318,14 @@ class SessionManager {
         const seconds = Math.floor((timeRemaining % 60000) / 1000);
         
         // Update styling based on time remaining
-        timerEl.className = '';
+        sessionTimerEl.className = 'text-white-50';
         if (minutes < 5) {
-            timerEl.className = 'text-danger';
+            sessionTimerEl.className = 'text-danger';
         } else if (minutes < 10) {
-            timerEl.className = 'text-warning';
-        } else {
-            timerEl.className = 'text-muted';
+            sessionTimerEl.className = 'text-warning';
         }
         
-        timerEl.textContent = `Session: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
     
     /**
