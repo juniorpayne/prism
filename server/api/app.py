@@ -19,7 +19,7 @@ from slowapi.util import get_remote_address
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
-from server.api.routes import health, hosts, metrics
+from server.api.routes import health, hosts, metrics, users
 from server.auth.routes import router as auth_router
 from server.database.connection import init_async_db
 from server.monitoring import get_metrics_collector
@@ -122,6 +122,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(health.router)
     app.include_router(metrics.router)
     app.include_router(auth_router, prefix="/api")
+    app.include_router(users.router)
 
     # Add custom exception handlers
     @app.exception_handler(HTTPException)
