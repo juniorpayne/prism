@@ -4,7 +4,9 @@ Authentication Dependencies for FastAPI
 Provides dependency injection for authentication and authorization.
 """
 
+from datetime import datetime, timezone
 from typing import Optional
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -69,8 +71,6 @@ async def get_current_user(
             )
 
     # Get user from database
-    from uuid import UUID
-
     user_id = UUID(payload["sub"])
     user = await db.execute(select(User).where(User.id == user_id))
     user = user.scalar_one_or_none()
@@ -180,7 +180,3 @@ def require_role(allowed_roles: list[str]):
 # Common role dependencies
 require_admin = require_role(["admin", "owner"])
 require_owner = require_role(["owner"])
-
-
-# Import datetime at the top
-from datetime import datetime, timezone

@@ -7,6 +7,7 @@ Main FastAPI application for REST API endpoints.
 import logging
 import os
 import time
+import uuid
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,15 +17,33 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
 from server.api.routes import health, hosts, metrics, users
+from server.auth.dependencies import get_current_verified_user
 from server.auth.routes import router as auth_router
 from server.database.connection import init_async_db
 from server.monitoring import get_metrics_collector
 
 logger = logging.getLogger(__name__)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Middleware to add request ID to each request."""
+
+    async def dispatch(self, request: Request, call_next):
+        """Add request ID to request state."""
+        request_id = request.headers.get("X-Request-ID")
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
 
 # Create limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -45,9 +64,11 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
     # Initialize async database with auth database path
     auth_db_config = {
-        'database': {
-            'path': os.environ.get('PRISM_DATABASE_PATH', '/app/data/prism.db'),
-            'connection_pool_size': config.get('database', {}).get('connection_pool_size', 20)
+        "database": {
+            "path": config.get("database", {}).get(
+                "path", os.environ.get("PRISM_DATABASE_PATH", "/app/data/prism.db")
+            ),
+            "connection_pool_size": config.get("database", {}).get("connection_pool_size", 20),
         }
     }
     init_async_db(auth_db_config)
@@ -72,8 +93,11 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             [
                 "http://localhost:3000",
                 "http://localhost:8080",
+                "http://localhost:8090",
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:8080",
+                "http://127.0.0.1:8090",
+                "https://prism.thepaynes.ca",
             ],
         )
 
@@ -83,12 +107,16 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["*"],
+            expose_headers=["X-Request-ID"],
         )
         logger.info(f"CORS enabled for origins: {cors_origins}")
 
     # Add rate limiter
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # Add request ID middleware
+    app.add_middleware(RequestIDMiddleware)
 
     # Add request tracking middleware
     @app.middleware("http")

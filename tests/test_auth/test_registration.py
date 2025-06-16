@@ -56,13 +56,13 @@ class TestUserRegistration:
         token = result.scalar_one_or_none()
         assert token is not None
         assert token.used_at is None
-        
+
         # Verify profile fields are initialized
         assert user.full_name is None
         assert user.bio is None
         assert user.avatar_url is None
         assert user.settings == "{}"
-        
+
         # Verify activity was logged
         result = await db_session.execute(
             select(UserActivity).where(UserActivity.user_id == user.id)
@@ -73,6 +73,7 @@ class TestUserRegistration:
         assert "registered with email" in activity.activity_description
         assert activity.ip_address is not None  # From test client
         import json
+
         metadata = json.loads(activity.activity_metadata)
         assert metadata["email"] == "test@example.com"
         assert metadata["username"] == "testuser"
@@ -197,7 +198,7 @@ class TestUserRegistration:
             },
         )
         assert response.status_code == 422
-    
+
     async def test_password_strength_validation(self, async_client: AsyncClient):
         """Test comprehensive password strength validation."""
         test_cases = [
@@ -212,7 +213,7 @@ class TestUserRegistration:
             ("12345678901!Aa", True, "Valid with mostly numbers"),
             ("!@#$%^&*()_+Aa1", True, "Valid with many special chars"),
         ]
-        
+
         for password, should_pass, description in test_cases:
             response = await async_client.post(
                 "/api/auth/register",
@@ -222,12 +223,12 @@ class TestUserRegistration:
                     "password": password,
                 },
             )
-            
+
             if should_pass:
                 assert response.status_code == 201, f"Failed for {description}: {password}"
             else:
                 assert response.status_code == 422, f"Failed for {description}: {password}"
-    
+
     async def test_username_validation_edge_cases(self, async_client: AsyncClient):
         """Test username validation edge cases."""
         test_cases = [
@@ -245,7 +246,7 @@ class TestUserRegistration:
             ("123user", True, "Starting with number"),
             ("_user", True, "Starting with underscore"),
         ]
-        
+
         for username, should_pass, description in test_cases:
             response = await async_client.post(
                 "/api/auth/register",
@@ -255,12 +256,15 @@ class TestUserRegistration:
                     "password": "ValidPassword123!",
                 },
             )
-            
+
             if should_pass:
-                assert response.status_code in [201, 400], f"Failed for {description}: {username}"  # 400 if duplicate
+                assert response.status_code in [
+                    201,
+                    400,
+                ], f"Failed for {description}: {username}"  # 400 if duplicate
             else:
                 assert response.status_code == 422, f"Failed for {description}: {username}"
-    
+
     async def test_registration_with_case_insensitive_duplicates(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
@@ -275,7 +279,7 @@ class TestUserRegistration:
             },
         )
         assert response.status_code == 201
-        
+
         # Try with different case email
         response = await async_client.post(
             "/api/auth/register",
@@ -287,7 +291,7 @@ class TestUserRegistration:
         )
         assert response.status_code == 400
         assert "already registered" in response.json()["detail"]
-        
+
         # Try with different case username
         response = await async_client.post(
             "/api/auth/register",
@@ -299,7 +303,7 @@ class TestUserRegistration:
         )
         assert response.status_code == 400
         assert "already registered" in response.json()["detail"]
-    
+
     async def test_registration_stores_lowercase_values(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
@@ -313,16 +317,14 @@ class TestUserRegistration:
             },
         )
         assert response.status_code == 201
-        
+
         # Check database
-        result = await db_session.execute(
-            select(User).where(User.email == "mixedcase@example.com")
-        )
+        result = await db_session.execute(select(User).where(User.email == "mixedcase@example.com"))
         user = result.scalar_one_or_none()
         assert user is not None
         assert user.email == "mixedcase@example.com"
         assert user.username == "mixeduser"
-    
+
     async def test_user_is_active_by_default(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
@@ -336,11 +338,9 @@ class TestUserRegistration:
             },
         )
         assert response.status_code == 201
-        
+
         # Check database
-        result = await db_session.execute(
-            select(User).where(User.email == "active@example.com")
-        )
+        result = await db_session.execute(select(User).where(User.email == "active@example.com"))
         user = result.scalar_one_or_none()
         assert user is not None
         assert user.is_active is True

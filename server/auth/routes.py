@@ -86,7 +86,7 @@ async def register(
             username=register_data.username,
             password=register_data.password,
         )
-        
+
         # Log registration activity
         client_ip = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")
@@ -97,13 +97,9 @@ async def register(
             activity_description=f"User {user.username} registered with email {user.email}",
             ip_address=client_ip,
             user_agent=user_agent,
-            metadata={
-                "email": user.email,
-                "username": user.username,
-                "email_verified": False
-            }
+            metadata={"email": user.email, "username": user.username, "email_verified": False},
         )
-        
+
         # Commit the activity log with the user registration
         await db.commit()
 

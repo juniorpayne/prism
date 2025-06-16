@@ -18,6 +18,8 @@ from server.api.models import (
     PaginationParams,
     create_error_response,
 )
+from server.auth.dependencies import get_current_verified_user
+from server.auth.models import User
 from server.database.models import Host
 from server.database.operations import HostOperations
 
@@ -33,6 +35,7 @@ router = APIRouter(prefix="/api", tags=["hosts"])
     description="Get paginated list of all registered hosts",
 )
 async def get_hosts(
+    current_user: User = Depends(get_current_verified_user),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by host status"),
@@ -134,7 +137,9 @@ async def get_hosts(
     description="Get detailed information for a specific host",
 )
 async def get_host(
-    hostname: str, host_ops: HostOperations = Depends(get_host_operations)
+    hostname: str,
+    current_user: User = Depends(get_current_verified_user),
+    host_ops: HostOperations = Depends(get_host_operations),
 ) -> HostResponse:
     """
     Get detailed information for a specific host.
@@ -187,6 +192,7 @@ async def get_host(
 )
 async def get_hosts_by_status(
     host_status: str,
+    current_user: User = Depends(get_current_verified_user),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     host_ops: HostOperations = Depends(get_host_operations),

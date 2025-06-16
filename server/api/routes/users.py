@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter(prefix="/api/users", tags=["users"])
 
+
 # Response Models
 class UserProfileResponse(BaseModel):
     """User profile response model."""
+
     id: str
     email: EmailStr
     username: str
@@ -47,6 +49,7 @@ class UserProfileResponse(BaseModel):
 
 class UserActivityResponse(BaseModel):
     """User activity response model."""
+
     id: str
     activity_type: str
     activity_description: str
@@ -60,6 +63,7 @@ class UserActivityResponse(BaseModel):
 
 class UserSettings(BaseModel):
     """User settings model."""
+
     email_notifications: bool = True
     newsletter: bool = False
     theme: str = Field(default="light", pattern="^(light|dark)$")
@@ -71,6 +75,7 @@ class UserSettings(BaseModel):
 # Request Models
 class UserProfileUpdate(BaseModel):
     """User profile update request."""
+
     full_name: Optional[str] = Field(None, max_length=100)
     bio: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
@@ -84,6 +89,7 @@ class UserProfileUpdate(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     """Password change request."""
+
     current_password: str
     new_password: str
 
@@ -91,6 +97,7 @@ class PasswordChangeRequest(BaseModel):
     def validate_new_password(cls, v):
         # Same validation as registration
         import re
+
         if len(v) < 12:
             raise ValueError("Password must be at least 12 characters")
         if not re.search(r"[A-Z]", v):
@@ -106,12 +113,14 @@ class PasswordChangeRequest(BaseModel):
 
 class AccountDeleteRequest(BaseModel):
     """Account deletion request."""
+
     password: str
     confirmation: str = Field(..., pattern="^DELETE MY ACCOUNT$")
 
 
 class UserSettingsUpdate(BaseModel):
     """User settings update request."""
+
     email_notifications: Optional[bool] = None
     newsletter: Optional[bool] = None
     theme: Optional[str] = Field(None, pattern="^(light|dark)$")
@@ -127,7 +136,7 @@ async def get_profile(
 ) -> UserProfileResponse:
     """
     Get the current authenticated user's profile.
-    
+
     Requires email verification.
     """
     return UserProfileResponse(
@@ -156,20 +165,20 @@ async def update_profile(
 ) -> UserProfileResponse:
     """
     Update the current user's profile fields.
-    
+
     Only provided fields will be updated.
     """
     auth_service = AuthService()
-    
+
     # Update only provided fields
     update_data = profile_update.dict(exclude_unset=True)
-    
+
     if update_data:
         for field, value in update_data.items():
             setattr(current_user, field, value)
-        
+
         current_user.updated_at = datetime.now(timezone.utc)
-        
+
         # Log activity
         await auth_service.log_user_activity(
             db=db,
@@ -178,12 +187,12 @@ async def update_profile(
             activity_description=f"Updated profile fields: {', '.join(update_data.keys())}",
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            metadata={"updated_fields": list(update_data.keys())}
+            metadata={"updated_fields": list(update_data.keys())},
         )
-        
+
         await db.commit()
         await db.refresh(current_user)
-    
+
     return UserProfileResponse(
         id=str(current_user.id),
         email=current_user.email,
@@ -210,32 +219,30 @@ async def change_password(
 ) -> dict:
     """
     Change the current user's password.
-    
+
     Requires current password verification.
     All existing tokens will be invalidated.
     """
     auth_service = AuthService()
-    
+
     # Verify current password
     if not verify_password(password_change.current_password, current_user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
         )
-    
+
     # Update password
     current_user.password_hash = auth_service.hash_password(password_change.new_password)
     current_user.updated_at = datetime.now(timezone.utc)
-    
+
     # Invalidate all existing refresh tokens for this user
     result = await db.execute(
         select(RefreshToken).where(
-            RefreshToken.user_id == current_user.id,
-            RefreshToken.is_active == True
+            RefreshToken.user_id == current_user.id, RefreshToken.is_active == True
         )
     )
     refresh_tokens = result.scalars().all()
-    
+
     for token in refresh_tokens:
         token.is_active = False
         # Add to blacklist
@@ -243,10 +250,10 @@ async def change_password(
             token=token.token,
             token_type="refresh",
             expires_at=token.expires_at,
-            reason="password_changed"
+            reason="password_changed",
         )
         db.add(blacklist_entry)
-    
+
     # Log activity
     await auth_service.log_user_activity(
         db=db,
@@ -255,14 +262,12 @@ async def change_password(
         activity_description="User changed their password",
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        metadata={"tokens_invalidated": len(refresh_tokens)}
+        metadata={"tokens_invalidated": len(refresh_tokens)},
     )
-    
+
     await db.commit()
-    
-    return {
-        "message": "Password changed successfully. Please login again with your new password."
-    }
+
+    return {"message": "Password changed successfully. Please login again with your new password."}
 
 
 # Delete account
@@ -275,19 +280,16 @@ async def delete_account(
 ) -> dict:
     """
     Delete the current user's account.
-    
+
     Requires password verification and confirmation text.
     Account will be soft-deleted (marked as inactive).
     """
     auth_service = AuthService()
-    
+
     # Verify password
     if not verify_password(delete_request.password, current_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is incorrect"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is incorrect")
+
     # Log activity before deletion
     await auth_service.log_user_activity(
         db=db,
@@ -296,22 +298,21 @@ async def delete_account(
         activity_description="User deleted their account",
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        metadata={"username": current_user.username, "email": current_user.email}
+        metadata={"username": current_user.username, "email": current_user.email},
     )
-    
+
     # Soft delete (mark as inactive)
     current_user.is_active = False
     current_user.updated_at = datetime.now(timezone.utc)
-    
+
     # Invalidate all tokens
     result = await db.execute(
         select(RefreshToken).where(
-            RefreshToken.user_id == current_user.id,
-            RefreshToken.is_active == True
+            RefreshToken.user_id == current_user.id, RefreshToken.is_active == True
         )
     )
     refresh_tokens = result.scalars().all()
-    
+
     for token in refresh_tokens:
         token.is_active = False
         # Add to blacklist
@@ -319,19 +320,19 @@ async def delete_account(
             token=token.token,
             token_type="refresh",
             expires_at=token.expires_at,
-            reason="account_deleted"
+            reason="account_deleted",
         )
         db.add(blacklist_entry)
-    
+
     await db.commit()
-    
-    return {
-        "message": "Your account has been deleted successfully."
-    }
+
+    return {"message": "Your account has been deleted successfully."}
 
 
 # Get user activity log
-@router.get("/me/activity", response_model=List[UserActivityResponse], summary="Get user activity log")
+@router.get(
+    "/me/activity", response_model=List[UserActivityResponse], summary="Get user activity log"
+)
 async def get_activity_log(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -340,11 +341,11 @@ async def get_activity_log(
 ) -> List[UserActivityResponse]:
     """
     Get the current user's activity log with pagination.
-    
+
     Returns activities in reverse chronological order.
     """
     offset = (page - 1) * limit
-    
+
     result = await db.execute(
         select(UserActivity)
         .where(UserActivity.user_id == current_user.id)
@@ -353,7 +354,7 @@ async def get_activity_log(
         .limit(limit)
     )
     activities = result.scalars().all()
-    
+
     return [
         UserActivityResponse(
             id=str(activity.id),
@@ -361,7 +362,7 @@ async def get_activity_log(
             activity_description=activity.activity_description,
             ip_address=activity.ip_address,
             created_at=activity.created_at,
-            metadata=json.loads(activity.activity_metadata) if activity.activity_metadata else {}
+            metadata=json.loads(activity.activity_metadata) if activity.activity_metadata else {},
         )
         for activity in activities
     ]
@@ -389,24 +390,24 @@ async def update_settings(
 ) -> UserSettings:
     """
     Update the current user's settings.
-    
+
     Only provided fields will be updated.
     """
     auth_service = AuthService()
-    
+
     # Get current settings
     current_settings = json.loads(current_user.settings) if current_user.settings else {}
-    
+
     # Update with new values
     update_data = settings_update.dict(exclude_unset=True)
-    
+
     if update_data:
         current_settings.update(update_data)
-        
+
         # Save back to user
         current_user.settings = json.dumps(current_settings)
         current_user.updated_at = datetime.now(timezone.utc)
-        
+
         # Log activity
         await auth_service.log_user_activity(
             db=db,
@@ -415,9 +416,9 @@ async def update_settings(
             activity_description=f"Updated settings: {', '.join(update_data.keys())}",
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            metadata={"updated_fields": list(update_data.keys())}
+            metadata={"updated_fields": list(update_data.keys())},
         )
-        
+
         await db.commit()
-    
+
     return UserSettings(**current_settings)

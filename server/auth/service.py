@@ -287,7 +287,7 @@ class AuthService:
         )
 
         return result.all()
-    
+
     async def log_user_activity(
         self,
         db: AsyncSession,
@@ -296,11 +296,11 @@ class AuthService:
         activity_description: str,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
     ) -> None:
         """
         Log user activity.
-        
+
         Args:
             db: Database session
             user_id: User ID
@@ -311,15 +311,16 @@ class AuthService:
             metadata: Additional metadata as dict
         """
         import json
+
         from .models import UserActivity
-        
+
         activity = UserActivity(
             user_id=user_id,
             activity_type=activity_type,
             activity_description=activity_description,
             ip_address=ip_address,
             user_agent=user_agent,
-            activity_metadata=json.dumps(metadata or {})
+            activity_metadata=json.dumps(metadata or {}),
         )
         db.add(activity)
         # Note: Caller is responsible for committing the transaction
