@@ -20,6 +20,9 @@ class PrismApp {
             // Initialize router first
             this.router = new Router();
             
+            // Initialize route guard
+            this.routeGuard = new RouteGuard(this.router);
+            
             // Initialize navigation
             this.navigation = new Navigation();
             

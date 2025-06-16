@@ -5,26 +5,29 @@
 
 class Router {
     constructor() {
-        // Route configuration
+        // Route configuration with enhanced metadata
         this.routes = {
-            '/': { component: 'dashboard', protected: true },
-            '/dashboard': { component: 'dashboard', protected: true },
-            '/login': { component: 'login', protected: false },
-            '/register': { component: 'register', protected: false },
-            '/forgot-password': { component: 'forgot-password', protected: false },
-            '/reset-password': { component: 'reset-password', protected: false },
-            '/verify-email': { component: 'verify-email', protected: false },
-            '/profile': { component: 'profile', protected: true },
-            '/zones': { component: 'zones', protected: true },
-            '/clients': { component: 'clients', protected: true },
-            '/hosts': { component: 'hosts', protected: true },
-            '/404': { component: '404', protected: false }
+            '/': { component: 'dashboard', protected: true, title: 'Dashboard' },
+            '/dashboard': { component: 'dashboard', protected: true, title: 'Dashboard' },
+            '/login': { component: 'login', public: true, authOnly: true, title: 'Login' },
+            '/register': { component: 'register', public: true, authOnly: true, title: 'Register' },
+            '/forgot-password': { component: 'forgot-password', public: true, title: 'Forgot Password' },
+            '/reset-password': { component: 'reset-password', public: true, title: 'Reset Password' },
+            '/verify-email': { component: 'verify-email', public: true, title: 'Verify Email' },
+            '/profile': { component: 'profile', protected: true, title: 'My Profile' },
+            '/settings': { component: 'settings', protected: true, title: 'Settings' },
+            '/activity': { component: 'activity', protected: true, title: 'Activity Log' },
+            '/zones': { component: 'zones', protected: true, title: 'DNS Zones' },
+            '/clients': { component: 'clients', protected: true, title: 'Clients' },
+            '/hosts': { component: 'hosts', protected: true, title: 'Hosts' },
+            '/404': { component: '404', public: true, title: 'Page Not Found' }
         };
         
         this.currentRoute = null;
         this.currentComponent = null;
         this.beforeRouteHandlers = [];
         this.afterRouteHandlers = [];
+        this.authCheckInProgress = false;
         
         // Initialize router
         this.init();
@@ -94,30 +97,36 @@ class Router {
      */
     async handleRoute() {
         const path = window.location.pathname;
-        const route = this.routes[path] || this.routes['/404'];
+        let route = this.routes[path];
         
-        // Run before route handlers
-        for (const handler of this.beforeRouteHandlers) {
-            const shouldContinue = await handler(route, path);
-            if (!shouldContinue) return;
+        // If route not found, check for dynamic routes
+        if (!route) {
+            route = this.findMatchingRoute(path) || this.routes['/404'];
         }
         
-        // Check if route is protected
-        if (route.protected && !this.isAuthenticated()) {
-            // TODO: Enable this when login functionality is complete
-            // For now, allow access during development
-            console.warn('Protected route accessed without authentication:', path);
-            
-            // Uncomment these lines when login is implemented:
-            // localStorage.setItem('redirectAfterLogin', path);
-            // this.navigate('/login');
-            // return;
-        }
-        
-        // Update current route
-        this.currentRoute = route;
+        // Show loading state
+        this.showLoadingState();
         
         try {
+            // Run before route handlers
+            for (const handler of this.beforeRouteHandlers) {
+                const shouldContinue = await handler(route, path);
+                if (!shouldContinue) {
+                    this.hideLoadingState();
+                    return;
+                }
+            }
+            
+            // Check authentication
+            const authCheckResult = await this.checkAuthentication(route, path);
+            if (!authCheckResult) {
+                this.hideLoadingState();
+                return; // Navigation was handled by checkAuthentication
+            }
+            
+            // Update current route
+            this.currentRoute = route;
+            
             // Load the component
             await this.loadComponent(route.component);
             
@@ -127,12 +136,60 @@ class Router {
             }
             
             // Update page title
-            this.updatePageTitle(route.component);
+            this.updatePageTitle(route.title || route.component);
             
         } catch (error) {
             console.error('Failed to load route:', error);
             this.navigate('/404');
+        } finally {
+            this.hideLoadingState();
         }
+    }
+    
+    /**
+     * Check authentication for route
+     */
+    async checkAuthentication(route, path) {
+        const isAuthenticated = this.isAuthenticated();
+        
+        // If route is public, allow access
+        if (route.public) {
+            // If authenticated and trying to access auth-only routes, redirect to dashboard
+            if (isAuthenticated && route.authOnly) {
+                this.navigate('/dashboard');
+                return false;
+            }
+            return true;
+        }
+        
+        // If route is protected and user is not authenticated
+        if (route.protected && !isAuthenticated) {
+            // Save intended destination
+            if (path !== '/login' && path !== '/') {
+                localStorage.setItem('redirectAfterLogin', path);
+            }
+            
+            // Show notification
+            showToast('Please login to access this page', 'warning');
+            
+            // Redirect to login
+            this.navigate('/login');
+            return false;
+        }
+        
+        // Check if token needs refresh
+        if (isAuthenticated && window.api?.tokenManager?.shouldRefreshToken()) {
+            try {
+                await window.api.tokenManager.refreshAccessToken();
+            } catch (error) {
+                console.error('Token refresh failed:', error);
+                // Token refresh failed, redirect to login
+                this.navigate('/login');
+                return false;
+            }
+        }
+        
+        return true;
     }
     
     /**
@@ -372,6 +429,29 @@ class Router {
         } else {
             this.navigate('/');
         }
+    }
+    
+    /**
+     * Show loading state
+     */
+    showLoadingState() {
+        document.body.classList.add('route-loading');
+    }
+    
+    /**
+     * Hide loading state
+     */
+    hideLoadingState() {
+        document.body.classList.remove('route-loading');
+    }
+    
+    /**
+     * Find matching route for dynamic paths
+     */
+    findMatchingRoute(path) {
+        // For now, we don't have dynamic routes
+        // This is a placeholder for future dynamic route support
+        return null;
     }
 }
 

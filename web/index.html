@@ -799,6 +799,48 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 404 Not Found View -->
+        <div id="404-view" class="view" style="display: none;">
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card shadow mt-5">
+                        <div class="card-body text-center py-5">
+                            <!-- 404 Icon -->
+                            <div class="mb-4">
+                                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 5rem;"></i>
+                            </div>
+                            
+                            <!-- Title -->
+                            <h1 class="display-1 fw-bold text-muted">404</h1>
+                            <h2 class="mb-4">Page Not Found</h2>
+                            
+                            <!-- Message -->
+                            <p class="text-muted mb-4">
+                                The page you're looking for doesn't exist or has been moved.
+                            </p>
+                            
+                            <!-- Actions -->
+                            <div class="d-grid gap-2 d-md-block">
+                                <a href="/" class="btn btn-primary">
+                                    <i class="bi bi-house-door me-2"></i>Go to Dashboard
+                                </a>
+                                <button class="btn btn-outline-secondary" onclick="window.history.back()">
+                                    <i class="bi bi-arrow-left me-2"></i>Go Back
+                                </button>
+                            </div>
+                            
+                            <!-- Help Text -->
+                            <div class="mt-4">
+                                <small class="text-muted">
+                                    If you believe this is an error, please contact support.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Status indicator at bottom -->
@@ -833,6 +875,7 @@
     <script src="js/forgot-password.js"></script>
     <script src="js/reset-password.js"></script>
     <script src="js/router.js"></script>
+    <script src="js/route-guard.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/app.js"></script>
     <script>
