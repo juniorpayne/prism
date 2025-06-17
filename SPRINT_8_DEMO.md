@@ -7,7 +7,18 @@ This sprint delivered a complete account management system with authentication e
 ## Demo Environment Setup
 1. Ensure Docker is running: `docker compose up -d`
 2. Access the application at: http://localhost:8090
-3. Have test accounts ready (or create new ones during demo)
+3. Create demo accounts: `./create_demo_account.py`
+
+## Demo Accounts
+**Primary Account:**
+- Email: demo@example.com
+- Username: demouser
+- Password: DemoPass123!
+
+**Secondary Account:**
+- Email: admin@example.com
+- Username: adminuser
+- Password: AdminPass123!
 
 ## Demo Flow
 

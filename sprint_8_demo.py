@@ -59,7 +59,13 @@ def main():
     print_step(3, "Checking service health...")
     run_command("docker compose ps", "Checking container status")
     
-    print_step(4, "Opening application in browser...")
+    print_step(4, "Creating demo accounts...")
+    if run_command("python3 create_demo_account.py", "Setting up demo accounts"):
+        print(f"{Colors.GREEN}Demo accounts created successfully!{Colors.END}")
+    else:
+        print(f"{Colors.YELLOW}Warning: Could not create demo accounts. You may need to register manually.{Colors.END}")
+    
+    print_step(5, "Opening application in browser...")
     webbrowser.open("http://localhost:8090")
     
     wait_for_input()
