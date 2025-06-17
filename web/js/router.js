@@ -18,6 +18,7 @@ class Router {
             '/settings': { component: 'settings', protected: true, title: 'Settings' },
             '/password-change': { component: 'password-change', protected: true, title: 'Change Password' },
             '/activity': { component: 'activity', protected: true, title: 'Activity Log' },
+            '/delete-account': { component: 'delete-account', protected: true, title: 'Delete Account' },
             '/zones': { component: 'zones', protected: true, title: 'DNS Zones' },
             '/clients': { component: 'clients', protected: true, title: 'Clients' },
             '/hosts': { component: 'hosts', protected: true, title: 'Hosts' },
@@ -252,7 +253,7 @@ class Router {
         });
         
         // Special handling for existing views
-        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings', 'password-change', 'activity'];
+        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings', 'password-change', 'activity', 'delete-account'];
         if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
@@ -343,6 +344,13 @@ class Router {
                 }
                 // Create new activity page instance
                 window.currentActivityPage = new window.ActivityPage();
+            } else if (componentName === 'delete-account') {
+                // Clean up any existing delete account page instance
+                if (window.currentDeleteAccountPage) {
+                    window.currentDeleteAccountPage.destroy();
+                }
+                // Create new delete account page instance
+                window.currentDeleteAccountPage = new window.DeleteAccountPage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

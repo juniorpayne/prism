@@ -342,103 +342,11 @@ class SettingsPage {
     }
     
     confirmAccountDeletion() {
-        // Create confirmation modal
-        const modal = document.createElement('div');
-        modal.className = 'modal fade show';
-        modal.style.display = 'block';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header bg-danger text-white">
-                        <h5 class="modal-title">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            Confirm Account Deletion
-                        </h5>
-                    </div>
-                    <div class="modal-body">
-                        <p class="mb-3"><strong>Are you absolutely sure?</strong></p>
-                        <p>This action <strong>CANNOT</strong> be undone. This will permanently delete:</p>
-                        <ul>
-                            <li>Your account and profile</li>
-                            <li>All your registered hosts</li>
-                            <li>All DNS records</li>
-                            <li>All settings and preferences</li>
-                        </ul>
-                        <p class="mb-3">Please type <strong>DELETE</strong> to confirm:</p>
-                        <input type="text" class="form-control" id="deleteConfirmation" 
-                               placeholder="Type DELETE to confirm">
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" id="cancelDeleteBtn">
-                            Cancel
-                        </button>
-                        <button type="button" class="btn btn-danger" id="confirmDeleteBtn" disabled>
-                            <i class="bi bi-trash"></i> Delete My Account
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        const backdrop = document.createElement('div');
-        backdrop.className = 'modal-backdrop fade show';
-        
-        document.body.appendChild(backdrop);
-        document.body.appendChild(modal);
-        document.body.classList.add('modal-open');
-        
-        // Handle confirmation
-        const confirmInput = document.getElementById('deleteConfirmation');
-        const confirmBtn = document.getElementById('confirmDeleteBtn');
-        const cancelBtn = document.getElementById('cancelDeleteBtn');
-        
-        confirmInput.addEventListener('input', () => {
-            confirmBtn.disabled = confirmInput.value !== 'DELETE';
-        });
-        
-        confirmBtn.addEventListener('click', () => this.deleteAccount(modal, backdrop));
-        
-        cancelBtn.addEventListener('click', () => {
-            modal.remove();
-            backdrop.remove();
-            document.body.classList.remove('modal-open');
-        });
-        
-        // Focus on input
-        confirmInput.focus();
-    }
-    
-    async deleteAccount(modal, backdrop) {
-        try {
-            await window.api.delete('/api/users/me');
-            
-            // Clear all local data
-            localStorage.clear();
-            sessionStorage.clear();
-            
-            // Show success message
-            modal.querySelector('.modal-body').innerHTML = `
-                <div class="text-center py-4">
-                    <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
-                    <h4 class="mt-3">Account Deleted</h4>
-                    <p>Your account has been permanently deleted.</p>
-                    <p>You will be redirected to the homepage in 3 seconds...</p>
-                </div>
-            `;
-            
-            modal.querySelector('.modal-footer').style.display = 'none';
-            
-            // Redirect after delay
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 3000);
-            
-        } catch (error) {
-            console.error('Failed to delete account:', error);
-            this.showError('Failed to delete account. Please try again.');
-            modal.remove();
-            backdrop.remove();
-            document.body.classList.remove('modal-open');
+        // Navigate to the dedicated delete account page
+        if (window.router) {
+            window.router.navigate('/delete-account');
+        } else {
+            window.location.href = '/delete-account';
         }
     }
     
