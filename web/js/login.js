@@ -103,10 +103,18 @@ class LoginPage {
         this.setLoading(true);
         
         try {
-            const response = await window.api.post('/auth/login', {
+            // API expects either username or email field
+            const loginData = {
                 username: this.usernameInput.value.trim(),
                 password: this.passwordInput.value
-            });
+            };
+            
+            // If the input looks like an email, also send it as email field
+            if (this.usernameInput.value.includes('@')) {
+                loginData.email = this.usernameInput.value.trim();
+            }
+            
+            const response = await window.api.post('/auth/login', loginData);
             
             if (response.ok) {
                 const data = await response.json();

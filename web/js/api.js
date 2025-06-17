@@ -417,5 +417,5 @@ class APIError extends Error {
 /**
  * Global API instance
  */
-window.api = new PrismAPI();
+window.api = new PrismAPI('/api');
 window.APIError = APIError;
