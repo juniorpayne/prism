@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <button onclick="testHealth()">Test Health</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testRegister()">Test Register</button>
+    <div id="results"></div>
+    
+    <script>
+    const results = document.getElementById('results');
+    
+    function log(message) {
+        results.innerHTML += `<p>${new Date().toISOString()}: ${message}</p>`;
+    }
+    
+    async function testHealth() {
+        log('Testing health endpoint...');
+        try {
+            const response = await fetch('/api/health');
+            const data = await response.json();
+            log(`Health: ${JSON.stringify(data)}`);
+        } catch (error) {
+            log(`Health error: ${error}`);
+        }
+    }
+    
+    async function testLogin() {
+        log('Testing login endpoint...');
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: 'testuser',
+                    password: 'TestPassword123!'
+                })
+            });
+            const data = await response.json();
+            log(`Login response (${response.status}): ${JSON.stringify(data)}`);
+        } catch (error) {
+            log(`Login error: ${error}`);
+        }
+    }
+    
+    async function testRegister() {
+        log('Testing register endpoint...');
+        const testUser = 'test' + Date.now();
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: testUser,
+                    email: testUser + '@example.com',
+                    password: 'TestPassword123!',
+                    full_name: 'Test User'
+                })
+            });
+            const data = await response.json();
+            log(`Register response (${response.status}): ${JSON.stringify(data)}`);
+        } catch (error) {
+            log(`Register error: ${error}`);
+        }
+    }
+    </script>
+</body>
+</html>
