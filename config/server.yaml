@@ -9,7 +9,7 @@ server:
   
 # Database settings
 database:
-  path: "/app/data/hosts.db"
+  path: "/app/data/prism.db"
   connection_pool_size: 20
   
 # Heartbeat monitoring settings

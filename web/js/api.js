@@ -130,10 +130,10 @@ class PrismAPI {
      */
     async getHosts(page = 1, limit = 100) {
         try {
-            const response = await this.request(`/api/hosts?page=${page}&limit=${limit}`);
+            const response = await this.request(`/hosts?page=${page}&limit=${limit}`);
             return response;
         } catch (error) {
-            throw new APIError(`Failed to fetch hosts: ${error.message}`, error.status, '/api/hosts');
+            throw new APIError(`Failed to fetch hosts: ${error.message}`, error.status, '/hosts');
         }
     }
 
@@ -142,13 +142,13 @@ class PrismAPI {
      */
     async getHost(hostname) {
         try {
-            const response = await this.request(`/api/hosts/${encodeURIComponent(hostname)}`);
+            const response = await this.request(`/hosts/${encodeURIComponent(hostname)}`);
             return response;
         } catch (error) {
             if (error.status === 404) {
-                throw new APIError(`Host '${hostname}' not found`, 404, `/api/hosts/${hostname}`);
+                throw new APIError(`Host '${hostname}' not found`, 404, `/hosts/${hostname}`);
             }
-            throw new APIError(`Failed to fetch host: ${error.message}`, error.status, `/api/hosts/${hostname}`);
+            throw new APIError(`Failed to fetch host: ${error.message}`, error.status, `/hosts/${hostname}`);
         }
     }
 
@@ -157,10 +157,10 @@ class PrismAPI {
      */
     async getHostsByStatus(status) {
         try {
-            const response = await this.request(`/api/hosts/status/${encodeURIComponent(status)}`);
+            const response = await this.request(`/hosts/status/${encodeURIComponent(status)}`);
             return response;
         } catch (error) {
-            throw new APIError(`Failed to fetch hosts by status: ${error.message}`, error.status, `/api/hosts/status/${status}`);
+            throw new APIError(`Failed to fetch hosts by status: ${error.message}`, error.status, `/hosts/status/${status}`);
         }
     }
 
@@ -169,10 +169,10 @@ class PrismAPI {
      */
     async getHealth() {
         try {
-            const response = await this.request('/api/health');
+            const response = await this.request('/health');
             return response;
         } catch (error) {
-            throw new APIError(`Health check failed: ${error.message}`, error.status, '/api/health');
+            throw new APIError(`Health check failed: ${error.message}`, error.status, '/health');
         }
     }
 
@@ -181,10 +181,10 @@ class PrismAPI {
      */
     async getStats() {
         try {
-            const response = await this.request('/api/stats');
+            const response = await this.request('/stats');
             return response;
         } catch (error) {
-            throw new APIError(`Failed to fetch stats: ${error.message}`, error.status, '/api/stats');
+            throw new APIError(`Failed to fetch stats: ${error.message}`, error.status, '/stats');
         }
     }
 
@@ -193,10 +193,10 @@ class PrismAPI {
      */
     async searchHosts(query) {
         try {
-            const response = await this.request(`/api/hosts?search=${encodeURIComponent(query)}`);
+            const response = await this.request(`/hosts?search=${encodeURIComponent(query)}`);
             return response;
         } catch (error) {
-            throw new APIError(`Search failed: ${error.message}`, error.status, '/api/hosts');
+            throw new APIError(`Search failed: ${error.message}`, error.status, '/hosts');
         }
     }
     
@@ -216,7 +216,7 @@ class PrismAPI {
      */
     async login(username, password) {
         try {
-            const response = await this.request('/api/auth/login', {
+            const response = await this.request('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ username, password })
             });
@@ -228,7 +228,7 @@ class PrismAPI {
             
             return response;
         } catch (error) {
-            throw new APIError(`Login failed: ${error.message}`, error.status, '/api/auth/login');
+            throw new APIError(`Login failed: ${error.message}`, error.status, '/auth/login');
         }
     }
     
@@ -237,7 +237,7 @@ class PrismAPI {
      */
     async logout() {
         try {
-            await this.request('/api/auth/logout', {
+            await this.request('/auth/logout', {
                 method: 'POST'
             });
         } catch (error) {
@@ -255,13 +255,13 @@ class PrismAPI {
      */
     async register(userData) {
         try {
-            const response = await this.request('/api/auth/register', {
+            const response = await this.request('/auth/register', {
                 method: 'POST',
                 body: JSON.stringify(userData)
             });
             return response;
         } catch (error) {
-            throw new APIError(`Registration failed: ${error.message}`, error.status, '/api/auth/register');
+            throw new APIError(`Registration failed: ${error.message}`, error.status, '/auth/register');
         }
     }
     
@@ -270,10 +270,10 @@ class PrismAPI {
      */
     async getCurrentUser() {
         try {
-            const response = await this.request('/api/auth/me');
+            const response = await this.request('/auth/me');
             return response;
         } catch (error) {
-            throw new APIError(`Failed to get user info: ${error.message}`, error.status, '/api/auth/me');
+            throw new APIError(`Failed to get user info: ${error.message}`, error.status, '/auth/me');
         }
     }
     
@@ -282,13 +282,13 @@ class PrismAPI {
      */
     async forgotPassword(email) {
         try {
-            const response = await this.request('/api/auth/forgot-password', {
+            const response = await this.request('/auth/forgot-password', {
                 method: 'POST',
                 body: JSON.stringify({ email })
             });
             return response;
         } catch (error) {
-            throw new APIError(`Password reset request failed: ${error.message}`, error.status, '/api/auth/forgot-password');
+            throw new APIError(`Password reset request failed: ${error.message}`, error.status, '/auth/forgot-password');
         }
     }
     
@@ -297,13 +297,13 @@ class PrismAPI {
      */
     async resetPassword(token, newPassword) {
         try {
-            const response = await this.request('/api/auth/reset-password', {
+            const response = await this.request('/auth/reset-password', {
                 method: 'POST',
                 body: JSON.stringify({ token, password: newPassword })
             });
             return response;
         } catch (error) {
-            throw new APIError(`Password reset failed: ${error.message}`, error.status, '/api/auth/reset-password');
+            throw new APIError(`Password reset failed: ${error.message}`, error.status, '/auth/reset-password');
         }
     }
     
@@ -312,12 +312,12 @@ class PrismAPI {
      */
     async verifyEmail(token) {
         try {
-            const response = await this.request(`/api/auth/verify-email/${encodeURIComponent(token)}`, {
+            const response = await this.request(`/auth/verify-email/${encodeURIComponent(token)}`, {
                 method: 'POST'
             });
             return response;
         } catch (error) {
-            throw new APIError(`Email verification failed: ${error.message}`, error.status, '/api/auth/verify-email');
+            throw new APIError(`Email verification failed: ${error.message}`, error.status, '/auth/verify-email');
         }
     }
 
