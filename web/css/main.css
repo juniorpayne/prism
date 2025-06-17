@@ -1045,6 +1045,60 @@ body.route-loading::after {
     margin-top: 0.5rem;
 }
 
+/* Activity Page Styles */
+.activity-list {
+    min-height: 400px;
+}
+
+.activity-item {
+    transition: background-color 0.2s;
+}
+
+.activity-item:hover {
+    background-color: #f8f9fa;
+}
+
+.activity-item:last-child {
+    border-bottom: none !important;
+}
+
+.activity-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    border-radius: 50%;
+}
+
+.activity-icon i {
+    font-size: 1.25rem;
+}
+
+.activity-title {
+    color: #212529;
+    font-weight: 500;
+}
+
+.activity-details {
+    color: #6c757d;
+}
+
+/* Event type specific colors */
+.activity-icon .text-success { color: #28a745 !important; }
+.activity-icon .text-danger { color: #dc3545 !important; }
+.activity-icon .text-warning { color: #ffc107 !important; }
+.activity-icon .text-info { color: #17a2b8 !important; }
+.activity-icon .text-primary { color: #007bff !important; }
+.activity-icon .text-secondary { color: #6c757d !important; }
+
+/* Activity filters */
+#activity-view .form-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
 /* Print Styles */
 @media print {
     .navbar,

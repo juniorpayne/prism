@@ -1287,6 +1287,97 @@
             </div>
         </div>
         
+        <!-- Activity View -->
+        <div id="activity-view" class="view" style="display: none;">
+            <div class="container mt-5">
+                <div class="row">
+                    <div class="col-lg-10 mx-auto">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="mb-0">Activity History</h3>
+                            </div>
+                            <div class="card-body">
+                                <!-- Filters -->
+                                <div class="row mb-4">
+                                    <div class="col-md-4 mb-2">
+                                        <label for="activityType" class="form-label">Event Type</label>
+                                        <select class="form-select" id="activityType">
+                                            <option value="">All Events</option>
+                                            <option value="login">Login</option>
+                                            <option value="logout">Logout</option>
+                                            <option value="profile_updated">Profile Updates</option>
+                                            <option value="password_changed">Password Changes</option>
+                                            <option value="security">Security Events</option>
+                                            <option value="settings">Settings Changes</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="startDate" class="form-label">From Date</label>
+                                        <input type="date" class="form-control" id="startDate">
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="endDate" class="form-label">To Date</label>
+                                        <input type="date" class="form-control" id="endDate">
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <button class="btn btn-primary btn-sm" id="applyFilters">
+                                        <i class="bi bi-funnel"></i> Apply Filters
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="clearFilters">
+                                        Clear Filters
+                                    </button>
+                                </div>
+                                
+                                <!-- Activity List -->
+                                <div id="activityList" class="activity-list">
+                                    <div class="text-center">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Pagination -->
+                                <nav aria-label="Activity pagination" class="mt-4">
+                                    <ul class="pagination justify-content-center" id="activityPagination">
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activity Item Template -->
+        <template id="activityItemTemplate">
+            <div class="activity-item border-bottom py-3">
+                <div class="d-flex align-items-start">
+                    <div class="activity-icon me-3">
+                        <i class="bi"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 activity-title"></h6>
+                                <p class="mb-1 text-muted small activity-details"></p>
+                                <p class="mb-0 text-muted small">
+                                    <i class="bi bi-clock"></i>
+                                    <span class="activity-time"></span>
+                                    •
+                                    <i class="bi bi-geo-alt"></i>
+                                    <span class="activity-location"></span>
+                                </p>
+                            </div>
+                            <span class="badge activity-badge"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
         <!-- 404 Not Found View -->
         <div id="404-view" class="view" style="display: none;">
             <div class="row justify-content-center">
@@ -1364,6 +1455,7 @@
     <script src="js/profile.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/password-change.js"></script>
+    <script src="js/activity.js"></script>
     <script src="js/router.js"></script>
     <script src="js/route-guard.js"></script>
     <script src="js/navigation.js"></script>
