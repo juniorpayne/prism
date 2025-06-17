@@ -910,6 +910,250 @@
             </div>
         </div>
         
+        <!-- Settings View -->
+        <div id="settings-view" class="view" style="display: none;">
+            <div class="container-fluid mt-4">
+                <div class="row">
+                    <!-- Settings Sidebar -->
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header d-md-none" data-bs-toggle="collapse" 
+                                 data-bs-target="#settingsNav" aria-expanded="false">
+                                <h5 class="mb-0">
+                                    Settings Menu
+                                    <i class="bi bi-chevron-down float-end"></i>
+                                </h5>
+                            </div>
+                            <div class="collapse d-md-block" id="settingsNav">
+                                <div class="list-group list-group-flush">
+                                    <a href="#settings/general" class="list-group-item list-group-item-action active" 
+                                       data-section="general">
+                                        <i class="bi bi-gear"></i> General
+                                    </a>
+                                    <a href="#settings/security" class="list-group-item list-group-item-action" 
+                                       data-section="security">
+                                        <i class="bi bi-shield-lock"></i> Security
+                                    </a>
+                                    <a href="#settings/notifications" class="list-group-item list-group-item-action" 
+                                       data-section="notifications">
+                                        <i class="bi bi-bell"></i> Notifications
+                                    </a>
+                                    <a href="#settings/account" class="list-group-item list-group-item-action text-danger" 
+                                       data-section="account">
+                                        <i class="bi bi-exclamation-triangle"></i> Account
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Settings Content -->
+                    <div class="col-md-9">
+                        <!-- General Settings -->
+                        <div id="settingsGeneral" class="settings-section">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">General Settings</h4>
+                                </div>
+                                <div class="card-body">
+                                    <form id="generalSettingsForm">
+                                        <div class="mb-3">
+                                            <label for="settingsLanguage" class="form-label">Language</label>
+                                            <select class="form-select" id="settingsLanguage">
+                                                <option value="en" selected>English</option>
+                                                <option value="es">Español</option>
+                                                <option value="fr">Français</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <label for="settingsTimezone" class="form-label">Timezone</label>
+                                            <select class="form-select" id="settingsTimezone">
+                                                <option value="UTC">UTC</option>
+                                                <option value="America/New_York" selected>Eastern Time</option>
+                                                <option value="America/Chicago">Central Time</option>
+                                                <option value="America/Denver">Mountain Time</option>
+                                                <option value="America/Los_Angeles">Pacific Time</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <label for="settingsDateFormat" class="form-label">Date Format</label>
+                                            <select class="form-select" id="settingsDateFormat">
+                                                <option value="MM/DD/YYYY" selected>MM/DD/YYYY</option>
+                                                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-primary">
+                                            <span class="spinner-border spinner-border-sm d-none" 
+                                                  id="generalSaveSpinner"></span>
+                                            Save Changes
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Security Settings -->
+                        <div id="settingsSecurity" class="settings-section" style="display: none;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">Security Settings</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-4">
+                                        <h5>Password</h5>
+                                        <p class="text-muted">Ensure your account stays secure by using a strong password.</p>
+                                        <button class="btn btn-primary" id="changePasswordBtn">
+                                            <i class="bi bi-key"></i> Change Password
+                                        </button>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="mb-4">
+                                        <h5>Two-Factor Authentication</h5>
+                                        <p class="text-muted">Add an extra layer of security to your account.</p>
+                                        <div class="alert alert-info">
+                                            <i class="bi bi-info-circle"></i> Two-factor authentication is not yet enabled.
+                                        </div>
+                                        <button class="btn btn-outline-primary" disabled>
+                                            Enable 2FA (Coming Soon)
+                                        </button>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="mb-4">
+                                        <h5>Active Sessions</h5>
+                                        <p class="text-muted">Manage your active sessions across devices.</p>
+                                        <div id="activeSessions" class="list-group">
+                                            <!-- Sessions will be loaded here -->
+                                        </div>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="mb-4">
+                                        <h5>Login Activity</h5>
+                                        <p class="text-muted">Recent login attempts to your account.</p>
+                                        <button class="btn btn-outline-secondary btn-sm" id="viewActivityBtn">
+                                            View Activity Log
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notification Settings -->
+                        <div id="settingsNotifications" class="settings-section" style="display: none;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">Notification Preferences</h4>
+                                </div>
+                                <div class="card-body">
+                                    <form id="notificationSettingsForm">
+                                        <h5>Email Notifications</h5>
+                                        
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="notifyHostDown" checked>
+                                            <label class="form-check-label" for="notifyHostDown">
+                                                Host goes offline
+                                                <small class="text-muted d-block">
+                                                    Receive an email when one of your hosts stops responding
+                                                </small>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="notifyHostUp" checked>
+                                            <label class="form-check-label" for="notifyHostUp">
+                                                Host comes back online
+                                                <small class="text-muted d-block">
+                                                    Receive an email when a previously offline host reconnects
+                                                </small>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="notifyWeeklyReport">
+                                            <label class="form-check-label" for="notifyWeeklyReport">
+                                                Weekly status report
+                                                <small class="text-muted d-block">
+                                                    Receive a weekly summary of your DNS activity
+                                                </small>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="form-check mb-4">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="notifySecurityAlerts" checked>
+                                            <label class="form-check-label" for="notifySecurityAlerts">
+                                                Security alerts
+                                                <small class="text-muted d-block">
+                                                    Important security notifications about your account
+                                                </small>
+                                            </label>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-primary">
+                                            <span class="spinner-border spinner-border-sm d-none" 
+                                                  id="notificationSaveSpinner"></span>
+                                            Save Preferences
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Account Management -->
+                        <div id="settingsAccount" class="settings-section" style="display: none;">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h4 class="mb-0">Account Management</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-4">
+                                        <h5>Export Data</h5>
+                                        <p class="text-muted">Download all your data in JSON format.</p>
+                                        <button class="btn btn-outline-secondary" id="exportDataBtn">
+                                            <i class="bi bi-download"></i> Export My Data
+                                        </button>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="mb-4">
+                                        <h5 class="text-danger">Delete Account</h5>
+                                        <div class="alert alert-danger">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                            <strong>Warning:</strong> This action cannot be undone. 
+                                            All your data will be permanently deleted.
+                                        </div>
+                                        <p>Once you delete your account:</p>
+                                        <ul>
+                                            <li>All your hosts will be removed</li>
+                                            <li>Your DNS records will be deleted</li>
+                                            <li>You will lose access to all services</li>
+                                            <li>This action is irreversible</li>
+                                        </ul>
+                                        <button class="btn btn-danger" id="deleteAccountBtn">
+                                            Delete My Account
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 404 Not Found View -->
         <div id="404-view" class="view" style="display: none;">
             <div class="row justify-content-center">
@@ -985,6 +1229,7 @@
     <script src="js/forgot-password.js"></script>
     <script src="js/reset-password.js"></script>
     <script src="js/profile.js"></script>
+    <script src="js/settings.js"></script>
     <script src="js/router.js"></script>
     <script src="js/route-guard.js"></script>
     <script src="js/navigation.js"></script>

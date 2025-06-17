@@ -251,7 +251,7 @@ class Router {
         });
         
         // Special handling for existing views
-        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile'];
+        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings'];
         if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
@@ -321,6 +321,13 @@ class Router {
                 }
                 // Create new profile page instance
                 window.currentProfilePage = new window.ProfilePage();
+            } else if (componentName === 'settings') {
+                // Clean up any existing settings page instance
+                if (window.currentSettingsPage) {
+                    window.currentSettingsPage.destroy();
+                }
+                // Create new settings page instance
+                window.currentSettingsPage = new window.SettingsPage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

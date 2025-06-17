@@ -926,6 +926,83 @@ body.route-loading::after {
     transition: color 0.3s ease;
 }
 
+/* Settings Page Styles */
+.settings-section {
+    min-height: 500px;
+}
+
+#settingsNav .list-group-item {
+    border: none;
+    padding: 0.75rem 1.25rem;
+}
+
+#settingsNav .list-group-item:hover:not(.active) {
+    background-color: #f8f9fa;
+}
+
+#settingsNav .list-group-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+#settingsNav .list-group-item.active i {
+    color: white;
+}
+
+#settingsNav .list-group-item i {
+    margin-right: 0.5rem;
+    width: 20px;
+    text-align: center;
+}
+
+#settingsNav .list-group-item.text-danger:hover {
+    background-color: #fff5f5;
+}
+
+/* Mobile collapse indicator */
+@media (max-width: 767.98px) {
+    .card-header[data-bs-toggle="collapse"] {
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .card-header[data-bs-toggle="collapse"] i {
+        transition: transform 0.3s;
+    }
+    
+    .card-header[data-bs-toggle="collapse"][aria-expanded="true"] i {
+        transform: rotate(180deg);
+    }
+    
+    #settings-view .col-md-3 {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Settings form styles */
+.settings-section .form-check-label small {
+    line-height: 1.3;
+}
+
+.settings-section .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+#settingsAccount .card-header.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+/* Active sessions list */
+#activeSessions .list-group-item {
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.5rem;
+}
+
+#activeSessions .list-group-item:last-child {
+    margin-bottom: 0;
+}
+
 /* Print Styles */
 @media print {
     .navbar,
