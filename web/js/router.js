@@ -16,6 +16,7 @@ class Router {
             '/verify-email': { component: 'verify-email', public: true, title: 'Verify Email' },
             '/profile': { component: 'profile', protected: true, title: 'My Profile' },
             '/settings': { component: 'settings', protected: true, title: 'Settings' },
+            '/password-change': { component: 'password-change', protected: true, title: 'Change Password' },
             '/activity': { component: 'activity', protected: true, title: 'Activity Log' },
             '/zones': { component: 'zones', protected: true, title: 'DNS Zones' },
             '/clients': { component: 'clients', protected: true, title: 'Clients' },
@@ -251,7 +252,7 @@ class Router {
         });
         
         // Special handling for existing views
-        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings'];
+        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings', 'password-change'];
         if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
@@ -328,6 +329,13 @@ class Router {
                 }
                 // Create new settings page instance
                 window.currentSettingsPage = new window.SettingsPage();
+            } else if (componentName === 'password-change') {
+                // Clean up any existing password change page instance
+                if (window.currentPasswordChangePage) {
+                    window.currentPasswordChangePage.destroy();
+                }
+                // Create new password change page instance
+                window.currentPasswordChangePage = new window.PasswordChangePage();
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

@@ -1154,6 +1154,139 @@
             </div>
         </div>
         
+        <!-- Password Change View -->
+        <div id="password-change-view" class="view" style="display: none;">
+            <div class="container mt-5">
+                <div class="row justify-content-center">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="mb-0">Change Password</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-4">
+                                    <i class="bi bi-info-circle"></i>
+                                    For security reasons, you'll be logged out after changing your password.
+                                </div>
+                                
+                                <form id="passwordChangeForm" novalidate>
+                                    <!-- Current Password -->
+                                    <div class="mb-3">
+                                        <label for="currentPassword" class="form-label">
+                                            Current Password <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="password" 
+                                                   class="form-control" 
+                                                   id="currentPassword" 
+                                                   required
+                                                   autocomplete="current-password">
+                                            <button class="btn btn-outline-secondary" 
+                                                    type="button" 
+                                                    id="toggleCurrentPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <div class="invalid-feedback">
+                                                Please enter your current password.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- New Password -->
+                                    <div class="mb-3">
+                                        <label for="newPassword" class="form-label">
+                                            New Password <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="password" 
+                                                   class="form-control" 
+                                                   id="newPassword" 
+                                                   required
+                                                   autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary" 
+                                                    type="button" 
+                                                    id="toggleNewPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <div class="invalid-feedback">
+                                                Please enter a valid password.
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Password Strength -->
+                                        <div class="progress mt-2" style="height: 5px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 id="passwordStrengthIndicator"></div>
+                                        </div>
+                                        <small class="text-muted" id="passwordStrengthText">Enter password</small>
+                                        
+                                        <!-- Password Requirements -->
+                                        <div class="password-requirements mt-2 d-none" 
+                                             id="passwordRequirements">
+                                            <small class="text-muted">Password must contain:</small>
+                                            <ul class="small mb-0">
+                                                <li id="reqLength" class="text-danger">
+                                                    <i class="bi bi-circle"></i> At least 12 characters
+                                                </li>
+                                                <li id="reqUppercase" class="text-danger">
+                                                    <i class="bi bi-circle"></i> One uppercase letter
+                                                </li>
+                                                <li id="reqLowercase" class="text-danger">
+                                                    <i class="bi bi-circle"></i> One lowercase letter
+                                                </li>
+                                                <li id="reqNumber" class="text-danger">
+                                                    <i class="bi bi-circle"></i> One number
+                                                </li>
+                                                <li id="reqSpecial" class="text-danger">
+                                                    <i class="bi bi-circle"></i> One special character
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Confirm New Password -->
+                                    <div class="mb-4">
+                                        <label for="confirmPassword" class="form-label">
+                                            Confirm New Password <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="password" 
+                                                   class="form-control" 
+                                                   id="confirmPassword" 
+                                                   required
+                                                   autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary" 
+                                                    type="button" 
+                                                    id="toggleConfirmPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <div class="invalid-feedback">
+                                                Passwords do not match.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Buttons -->
+                                    <div class="d-flex gap-2">
+                                        <button type="submit" class="btn btn-primary" 
+                                                id="changePasswordSubmitBtn">
+                                            <span class="spinner-border spinner-border-sm d-none" 
+                                                  id="changePasswordSpinner"></span>
+                                            Change Password
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" 
+                                                id="cancelPasswordChangeBtn">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 404 Not Found View -->
         <div id="404-view" class="view" style="display: none;">
             <div class="row justify-content-center">
@@ -1230,6 +1363,7 @@
     <script src="js/reset-password.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/settings.js"></script>
+    <script src="js/password-change.js"></script>
     <script src="js/router.js"></script>
     <script src="js/route-guard.js"></script>
     <script src="js/navigation.js"></script>
