@@ -1,144 +1,131 @@
-# Sprint 6 Demo Checklist
+# Sprint 8 Demo Quick Checklist
 
-## Pre-Demo Setup (15 minutes before)
-
-- [ ] **Environment Check**
-  - [ ] Docker is running
-  - [ ] No containers using ports 8080, 8081, 8090
-  - [ ] Clean git status (all changes committed)
-  
-- [ ] **Clean Start**
-  ```bash
-  docker compose down -v
-  docker compose up -d --build
-  ```
-
-- [ ] **Browser Preparation**
-  - [ ] Clear cookies/cache for localhost
-  - [ ] Close unnecessary tabs
-  - [ ] Open developer tools (but minimize)
-  - [ ] Disable password manager prompts
-
-- [ ] **Test Critical Flows**
-  - [ ] Registration works
-  - [ ] Login works
-  - [ ] Navigation works
-  - [ ] Session timer visible
+## Pre-Demo (15 minutes before)
+- [ ] Run `docker compose down && docker compose up -d --build`
+- [ ] Clear browser cache and cookies
+- [ ] Open http://localhost:8090 in main browser
+- [ ] Open incognito window for logged-out demos
+- [ ] Create fresh test account or verify existing one works
+- [ ] Have this checklist printed or on second screen
+- [ ] Close unnecessary applications
+- [ ] Prepare backup slides in case of technical issues
 
 ## Demo Flow Checklist
 
-### Opening (2 min)
-- [ ] Welcome and introduce sprint goal
-- [ ] Show completed stories list
-- [ ] Open web interface
+### 1. Authentication & Registration ✓
+- [ ] Show registration page
+- [ ] Type weak password → show "Very Weak"
+- [ ] Type strong password → show "Strong" 
+- [ ] Toggle password visibility
+- [ ] Submit registration
+- [ ] Show email verification page
+- [ ] Go to login
+- [ ] Check "Remember Me"
+- [ ] Login successfully
 
-### Part 1: Authentication (10 min)
-- [ ] **Registration**
-  - [ ] Show validation
-  - [ ] Show password strength
-  - [ ] Complete registration
-  
-- [ ] **Email Verification**
-  - [ ] Show email sent page
-  - [ ] Demo resend with rate limit
-  
-- [ ] **Login**
-  - [ ] Show form features
-  - [ ] Password toggle
-  - [ ] Successful login
+### 2. Protected Routes ✓
+- [ ] In incognito: try /dashboard → redirects to login
+- [ ] Login with redirect → goes back to dashboard
+- [ ] While logged in: try /login → redirects to dashboard
+- [ ] Show session timer in navbar
 
-### Part 2: Navigation (5 min)
-- [ ] Click nav links (no refresh)
-- [ ] Use back/forward buttons
-- [ ] Deep link to protected route
-- [ ] Show redirect with return URL
+### 3. Dashboard & Hosts ✓
+- [ ] Show 3 stat cards
+- [ ] Mention activity chart (if visible)
+- [ ] Navigate to Hosts
+- [ ] Search for a host
+- [ ] Sort by status
+- [ ] Click host for details modal
 
-### Part 3: Password Recovery (5 min)
-- [ ] **Forgot Password**
-  - [ ] Show form
-  - [ ] Submit request
-  - [ ] Show rate limiting
-  
-- [ ] **Reset Password**
-  - [ ] Show token validation
-  - [ ] Password requirements
-  - [ ] Success flow
+### 4. Profile Management ✓
+- [ ] Click avatar → My Profile
+- [ ] Show current profile info
+- [ ] Edit Profile
+- [ ] Type in bio field
+- [ ] Show character count changing color
+- [ ] Save changes
+- [ ] Show success toast
 
-### Part 4: Session Management (5 min)
+### 5. Settings ✓
+- [ ] Navigate to Settings
+- [ ] Click through each section
+- [ ] In Security: show active sessions
+- [ ] In Notifications: toggle some options
+- [ ] Save changes in any section
+
+### 6. Password Change ✓
+- [ ] Click "Change Password"
+- [ ] Enter current password
+- [ ] Type new password slowly
+- [ ] Show strength indicator
+- [ ] Show requirements updating
+- [ ] Cancel (don't submit)
+
+### 7. Activity Log ✓
+- [ ] Navigate to Activity
+- [ ] Show date filters
+- [ ] Change event type filter
+- [ ] Apply filters
+- [ ] Navigate pagination
+
+### 8. Account Deletion ✓
+- [ ] Settings → Account → Delete
+- [ ] Step 1: Check understanding box
+- [ ] Step 2: Enter password & username
+- [ ] Step 3: Show final warning
+- [ ] CANCEL (don't delete\!)
+
+### 9. Session & Logout ✓
 - [ ] Point out session timer
-- [ ] Show activity reset
-- [ ] Demo warning modal
-- [ ] Show auto-logout
+- [ ] Click Logout
+- [ ] Show redirect to login
+- [ ] Try protected route again
 
-### Part 5: Remember Me (5 min)
-- [ ] Login with remember me
-- [ ] Close browser
-- [ ] Show auto-login
-- [ ] Demo cross-tab sync
-- [ ] Logout clears everything
+## Common Issues & Solutions
 
-### Part 6: Technical (3 min)
-- [ ] Show network tab
-- [ ] Point out auth headers
-- [ ] Explain token strategy
+**Docker not running:**
+```bash
+docker compose down -v
+docker compose up -d --build
+```
 
-### Closing (5 min)
-- [ ] Summarize achievements
-- [ ] Metrics and quality
-- [ ] Q&A
-- [ ] Next sprint preview
+**Port 8090 in use:**
+```bash
+sudo lsof -i :8090
+kill -9 <PID>
+```
 
-## Troubleshooting Guide
+**Blank page:**
+- Check browser console
+- Hard refresh (Ctrl+Shift+R)
+- Check docker logs: `docker compose logs`
 
-### If registration fails:
+**Login not working:**
 - Check API is running: `curl http://localhost:8081/api/health`
-- Check logs: `docker compose logs server`
+- Check for CORS errors in console
+- Try incognito mode
 
-### If login doesn't work:
-- Verify user exists in database
-- Check browser console for errors
-- Ensure tokens are being stored
+## Key Points to Emphasize
 
-### If session timer not showing:
-- Refresh page after login
-- Check if authenticated: `window.api.tokenManager.isAuthenticated()`
+1. **Security**: JWT tokens, password strength, multi-step deletion
+2. **UX**: Real-time validation, loading states, responsive design  
+3. **Architecture**: SPA, client-side routing, modular components
+4. **Future**: 2FA, email verification, API keys, roles
 
-### If auto-login fails:
-- Check localStorage for persistent session
-- Verify token not expired
-- Try different browser
+## Questions to Ask
 
-### If rate limiting not working:
-- Clear rate limit: `localStorage.removeItem('forgotPasswordLastRequest')`
-- Wait 5 minutes or use different email
-
-## Key Talking Points
-
-### Security
-- "JWT tokens with secure storage"
-- "Automatic token refresh"
-- "Session timeout for security"
-- "Rate limiting prevents abuse"
-
-### User Experience
-- "Real-time validation"
-- "Clear error messages"
-- "Loading states throughout"
-- "Mobile responsive"
-
-### Technical Excellence
-- "Modular architecture"
-- "Comprehensive testing"
-- "Clean, maintainable code"
-- "Performance optimized"
+- What features would you prioritize for next sprint?
+- Any concerns about the security implementation?
+- How does the UX feel? Any pain points?
+- Integration requirements with existing systems?
 
 ## Post-Demo
 
-- [ ] Thank participants
-- [ ] Share demo recording (if recorded)
-- [ ] Send follow-up with:
-  - [ ] Completed stories
-  - [ ] Key features
-  - [ ] Next sprint plans
-- [ ] Update sprint documentation
-- [ ] Celebrate team success! 🎉
+- [ ] Stop screen share
+- [ ] Thank attendees
+- [ ] Ask for questions
+- [ ] Note feedback
+- [ ] Schedule follow-up if needed
+- [ ] Update Jira with feedback
+- [ ] Plan next sprint based on input
+EOF < /dev/null
