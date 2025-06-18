@@ -12,6 +12,7 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import EmailStr
 
 from server.auth.config import get_settings
+from server.auth.email_providers import ConsoleEmailProvider, EmailProvider, SMTPEmailProvider
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,23 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service."""
-        self.config = get_mail_config()
-        self.fastmail = FastMail(self.config)
+        settings = get_settings()
+        self.settings = settings
+        self.provider: EmailProvider
+
+        # Use console provider if email is not enabled or credentials are missing
+        if (
+            not settings.get("email_enabled")
+            or not settings.get("email_username")
+            or not settings.get("email_password")
+        ):
+            logger.info("Using console email provider (no SMTP configured)")
+            self.provider = ConsoleEmailProvider()
+        else:
+            logger.info("Using SMTP email provider")
+            self.config = get_mail_config()
+            fastmail = FastMail(self.config)
+            self.provider = SMTPEmailProvider(fastmail)
 
     async def send_verification_email(self, email: EmailStr, username: str, token: str) -> None:
         """
@@ -93,19 +109,11 @@ class EmailService:
         </html>
         """
 
-        message = MessageSchema(
+        await self.provider.send_email(
+            to_email=email,
             subject="Verify your Prism DNS account",
-            recipients=[email],
-            body=html,
-            subtype=MessageType.html,
+            html_content=html,
         )
-
-        try:
-            await self.fastmail.send_message(message)
-            logger.info(f"Verification email sent to {email}")
-        except Exception as e:
-            logger.error(f"Failed to send verification email to {email}: {e}")
-            # Don't raise exception to avoid exposing email sending issues
 
     async def send_password_reset_email(
         self,
@@ -180,19 +188,11 @@ class EmailService:
         </html>
         """
 
-        message = MessageSchema(
+        await self.provider.send_email(
+            to_email=email,
             subject="Reset your Prism DNS password",
-            recipients=[email],
-            body=html,
-            subtype=MessageType.html,
+            html_content=html,
         )
-
-        try:
-            await self.fastmail.send_message(message)
-            logger.info(f"Password reset email sent to {email}")
-        except Exception as e:
-            logger.error(f"Failed to send password reset email to {email}: {e}")
-            # Don't raise exception to avoid exposing email sending issues
 
     async def send_password_changed_email(self, email: EmailStr, username: str) -> None:
         """
@@ -240,18 +240,11 @@ class EmailService:
         </html>
         """
 
-        message = MessageSchema(
+        await self.provider.send_email(
+            to_email=email,
             subject="Your Prism DNS password has been changed",
-            recipients=[email],
-            body=html,
-            subtype=MessageType.html,
+            html_content=html,
         )
-
-        try:
-            await self.fastmail.send_message(message)
-            logger.info(f"Password changed email sent to {email}")
-        except Exception as e:
-            logger.error(f"Failed to send password changed email to {email}: {e}")
 
 
 # Singleton instance
