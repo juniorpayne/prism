@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Unit tests for email providers.
+Unit tests for specific email provider implementations.
 """
 
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import EmailStr
 
-from server.auth.email_providers import ConsoleEmailProvider, SMTPEmailProvider
+from server.auth.email_providers import (
+    ConsoleEmailProvider,
+    EmailDeliveryError,
+    EmailMessage,
+    EmailResult,
+    SMTPEmailProvider,
+)
 
 
 class TestConsoleEmailProvider:
@@ -18,13 +23,16 @@ class TestConsoleEmailProvider:
     @pytest.fixture
     def console_provider(self):
         """Create a console email provider instance."""
-        return ConsoleEmailProvider()
+        return ConsoleEmailProvider({"format": "pretty", "highlight_links": True})
 
     @pytest.mark.asyncio
     async def test_send_verification_email(self, console_provider, capsys):
         """Test sending verification email to console."""
-        # HTML content with verification link
-        html_content = """
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
+            subject="Verify your Prism DNS account",
+            html_body="""
         <html>
         <body>
             <h2>Welcome to Prism DNS!</h2>
@@ -35,17 +43,15 @@ class TestConsoleEmailProvider:
             </a>
         </body>
         </html>
-        """
-
-        # Send email
-        result = await console_provider.send_email(
-            to_email="test@example.com",
-            subject="Verify your Prism DNS account",
-            html_content=html_content,
+        """,
         )
 
+        # Send email
+        result = await console_provider.send_email(message)
+
         # Check result
-        assert result is True
+        assert result.success is True
+        assert result.provider == "Console"
 
         # Capture console output
         captured = capsys.readouterr()
@@ -61,8 +67,11 @@ class TestConsoleEmailProvider:
     @pytest.mark.asyncio
     async def test_send_password_reset_email(self, console_provider, capsys):
         """Test sending password reset email to console."""
-        # HTML content with reset link
-        html_content = """
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
+            subject="Reset your Prism DNS password",
+            html_body="""
         <html>
         <body>
             <h2>Password Reset Request</h2>
@@ -73,17 +82,14 @@ class TestConsoleEmailProvider:
             </a>
         </body>
         </html>
-        """
-
-        # Send email
-        result = await console_provider.send_email(
-            to_email="test@example.com",
-            subject="Reset your Prism DNS password",
-            html_content=html_content,
+        """,
         )
 
+        # Send email
+        result = await console_provider.send_email(message)
+
         # Check result
-        assert result is True
+        assert result.success is True
 
         # Capture console output
         captured = capsys.readouterr()
@@ -97,25 +103,25 @@ class TestConsoleEmailProvider:
     @pytest.mark.asyncio
     async def test_send_general_email(self, console_provider, capsys):
         """Test sending general email to console."""
-        # HTML content without special links
-        html_content = """
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
+            subject="Account Updated",
+            html_body="""
         <html>
         <body>
             <h2>Account Update</h2>
             <p>Your account has been updated successfully.</p>
         </body>
         </html>
-        """
-
-        # Send email
-        result = await console_provider.send_email(
-            to_email="test@example.com",
-            subject="Account Updated",
-            html_content=html_content,
+        """,
         )
 
+        # Send email
+        result = await console_provider.send_email(message)
+
         # Check result
-        assert result is True
+        assert result.success is True
 
         # Capture console output
         captured = capsys.readouterr()
@@ -128,22 +134,22 @@ class TestConsoleEmailProvider:
     @pytest.mark.asyncio
     async def test_extract_multiple_tokens(self, console_provider, capsys):
         """Test extraction of multiple tokens from email."""
-        # HTML with multiple links
-        html_content = """
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
+            subject="Test Email",
+            html_body="""
         <html>
         <body>
             <a href="http://localhost:8090/verify-email?token=token1">Verify</a>
             <a href="http://localhost:8090/reset-password?token=token2">Reset</a>
         </body>
         </html>
-        """
+        """,
+        )
 
         # Send email
-        await console_provider.send_email(
-            to_email="test@example.com",
-            subject="Test Email",
-            html_content=html_content,
-        )
+        await console_provider.send_email(message)
 
         # Capture console output
         captured = capsys.readouterr()
@@ -154,24 +160,25 @@ class TestConsoleEmailProvider:
     @pytest.mark.asyncio
     async def test_password_changed_notification(self, console_provider, capsys):
         """Test password changed notification email."""
-        html_content = """
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
+            subject="Your Prism DNS password has been changed",
+            html_body="""
         <html>
         <body>
             <h2>Password Changed Successfully</h2>
             <p>Your password has been changed.</p>
         </body>
         </html>
-        """
-
-        # Send email
-        result = await console_provider.send_email(
-            to_email="test@example.com",
-            subject="Your Prism DNS password has been changed",
-            html_content=html_content,
+        """,
         )
 
+        # Send email
+        result = await console_provider.send_email(message)
+
         # Check result
-        assert result is True
+        assert result.success is True
 
         # Capture console output
         captured = capsys.readouterr()
@@ -192,7 +199,14 @@ class TestSMTPEmailProvider:
     @pytest.fixture
     def smtp_provider(self, mock_fastmail):
         """Create an SMTP email provider instance."""
-        return SMTPEmailProvider(mock_fastmail)
+        with patch("server.auth.email_providers.smtp.FastMail", return_value=mock_fastmail):
+            config = {
+                "host": "smtp.example.com",
+                "port": "587",
+                "username": "test@example.com",
+                "password": "password",
+            }
+            return SMTPEmailProvider(config)
 
     @pytest.mark.asyncio
     async def test_send_email_success(self, smtp_provider, mock_fastmail):
@@ -200,15 +214,19 @@ class TestSMTPEmailProvider:
         # Configure mock to succeed
         mock_fastmail.send_message = AsyncMock(return_value=None)
 
-        # Send email
-        result = await smtp_provider.send_email(
-            to_email="test@example.com",
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
             subject="Test Subject",
-            html_content="<p>Test content</p>",
+            html_body="<p>Test content</p>",
         )
 
+        # Send email
+        result = await smtp_provider.send_email(message)
+
         # Check result
-        assert result is True
+        assert result.success is True
+        assert result.provider == "SMTP"
 
         # Verify send_message was called
         mock_fastmail.send_message.assert_called_once()
@@ -216,7 +234,7 @@ class TestSMTPEmailProvider:
         # Check the message that was sent
         call_args = mock_fastmail.send_message.call_args[0][0]
         assert call_args.subject == "Test Subject"
-        assert call_args.recipients == ["test@example.com"]
+        assert "test@example.com" in str(call_args.recipients)
         assert call_args.body == "<p>Test content</p>"
 
     @pytest.mark.asyncio
@@ -225,15 +243,21 @@ class TestSMTPEmailProvider:
         # Configure mock to raise exception
         mock_fastmail.send_message = AsyncMock(side_effect=Exception("SMTP connection failed"))
 
-        # Send email
-        result = await smtp_provider.send_email(
-            to_email="test@example.com",
+        # Create email message
+        message = EmailMessage(
+            to=["test@example.com"],
             subject="Test Subject",
-            html_content="<p>Test content</p>",
+            html_body="<p>Test content</p>",
         )
 
-        # Check result
-        assert result is False
+        # Send email - should raise EmailDeliveryError
+        with pytest.raises(EmailDeliveryError) as exc_info:
+            await smtp_provider.send_email(message)
+
+        # Check that it's an SMTP-related error
+        error_message = str(exc_info.value)
+        assert "SMTP" in error_message
+        assert "connection failed" in error_message.lower()
 
         # Verify send_message was called
         mock_fastmail.send_message.assert_called_once()
@@ -243,51 +267,63 @@ class TestSMTPEmailProvider:
 async def test_email_service_uses_console_provider():
     """Test that email service uses console provider when SMTP is not configured."""
     with patch("server.auth.email.get_settings") as mock_settings:
-        # Configure settings to disable email
-        mock_settings.return_value = {
-            "email_enabled": False,
-            "email_username": "",
-            "email_password": "",
-            "frontend_url": "http://localhost:8090",
-        }
+        with patch("server.auth.email.get_email_provider_from_env") as mock_env:
+            # Configure settings to disable email
+            mock_settings.return_value = {
+                "email_enabled": False,
+                "email_username": "",
+                "email_password": "",
+                "frontend_url": "http://localhost:8090",
+            }
 
-        # Import after patching
-        from server.auth.email import EmailService
+            # Mock env to return console config
+            mock_env.return_value = {
+                "provider": "console",
+                "format": "pretty",
+            }
 
-        # Create service
-        service = EmailService()
-
-        # Check that console provider is used
-        from server.auth.email_providers import ConsoleEmailProvider
-
-        assert isinstance(service.provider, ConsoleEmailProvider)
-
-
-@pytest.mark.asyncio
-async def test_email_service_uses_smtp_provider():
-    """Test that email service uses SMTP provider when configured."""
-    with patch("server.auth.email.get_settings") as mock_settings:
-        # Configure settings to enable email
-        mock_settings.return_value = {
-            "email_enabled": True,
-            "email_username": "test@example.com",
-            "email_password": "password123",
-            "email_host": "smtp.example.com",
-            "email_port": 587,
-            "email_from": "noreply@example.com",
-            "email_from_name": "Test App",
-            "frontend_url": "http://localhost:8090",
-        }
-
-        # Mock FastMail to avoid actual connection
-        with patch("server.auth.email.FastMail"):
             # Import after patching
             from server.auth.email import EmailService
 
             # Create service
             service = EmailService()
 
-            # Check that SMTP provider is used
-            from server.auth.email_providers import SMTPEmailProvider
+            # Check that console provider is used
+            assert isinstance(service.provider, ConsoleEmailProvider)
 
-            assert isinstance(service.provider, SMTPEmailProvider)
+
+@pytest.mark.asyncio
+async def test_email_service_uses_smtp_provider():
+    """Test that email service uses SMTP provider when configured."""
+    with patch("server.auth.email.get_settings") as mock_settings:
+        with patch("server.auth.email.get_email_provider_from_env") as mock_env:
+            with patch("server.auth.email_providers.smtp.FastMail"):
+                # Configure settings to enable email
+                mock_settings.return_value = {
+                    "email_enabled": True,
+                    "email_username": "test@example.com",
+                    "email_password": "password123",
+                    "email_host": "smtp.example.com",
+                    "email_port": 587,
+                    "email_from": "noreply@example.com",
+                    "email_from_name": "Test App",
+                    "frontend_url": "http://localhost:8090",
+                }
+
+                # Mock env to return SMTP config
+                mock_env.return_value = {
+                    "provider": "smtp",
+                    "host": "smtp.example.com",
+                    "port": "587",
+                    "username": "test@example.com",
+                    "password": "password123",
+                }
+
+                # Import after patching
+                from server.auth.email import EmailService
+
+                # Create service
+                service = EmailService()
+
+                # Check that SMTP provider is used
+                assert isinstance(service.provider, SMTPEmailProvider)

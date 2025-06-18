@@ -4,37 +4,21 @@ Email service for sending verification and password reset emails.
 """
 
 import logging
-import os
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import EmailStr
 
 from server.auth.config import get_settings
-from server.auth.email_providers import ConsoleEmailProvider, EmailProvider, SMTPEmailProvider
+from server.auth.email_providers import (
+    EmailMessage,
+    EmailPriority,
+    EmailProvider,
+    EmailProviderFactory,
+    EmailResult,
+)
+from server.auth.email_providers.utils import get_email_provider_from_env
 
 logger = logging.getLogger(__name__)
-
-
-# Email configuration
-def get_mail_config() -> ConnectionConfig:
-    """Get email configuration from settings."""
-    settings = get_settings()
-
-    return ConnectionConfig(
-        MAIL_USERNAME=settings.get("email_username", ""),
-        MAIL_PASSWORD=settings.get("email_password", ""),
-        MAIL_FROM=settings.get("email_from", "noreply@prismdns.com"),
-        MAIL_PORT=int(settings.get("email_port", 587)),
-        MAIL_SERVER=settings.get("email_host", "smtp.gmail.com"),
-        MAIL_FROM_NAME=settings.get("email_from_name", "Prism DNS"),
-        MAIL_STARTTLS=True,
-        MAIL_SSL_TLS=False,
-        USE_CREDENTIALS=True,
-        VALIDATE_CERTS=True,
-        TEMPLATE_FOLDER=Path(__file__).parent / "templates",
-    )
 
 
 class EmailService:
@@ -42,23 +26,20 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service."""
-        settings = get_settings()
-        self.settings = settings
-        self.provider: EmailProvider
+        self.settings = get_settings()
 
-        # Use console provider if email is not enabled or credentials are missing
-        if (
-            not settings.get("email_enabled")
-            or not settings.get("email_username")
-            or not settings.get("email_password")
-        ):
-            logger.info("Using console email provider (no SMTP configured)")
-            self.provider = ConsoleEmailProvider()
-        else:
-            logger.info("Using SMTP email provider")
-            self.config = get_mail_config()
-            fastmail = FastMail(self.config)
-            self.provider = SMTPEmailProvider(fastmail)
+        # Get email configuration from environment or settings
+        email_config = get_email_provider_from_env()
+
+        # Override with settings if email is disabled
+        if not self.settings.get("email_enabled"):
+            email_config["provider"] = "console"
+            logger.info("Email disabled in settings, using console provider")
+
+        # Create provider using factory
+        self.provider = EmailProviderFactory.create_provider(email_config["provider"], email_config)
+
+        logger.info(f"Email service initialized with {self.provider.provider_name} provider")
 
     async def send_verification_email(self, email: EmailStr, username: str, token: str) -> None:
         """
@@ -109,11 +90,20 @@ class EmailService:
         </html>
         """
 
-        await self.provider.send_email(
-            to_email=email,
+        # Create email message
+        message = EmailMessage(
+            to=[email],
             subject="Verify your Prism DNS account",
-            html_content=html,
+            html_body=html,
+            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
+            from_name=self.settings.get("email_from_name", "Prism DNS"),
         )
+
+        # Send email
+        result = await self.provider.send_email(message)
+
+        if not result.success:
+            logger.error(f"Failed to send verification email: {result.error}")
 
     async def send_password_reset_email(
         self,
@@ -188,11 +178,24 @@ class EmailService:
         </html>
         """
 
-        await self.provider.send_email(
-            to_email=email,
+        # Create email message
+        message = EmailMessage(
+            to=[email],
             subject="Reset your Prism DNS password",
-            html_content=html,
+            html_body=html,
+            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
+            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            metadata={
+                "ip_address": ip_address,
+                "user_agent": user_agent,
+            },
         )
+
+        # Send email
+        result = await self.provider.send_email(message)
+
+        if not result.success:
+            logger.error(f"Failed to send password reset email: {result.error}")
 
     async def send_password_changed_email(self, email: EmailStr, username: str) -> None:
         """
@@ -240,11 +243,21 @@ class EmailService:
         </html>
         """
 
-        await self.provider.send_email(
-            to_email=email,
+        # Create email message
+        message = EmailMessage(
+            to=[email],
             subject="Your Prism DNS password has been changed",
-            html_content=html,
+            html_body=html,
+            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
+            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            priority=EmailPriority.HIGH,  # Security notifications are high priority
         )
+
+        # Send email
+        result = await self.provider.send_email(message)
+
+        if not result.success:
+            logger.error(f"Failed to send password changed email: {result.error}")
 
 
 # Singleton instance

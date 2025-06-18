@@ -201,7 +201,7 @@ docker compose restart server
 - Each user story requires the following: 
   1. definition of done
   2. testable 
-  3. TDD driven
+  3. TDD driven (Test Driven Development)
   4. Unit Tests
   5. Acceptance criteria
 
