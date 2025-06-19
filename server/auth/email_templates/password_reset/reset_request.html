@@ -1,0 +1,66 @@
+{% extends "base/base.html" %}
+
+{% block title %}Password Reset Request - {{ app_name }}{% endblock %}
+{% block preheader %}Reset your password for {{ app_name }}{% endblock %}
+{% block header_subtitle %}
+<p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 400; color: #ffffff; opacity: 0.8;">
+    Password Reset Request
+</p>
+{% endblock %}
+
+{% block content %}
+<tr>
+    <td align="center">
+        <h2 style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; color: #333333;">
+            Reset Your Password
+        </h2>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Hi {{ username|default('there') }},
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            We received a request to reset your password for your {{ app_name }} account. Click the button below to create a new password:
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="center" style="padding: 20px 0;">
+        <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td align="center" style="border-radius: 5px;" bgcolor="#0d6efd">
+                    <a href="{{ reset_url }}" target="_blank" style="display: inline-block; padding: 15px 30px; font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; border-radius: 5px;" class="button">
+                        Reset Password
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            If the button doesn't work, you can also copy and paste this link into your browser:
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #0d6efd; word-break: break-all;">
+            {{ reset_url }}
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #856404;">
+            <strong>Security Notice:</strong><br>
+            • This link will expire in {{ expiry_hours|default(1) }} hour(s)<br>
+            • If you didn't request this reset, please secure your account immediately<br>
+            • Request was made from IP: {{ request_ip|default('Unknown') }}
+        </p>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_message %}
+You received this email because a password reset was requested for your {{ app_name }} account. If you didn't make this request, please secure your account immediately.
+{% endblock %}

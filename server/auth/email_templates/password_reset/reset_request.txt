@@ -1,0 +1,24 @@
+{% extends "base/base.txt" %}
+
+{% block header_subtitle %}Password Reset Request{% endblock %}
+
+{% block content %}
+Reset Your Password
+
+Hi {{ username|default('there') }},
+
+We received a request to reset your password for your {{ app_name }} account. 
+Click the link below to create a new password:
+
+{{ reset_url }}
+
+SECURITY NOTICE:
+• This link will expire in {{ expiry_hours|default(1) }} hour(s)
+• If you didn't request this reset, please secure your account immediately
+• Request was made from IP: {{ request_ip|default('Unknown') }}
+{% endblock %}
+
+{% block footer_message %}
+You received this email because a password reset was requested for your {{ app_name }} 
+account. If you didn't make this request, please secure your account immediately.
+{% endblock %}

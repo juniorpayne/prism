@@ -1,0 +1,36 @@
+{% extends "base/base.txt" %}
+
+{% block header_subtitle %}Security Alert{% endblock %}
+
+{% block content %}
+New Device Login Detected
+
+Hi {{ username|default('there') }},
+
+We detected a sign-in to your {{ app_name }} account from a new device or location. 
+If this was you, you can safely ignore this email.
+
+LOGIN DETAILS:
+• Date & Time: {{ login_date|default('Just now') }}
+• Device: {{ device_info|default('Unknown device') }}
+• Browser: {{ browser_info|default('Unknown browser') }}
+• IP Address: {{ login_ip|default('Unknown') }}
+• Location: {{ location|default('Unknown location') }}
+
+NOT YOU?
+If you don't recognize this activity, someone else may have access to your account.
+
+Secure Your Account: {{ app_url }}/security/secure-account
+
+Additional steps to secure your account:
+1. Change your password immediately
+2. Review your recent account activity
+3. Check your account settings for any changes
+4. Enable two-factor authentication if you haven't already
+5. Review and revoke access for any suspicious applications
+{% endblock %}
+
+{% block footer_message %}
+This is an automated security alert from {{ app_name }}. We take your account 
+security seriously and notify you of any unusual activity.
+{% endblock %}

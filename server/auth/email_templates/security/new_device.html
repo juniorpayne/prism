@@ -1,0 +1,99 @@
+{% extends "base/base.html" %}
+
+{% block title %}Security Alert - New Device Login{% endblock %}
+{% block preheader %}A new device just signed in to your {{ app_name }} account{% endblock %}
+{% block header_subtitle %}
+<p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 400; color: #ffffff; opacity: 0.8;">
+    Security Alert
+</p>
+{% endblock %}
+
+{% block content %}
+<tr>
+    <td align="center">
+        <h2 style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; color: #333333;">
+            New Device Login Detected
+        </h2>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Hi {{ username|default('there') }},
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            We detected a sign-in to your {{ app_name }} account from a new device or location. If this was you, you can safely ignore this email.
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="background-color: #fff3cd; padding: 20px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #856404;">
+            Login Details
+        </h3>
+        <table border="0" cellpadding="0" cellspacing="0" style="font-family: Arial, sans-serif; font-size: 14px; color: #856404;">
+            <tr>
+                <td style="padding: 3px 15px 3px 0; font-weight: 600;">Date & Time:</td>
+                <td style="padding: 3px 0;">{{ login_date|default('Just now') }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 3px 15px 3px 0; font-weight: 600;">Device:</td>
+                <td style="padding: 3px 0;">{{ device_info|default('Unknown device') }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 3px 15px 3px 0; font-weight: 600;">Browser:</td>
+                <td style="padding: 3px 0;">{{ browser_info|default('Unknown browser') }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 3px 15px 3px 0; font-weight: 600;">IP Address:</td>
+                <td style="padding: 3px 0;">{{ login_ip|default('Unknown') }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 3px 15px 3px 0; font-weight: 600;">Location:</td>
+                <td style="padding: 3px 0;">{{ location|default('Unknown location') }}</td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <h3 style="margin: 30px 0 15px 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 600; color: #d32f2f;">
+            Not You?
+        </h3>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #555555;">
+            If you don't recognize this activity, someone else may have access to your account. You should:
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="center" style="padding: 0 0 20px 0;">
+        <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td align="center" style="border-radius: 5px;" bgcolor="#d32f2f">
+                    <a href="{{ app_url }}/security/secure-account" target="_blank" style="display: inline-block; padding: 15px 30px; font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; border-radius: 5px;" class="button">
+                        Secure Your Account
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            <strong>Additional steps to secure your account:</strong>
+        </p>
+        <ol style="margin: 0 0 20px 0; padding-left: 20px; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            <li>Change your password immediately</li>
+            <li>Review your recent account activity</li>
+            <li>Check your account settings for any changes</li>
+            <li>Enable two-factor authentication if you haven't already</li>
+            <li>Review and revoke access for any suspicious applications</li>
+        </ol>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_message %}
+This is an automated security alert from {{ app_name }}. We take your account security seriously and notify you of any unusual activity.
+{% endblock %}

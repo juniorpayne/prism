@@ -1,0 +1,21 @@
+{% extends "base/base.txt" %}
+
+{% block header_subtitle %}Email Verification Required{% endblock %}
+
+{% block content %}
+Welcome to {{ app_name }}!
+
+Hi {{ username|default('there') }},
+
+Thank you for signing up! To complete your registration and access all features, 
+please verify your email address by clicking the link below:
+
+{{ verification_url }}
+
+Note: This verification link will expire in {{ expiry_hours|default(24) }} hours for security reasons.
+{% endblock %}
+
+{% block footer_message %}
+You received this email because someone signed up for a {{ app_name }} account 
+with this email address. If this wasn't you, please ignore this email.
+{% endblock %}

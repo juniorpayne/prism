@@ -1,0 +1,13 @@
+{{ app_name }}
+{% block header_subtitle %}{% endblock %}
+================================================================================
+
+{% block content %}{% endblock %}
+
+================================================================================
+
+{% block footer_message %}This email was sent by {{ app_name }}. If you didn't request this email, please ignore it.{% endblock %}
+
+Need help? Contact us at {{ support_email }}
+
+© {{ current_year }} {{ app_name }}. All rights reserved.

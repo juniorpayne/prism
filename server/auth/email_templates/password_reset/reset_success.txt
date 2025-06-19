@@ -1,0 +1,32 @@
+{% extends "base/base.txt" %}
+
+{% block header_subtitle %}Security Notification{% endblock %}
+
+{% block content %}
+Password Changed Successfully
+
+Hi {{ username|default('there') }},
+
+Your password for {{ app_name }} has been successfully changed. You can now log in 
+with your new password.
+
+✓ PASSWORD UPDATED
+Your account is now secured with your new password.
+
+SECURITY INFORMATION:
+• Changed on: {{ change_date|default('Just now') }}
+• Changed from IP: {{ change_ip|default('Unknown') }}
+• Device: {{ device_info|default('Unknown device') }}
+
+WASN'T YOU?
+If you didn't change your password, your account may be compromised. Please:
+1. Reset your password immediately
+2. Review your recent account activity
+3. Enable two-factor authentication if available
+4. Contact our support team at {{ support_email }}
+{% endblock %}
+
+{% block footer_message %}
+This is a security notification for your {{ app_name }} account. 
+Please keep this email for your records.
+{% endblock %}

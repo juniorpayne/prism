@@ -1,0 +1,77 @@
+{% extends "base/base.html" %}
+
+{% block title %}Account Deleted - {{ app_name }}{% endblock %}
+{% block preheader %}Your {{ app_name }} account has been deleted{% endblock %}
+{% block header_subtitle %}
+<p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 400; color: #ffffff; opacity: 0.8;">
+    Account Deletion Confirmation
+</p>
+{% endblock %}
+
+{% block content %}
+<tr>
+    <td align="center">
+        <h2 style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; color: #333333;">
+            Your Account Has Been Deleted
+        </h2>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Hi {{ username|default('there') }},
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            This email confirms that your {{ app_name }} account has been permanently deleted as requested.
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #333333;">
+            What This Means:
+        </h3>
+        <ul style="margin: 0; padding-left: 20px; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #555555;">
+            <li style="margin-bottom: 8px;">Your account and profile information have been removed</li>
+            <li style="margin-bottom: 8px;">All your DNS records and configurations have been deleted</li>
+            <li style="margin-bottom: 8px;">You will no longer receive emails from {{ app_name }}</li>
+            <li style="margin-bottom: 8px;">This action cannot be undone</li>
+        </ul>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            <strong>Deletion Details:</strong><br>
+            Account Email: {{ email|default('your email') }}<br>
+            Deletion Date: {{ deletion_date|default('Today') }}<br>
+            Request IP: {{ request_ip|default('Unknown') }}
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="background-color: #e3f2fd; padding: 20px; border-radius: 5px; border-left: 4px solid #2196f3;">
+        <h3 style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 16px; font-weight: 600; color: #1565c0;">
+            Changed Your Mind?
+        </h3>
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #424242;">
+            We're sorry to see you go! If you change your mind, you're always welcome to create a new account at any time.
+        </p>
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #424242;">
+            Visit <a href="{{ app_url }}" style="color: #2196f3;">{{ app_url }}</a> to sign up again.
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="padding-top: 30px;">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            <strong>Need Help?</strong><br>
+            If you didn't request this deletion or have any concerns, please contact us immediately at <a href="mailto:{{ support_email }}" style="color: #0d6efd;">{{ support_email }}</a>
+        </p>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_message %}
+This is a confirmation that your {{ app_name }} account has been deleted. No further action is required.
+{% endblock %}

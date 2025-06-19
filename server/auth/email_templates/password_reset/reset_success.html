@@ -1,0 +1,69 @@
+{% extends "base/base.html" %}
+
+{% block title %}Password Changed Successfully - {{ app_name }}{% endblock %}
+{% block preheader %}Your password has been changed successfully{% endblock %}
+{% block header_subtitle %}
+<p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 400; color: #ffffff; opacity: 0.8;">
+    Security Notification
+</p>
+{% endblock %}
+
+{% block content %}
+<tr>
+    <td align="center">
+        <h2 style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; color: #333333;">
+            Password Changed Successfully
+        </h2>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Hi {{ username|default('there') }},
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Your password for {{ app_name }} has been successfully changed. You can now log in with your new password.
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="background-color: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745; margin: 20px 0;">
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #155724;">
+            <strong>✓ Password Updated</strong><br>
+            Your account is now secured with your new password.
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <h3 style="margin: 20px 0 10px 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 600; color: #333333;">
+            Security Information
+        </h3>
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            <strong>Changed on:</strong> {{ change_date|default('Just now') }}<br>
+            <strong>Changed from IP:</strong> {{ change_ip|default('Unknown') }}<br>
+            <strong>Device:</strong> {{ device_info|default('Unknown device') }}
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left" style="padding-top: 20px;">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #333333; font-weight: 600;">
+            Wasn't you?
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #555555;">
+            If you didn't change your password, your account may be compromised. Please:
+        </p>
+        <ol style="margin: 0 0 20px 0; padding-left: 20px; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #555555;">
+            <li>Reset your password immediately</li>
+            <li>Review your recent account activity</li>
+            <li>Enable two-factor authentication if available</li>
+            <li>Contact our support team at <a href="mailto:{{ support_email }}" style="color: #0d6efd;">{{ support_email }}</a></li>
+        </ol>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_message %}
+This is a security notification for your {{ app_name }} account. Please keep this email for your records.
+{% endblock %}

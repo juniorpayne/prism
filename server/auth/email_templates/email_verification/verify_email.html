@@ -1,0 +1,63 @@
+{% extends "base/base.html" %}
+
+{% block title %}Verify Your Email - {{ app_name }}{% endblock %}
+{% block preheader %}Please verify your email address to complete your registration{% endblock %}
+{% block header_subtitle %}
+<p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 18px; font-weight: 400; color: #ffffff; opacity: 0.8;">
+    Email Verification Required
+</p>
+{% endblock %}
+
+{% block content %}
+<tr>
+    <td align="center">
+        <h2 style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; color: #333333;">
+            Welcome to {{ app_name }}!
+        </h2>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Hi {{ username|default('there') }},
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #555555;">
+            Thank you for signing up! To complete your registration and access all features, please verify your email address by clicking the button below:
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="center" style="padding: 20px 0;">
+        <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td align="center" style="border-radius: 5px;" bgcolor="#0d6efd">
+                    <a href="{{ verification_url }}" target="_blank" style="display: inline-block; padding: 15px 30px; font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; border-radius: 5px;" class="button">
+                        Verify Email Address
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #666666;">
+            If the button doesn't work, you can also copy and paste this link into your browser:
+        </p>
+        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #0d6efd; word-break: break-all;">
+            {{ verification_url }}
+        </p>
+    </td>
+</tr>
+<tr>
+    <td align="left">
+        <p style="margin: 20px 0 0 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #999999;">
+            <strong>Note:</strong> This verification link will expire in {{ expiry_hours|default(24) }} hours for security reasons.
+        </p>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_message %}
+You received this email because someone signed up for a {{ app_name }} account with this email address. If this wasn't you, please ignore this email.
+{% endblock %}

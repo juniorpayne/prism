@@ -1,0 +1,37 @@
+{% extends "base/base.txt" %}
+
+{% block header_subtitle %}Your Account is Ready!{% endblock %}
+
+{% block content %}
+Welcome to {{ app_name }}, {{ username|default('DNS Master') }}! 🎉
+
+Thank you for verifying your email address! Your account is now fully activated 
+and you're ready to start using {{ app_name }}.
+
+WHAT IS {{ app_name }}?
+{{ app_name }} is a managed DNS solution that makes it easy to register and manage 
+your DNS records. With automatic host registration and heartbeat monitoring, 
+you'll always know your services are accessible.
+
+GETTING STARTED:
+
+1. Install the Prism Client
+   Download and install the Prism client on your servers to start registering hosts.
+
+2. Configure Your First Host
+   Set up your client configuration with your hostname and registration settings.
+
+3. Monitor Your Services
+   Use the dashboard to monitor your registered hosts and their status in real-time.
+
+Go to Dashboard: {{ app_url }}/dashboard
+
+NEED HELP?
+• Check out our documentation: {{ app_url }}/docs
+• Contact support at {{ support_email }}
+• Visit the help center: {{ app_url }}/help
+{% endblock %}
+
+{% block footer_message %}
+You're receiving this because you recently created an account with {{ app_name }}.
+{% endblock %}
