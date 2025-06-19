@@ -7,6 +7,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from server.auth.email_providers.base import EmailMessage, EmailProvider, EmailResult
+from server.auth.email_providers.console_formatter import ConsoleFormatter
 
 
 class ConsoleEmailProvider(EmailProvider):
@@ -28,6 +29,13 @@ class ConsoleEmailProvider(EmailProvider):
         self.format = self.config.get("format", "pretty")
         self.use_colors = self.config.get("use_colors", False)
         self.highlight_links = self.config.get("highlight_links", True)
+        self.enhanced_formatting = self.config.get("enhanced_formatting", True)
+
+        # Initialize formatter if enhanced formatting is enabled
+        if self.enhanced_formatting:
+            self.formatter = ConsoleFormatter()
+        else:
+            self.formatter = None
 
     async def send_email(self, message: EmailMessage) -> EmailResult:
         """Print email to console."""
@@ -54,6 +62,17 @@ class ConsoleEmailProvider(EmailProvider):
 
     def _print_email(self, message: EmailMessage) -> None:
         """Print formatted email to console."""
+        # Use enhanced formatter if available
+        if self.formatter and self.enhanced_formatting:
+            output = self.formatter.format_email(message)
+            print(output)
+            return
+
+        # Fall back to simple formatting
+        self._print_simple_email(message)
+
+    def _print_simple_email(self, message: EmailMessage) -> None:
+        """Print email with simple formatting (fallback)."""
         # Extract important information
         links = self._extract_links(message.html_body)
         tokens = self._extract_tokens(message.html_body)

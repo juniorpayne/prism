@@ -3,6 +3,7 @@
 Unit tests for specific email provider implementations.
 """
 
+import os
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -266,20 +267,19 @@ class TestSMTPEmailProvider:
 @pytest.mark.asyncio
 async def test_email_service_uses_console_provider():
     """Test that email service uses console provider when SMTP is not configured."""
-    with patch("server.auth.email.get_settings") as mock_settings:
-        with patch("server.auth.email.get_email_provider_from_env") as mock_env:
-            # Configure settings to disable email
-            mock_settings.return_value = {
-                "email_enabled": False,
-                "email_username": "",
-                "email_password": "",
-                "frontend_url": "http://localhost:8090",
-            }
+    # Clear email service singleton
+    from server.auth import email
 
-            # Mock env to return console config
-            mock_env.return_value = {
-                "provider": "console",
-                "format": "pretty",
+    email._email_service = None
+
+    with patch("server.auth.email.get_settings") as mock_settings:
+        with patch.dict(
+            os.environ, {"EMAIL_PROVIDER": "console", "EMAIL_FROM_ADDRESS": "test@example.com"}
+        ):
+            # Configure settings
+            mock_settings.return_value = {
+                "email_from": "test@example.com",
+                "frontend_url": "http://localhost:8090",
             }
 
             # Import after patching
@@ -295,28 +295,34 @@ async def test_email_service_uses_console_provider():
 @pytest.mark.asyncio
 async def test_email_service_uses_smtp_provider():
     """Test that email service uses SMTP provider when configured."""
-    with patch("server.auth.email.get_settings") as mock_settings:
-        with patch("server.auth.email.get_email_provider_from_env") as mock_env:
-            with patch("server.auth.email_providers.smtp.FastMail"):
-                # Configure settings to enable email
-                mock_settings.return_value = {
-                    "email_enabled": True,
-                    "email_username": "test@example.com",
-                    "email_password": "password123",
-                    "email_host": "smtp.example.com",
-                    "email_port": 587,
-                    "email_from": "noreply@example.com",
-                    "email_from_name": "Test App",
-                    "frontend_url": "http://localhost:8090",
-                }
+    # Clear email service singleton and config loader
+    from server.auth import email
 
-                # Mock env to return SMTP config
-                mock_env.return_value = {
-                    "provider": "smtp",
-                    "host": "smtp.example.com",
-                    "port": "587",
-                    "username": "test@example.com",
-                    "password": "password123",
+    email._email_service = None
+
+    # Clear the config loader singleton
+    from server.auth.email_providers import config_loader
+
+    config_loader._config_loader = None
+
+    with patch("server.auth.email.get_settings") as mock_settings:
+        with patch.dict(
+            os.environ,
+            {
+                "EMAIL_PROVIDER": "smtp",
+                "EMAIL_FROM_ADDRESS": "noreply@example.com",
+                "EMAIL_FROM_NAME": "Test App",
+                "SMTP_HOST": "smtp.example.com",
+                "SMTP_PORT": "587",
+                "SMTP_USERNAME": "test@example.com",
+                "SMTP_PASSWORD": "password123",
+            },
+        ):
+            with patch("server.auth.email_providers.smtp.FastMail"):
+                # Configure settings
+                mock_settings.return_value = {
+                    "email_from": "noreply@example.com",
+                    "frontend_url": "http://localhost:8090",
                 }
 
                 # Import after patching

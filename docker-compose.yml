@@ -94,6 +94,19 @@ services:
     profiles:
       - tools
 
+  # MailHog for local email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: prism-mailhog
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - prism-network
+    profiles:
+      - development
+      - testing
+
 volumes:
   # Persistent data volume for database
   database_data:

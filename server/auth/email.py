@@ -17,7 +17,8 @@ from server.auth.email_providers import (
     EmailProviderFactory,
     EmailResult,
 )
-from server.auth.email_providers.utils import get_email_provider_from_env
+from server.auth.email_providers.config_loader import get_config_loader
+from server.auth.email_providers.validators import validate_config_for_environment
 from server.auth.email_templates import get_template_service
 
 logger = logging.getLogger(__name__)
@@ -30,16 +31,38 @@ class EmailService:
         """Initialize email service."""
         self.settings = get_settings()
 
-        # Get email configuration from environment or settings
-        email_config = get_email_provider_from_env()
+        # Get configuration loader
+        config_loader = get_config_loader()
 
-        # Override with settings if email is disabled
-        if not self.settings.get("email_enabled"):
-            email_config["provider"] = "console"
-            logger.info("Email disabled in settings, using console provider")
+        # Load email configuration
+        try:
+            email_config = config_loader.load_config()
+
+            # Validate configuration for current environment
+            warnings = validate_config_for_environment(email_config, config_loader.env)
+            for warning in warnings:
+                logger.warning(f"Email config warning: {warning}")
+
+            # Log configuration info
+            config_info = config_loader.get_config_info()
+            logger.info(f"Email configuration loaded: {config_info}")
+
+        except Exception as e:
+            logger.error(f"Failed to load email configuration: {e}")
+            # Fall back to console provider
+            from server.auth.email_providers.config import ConsoleEmailConfig, EmailProviderType
+
+            email_config = ConsoleEmailConfig(
+                provider=EmailProviderType.CONSOLE,
+                from_email=self.settings.get("email_from", "noreply@prism.local"),
+            )
+            logger.info("Using fallback console email provider")
 
         # Create provider using factory
-        self.provider = EmailProviderFactory.create_provider(email_config["provider"], email_config)
+        self.provider = EmailProviderFactory.create_from_email_config(email_config)
+
+        # Store config for later use
+        self.email_config = email_config
 
         # Initialize template service
         self.template_service = get_template_service()
@@ -75,8 +98,9 @@ class EmailService:
             subject="Verify your Prism DNS account",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
         )
 
         # Send email
@@ -124,8 +148,9 @@ class EmailService:
             subject="Reset your Prism DNS password",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
             metadata={
                 "ip_address": ip_address,
                 "user_agent": user_agent,
@@ -173,8 +198,9 @@ class EmailService:
             subject="Your Prism DNS password has been changed",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
             priority=EmailPriority.HIGH,  # Security notifications are high priority
         )
 
@@ -206,8 +232,9 @@ class EmailService:
             subject=f"Welcome to {self.template_service.app_name}!",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
         )
 
         # Send email
@@ -257,8 +284,9 @@ class EmailService:
             subject="Security Alert - New Device Login",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
             priority=EmailPriority.HIGH,  # Security alerts are high priority
         )
 
@@ -301,8 +329,9 @@ class EmailService:
             subject="Account Deleted - Prism DNS",
             html_body=html_body,
             text_body=text_body,
-            from_email=self.settings.get("email_from", "noreply@prismdns.com"),
-            from_name=self.settings.get("email_from_name", "Prism DNS"),
+            from_email=self.email_config.from_email,
+            from_name=self.email_config.from_name,
+            reply_to=self.email_config.reply_to,
         )
 
         # Send email

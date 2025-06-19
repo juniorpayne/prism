@@ -99,58 +99,84 @@ def is_disposable_email(email: str) -> bool:
     return domain in disposable_domains if domain else False
 
 
+# Deprecated: Use EmailConfigLoader.load_config() instead
+# This function is kept for backward compatibility only
 def get_email_provider_from_env() -> Dict[str, str]:
     """
     Get email provider configuration from environment variables.
 
+    DEPRECATED: Use EmailConfigLoader from server.auth.email_providers.config_loader instead.
+    This function is kept for backward compatibility only.
+
     Returns:
         Dictionary with provider configuration
     """
-    provider = os.getenv("EMAIL_PROVIDER", "console").lower()
+    import warnings
 
-    config = {
-        "provider": provider,
+    warnings.warn(
+        "get_email_provider_from_env() is deprecated. "
+        "Use EmailConfigLoader.load_config() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    from server.auth.email_providers.config_loader import get_config_loader
+
+    # Use the new config loader
+    loader = get_config_loader()
+    config = loader.load_config()
+
+    # Convert to legacy dict format
+    legacy_config = {
+        "provider": config.provider.value,
+        "from_email": config.from_email,
+        "from_name": config.from_name or "Prism DNS",
     }
 
-    if provider == "smtp":
-        config.update(
-            {
-                "host": os.getenv("EMAIL_SMTP_HOST", ""),
-                "port": os.getenv("EMAIL_SMTP_PORT", "587"),
-                "username": os.getenv("EMAIL_SMTP_USERNAME", ""),
-                "password": os.getenv("EMAIL_SMTP_PASSWORD", ""),
-                "use_tls": os.getenv("EMAIL_SMTP_USE_TLS", "true").lower() == "true",
-                "use_ssl": os.getenv("EMAIL_SMTP_USE_SSL", "false").lower() == "true",
-                "from_email": os.getenv("EMAIL_FROM_ADDRESS", ""),
-                "from_name": os.getenv("EMAIL_FROM_NAME", ""),
-            }
-        )
-    elif provider == "console":
-        config.update(
-            {
-                "format": os.getenv("EMAIL_CONSOLE_FORMAT", "pretty"),
-                "use_colors": os.getenv("EMAIL_CONSOLE_USE_COLORS", "false").lower() == "true",
-                "highlight_links": os.getenv("EMAIL_CONSOLE_HIGHLIGHT_LINKS", "true").lower()
-                == "true",
-            }
-        )
-    # Add more providers as needed
+    # Add provider-specific fields
+    if hasattr(config, "host"):
+        legacy_config["host"] = config.host
+    if hasattr(config, "port"):
+        legacy_config["port"] = str(config.port)
+    if hasattr(config, "username"):
+        legacy_config["username"] = config.username or ""
+    if hasattr(config, "password"):
+        legacy_config["password"] = config.password or ""
+    if hasattr(config, "use_tls"):
+        legacy_config["use_tls"] = config.use_tls
+    if hasattr(config, "use_ssl"):
+        legacy_config["use_ssl"] = config.use_ssl
+    if hasattr(config, "format"):
+        legacy_config["format"] = config.format.value
+    if hasattr(config, "use_colors"):
+        legacy_config["use_colors"] = config.use_colors
+    if hasattr(config, "highlight_links"):
+        legacy_config["highlight_links"] = config.highlight_links
 
-    return config
+    return legacy_config
 
 
+# Deprecated: Use get_default_config() from config module instead
 def create_default_email_config() -> Dict[str, str]:
     """
     Create default email configuration for development.
 
+    DEPRECATED: Use get_default_config() from server.auth.email_providers.config instead.
+    This function is kept for backward compatibility only.
+
     Returns:
         Dictionary with default configuration
     """
-    return {
-        "provider": "console",
-        "format": "pretty",
-        "use_colors": False,
-        "highlight_links": True,
-        "from_email": "noreply@prism.local",
-        "from_name": "Prism DNS (Dev)",
-    }
+    import warnings
+
+    warnings.warn(
+        "create_default_email_config() is deprecated. "
+        "Use get_default_config() from server.auth.email_providers.config instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    from server.auth.email_providers.config import EmailProviderType, get_default_config
+
+    # Get default config for console provider
+    return get_default_config(EmailProviderType.CONSOLE)
