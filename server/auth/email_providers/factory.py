@@ -16,7 +16,7 @@ from server.auth.email_providers.config import (
 )
 from server.auth.email_providers.console import ConsoleEmailProvider
 from server.auth.email_providers.exceptions import EmailConfigurationError
-from server.auth.email_providers.smtp import SMTPEmailProvider
+from server.auth.email_providers.smtp import SMTPEmailProvider, create_smtp_provider
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +138,8 @@ class EmailProviderFactory:
         try:
             # Create provider with appropriate config type
             if provider_type == EmailProviderType.SMTP:
-                # SMTP provider expects SMTPEmailConfig object
-                provider = provider_class(config)
+                # Use factory function that returns basic or enhanced SMTP provider
+                provider = create_smtp_provider(config)
             else:
                 # Other providers expect dict for now
                 config_dict = config.model_dump(exclude={"provider"})

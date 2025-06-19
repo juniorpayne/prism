@@ -98,6 +98,35 @@ class SMTPEmailConfig(BaseEmailConfig):
     local_hostname: Optional[str] = Field(None, description="Local hostname for EHLO/HELO")
     validate_certs: bool = Field(default=True, description="Validate SSL certificates")
 
+    # Connection pooling settings
+    pool_size: int = Field(default=5, ge=1, le=20, description="Connection pool size")
+    pool_max_idle_time: int = Field(
+        default=300, ge=60, le=3600, description="Max idle time for connections in seconds"
+    )
+
+    # Retry settings
+    retry_max_attempts: int = Field(default=3, ge=1, le=10, description="Maximum retry attempts")
+    retry_initial_delay: float = Field(
+        default=1.0, ge=0.1, le=10.0, description="Initial retry delay in seconds"
+    )
+    retry_max_delay: float = Field(
+        default=60.0, ge=1.0, le=300.0, description="Maximum retry delay in seconds"
+    )
+    retry_exponential_base: float = Field(
+        default=2.0, ge=1.1, le=3.0, description="Exponential backoff base"
+    )
+
+    # Circuit breaker settings
+    circuit_breaker_enabled: bool = Field(
+        default=True, description="Enable circuit breaker pattern"
+    )
+    circuit_breaker_threshold: int = Field(
+        default=5, ge=1, le=20, description="Failure threshold for circuit breaker"
+    )
+    circuit_breaker_timeout: int = Field(
+        default=60, ge=10, le=600, description="Circuit breaker recovery timeout in seconds"
+    )
+
     @model_validator(mode="after")
     def validate_encryption(self) -> "SMTPEmailConfig":
         """Validate encryption settings."""

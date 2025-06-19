@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 SMTP email provider implementation using aiosmtplib.
+
+This module provides both basic and enhanced SMTP providers.
+The enhanced provider includes connection pooling, retry logic, and circuit breaker.
 """
 
 import logging
@@ -216,3 +219,25 @@ class SMTPEmailProvider(EmailProvider):
     def __repr__(self) -> str:
         """String representation."""
         return f"<SMTPEmailProvider host={self.config.host}:{self.config.port}>"
+
+
+def create_smtp_provider(config: SMTPEmailConfig) -> EmailProvider:
+    """
+    Create appropriate SMTP provider based on configuration.
+
+    If pool_size > 1 or circuit breaker is enabled, returns enhanced provider.
+    Otherwise returns basic provider for simplicity.
+
+    Args:
+        config: SMTP configuration
+
+    Returns:
+        EmailProvider: Basic or enhanced SMTP provider
+    """
+    # Use enhanced provider if advanced features are configured
+    if config.pool_size > 1 or config.circuit_breaker_enabled:
+        from .smtp_enhanced import EnhancedSMTPEmailProvider
+
+        return EnhancedSMTPEmailProvider(config)
+    else:
+        return SMTPEmailProvider(config)
