@@ -243,3 +243,8 @@ class ConsoleEmailProvider(EmailProvider):
             lines.append("\nLinks found:")
             for link_text, link_url in links:
                 lines.append(f"- {link_text}: {link_url}")
+
+    @property
+    def provider_name(self) -> str:
+        """Get provider name."""
+        return "Console"

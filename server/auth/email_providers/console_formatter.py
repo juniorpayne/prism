@@ -12,6 +12,8 @@ import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+from colorama import Fore, Style, init
+
 from server.auth.email_providers.base import EmailMessage
 
 
@@ -122,6 +124,19 @@ class ASCIIBoxFormatter:
             "r": "+",
             "x": "+",
         },
+        "rounded": {
+            "tl": "╭",
+            "tr": "╮",
+            "bl": "╰",
+            "br": "╯",
+            "h": "─",
+            "v": "│",
+            "t": "┬",
+            "b": "┴",
+            "l": "├",
+            "r": "┤",
+            "x": "┼",
+        },
     }
 
     def create_box(
@@ -130,6 +145,7 @@ class ASCIIBoxFormatter:
         title: Optional[str] = None,
         width: Optional[int] = None,
         style: str = "single",
+        color: str = "",
     ) -> str:
         """
         Create a box around content.
@@ -138,7 +154,8 @@ class ASCIIBoxFormatter:
             content: Content to put in box
             title: Optional title for box
             width: Box width (auto-calculated if None)
-            style: Box style (single, double, simple)
+            style: Box style (single, double, simple, rounded)
+            color: ANSI color code
 
         Returns:
             Formatted box string
@@ -183,35 +200,25 @@ class ASCIIBoxFormatter:
         bottom_line = chars["bl"] + chars["h"] * (width - 2) + chars["br"]
         box_lines.append(bottom_line)
 
+        if color:
+            return "\n".join([f"{color}{line}{Style.RESET_ALL}" for line in box_lines])
         return "\n".join(box_lines)
 
     def create_highlight_box(self, content: str, width: Optional[int] = None) -> str:
         """Create a highlighted box for important content."""
         # Add emphasis markers
         emphasized = f"► {content} ◄"
-        box = self.create_box(emphasized, width=width, style="double")
+        box = self.create_box(emphasized, width=width, style="double", color=Fore.YELLOW)
 
         # Add extra emphasis lines
         width = len(box.split("\n")[0])
         emphasis_line = "!" * width
 
-        return f"{emphasis_line}\n{box}\n{emphasis_line}"
+        return f"{Fore.YELLOW}{emphasis_line}\n{box}\n{emphasis_line}{Style.RESET_ALL}"
 
 
 class LinkHighlighter:
     """Extracts and highlights links in email content."""
-
-    # ANSI color codes
-    COLORS = {
-        "reset": "\033[0m",
-        "bold": "\033[1m",
-        "underline": "\033[4m",
-        "blue": "\033[34m",
-        "cyan": "\033[36m",
-        "green": "\033[32m",
-        "yellow": "\033[33m",
-        "red": "\033[31m",
-    }
 
     def extract_links(self, html_content: str) -> List[Dict[str, Any]]:
         """
@@ -283,13 +290,13 @@ class LinkHighlighter:
         if use_color:
             # Color based on type
             if link_type == "verification":
-                color = self.COLORS["green"]
+                color = Fore.GREEN
             elif link_type == "password_reset":
-                color = self.COLORS["yellow"]
+                color = Fore.YELLOW
             else:
-                color = self.COLORS["blue"]
+                color = Fore.BLUE
 
-            return f"{self.COLORS['bold']}{text}:{self.COLORS['reset']} {color}{self.COLORS['underline']}{url}{self.COLORS['reset']}"
+            return f"{Style.BRIGHT}{text}:{Style.RESET_ALL} {color}{url}{Style.RESET_ALL}"
         else:
             return f"{text}: {url}"
 
@@ -330,6 +337,8 @@ class ConsoleFormatter:
         self.box_formatter = ASCIIBoxFormatter()
         self.link_highlighter = LinkHighlighter()
         self._terminal_width = None
+        if self.color_detector.supports_color():
+            init(autoreset=True)
 
     def get_terminal_width(self) -> int:
         """Get terminal width."""
@@ -356,16 +365,18 @@ class ConsoleFormatter:
 
         # Add environment notice if needed
         if self.color_detector.is_docker():
-            lines.append("🐳 Running in Docker container (colors disabled)")
+            lines.append(
+                f"{Fore.CYAN}🐳 Running in Docker container (colors disabled){Style.RESET_ALL}"
+            )
         elif self.color_detector.is_ci():
-            lines.append("🤖 Running in CI environment")
+            lines.append(f"{Fore.CYAN}🤖 Running in CI environment{Style.RESET_ALL}")
 
         # Main header
-        header = self._format_header(message, width)
+        header = self._format_header(message, width, use_color)
         lines.append(header)
 
         # Email metadata
-        metadata = self._format_metadata(message, width)
+        metadata = self._format_metadata(message, width, use_color)
         lines.append(metadata)
 
         # Determine email type and format accordingly
@@ -383,12 +394,12 @@ class ConsoleFormatter:
         lines.append(content)
 
         # Footer
-        footer = self._format_footer(width)
+        footer = self._format_footer(width, use_color)
         lines.append(footer)
 
         return "\n".join(lines)
 
-    def _format_header(self, message: EmailMessage, width: int) -> str:
+    def _format_header(self, message: EmailMessage, width: int, use_color: bool) -> str:
         """Format email header."""
         email_type = self._determine_email_type(message)
 
@@ -396,42 +407,54 @@ class ConsoleFormatter:
         if email_type == "verification":
             emoji = "🔐"
             title = "EMAIL VERIFICATION"
+            color = Fore.GREEN
         elif email_type == "password_reset":
             emoji = "🔑"
             title = "PASSWORD RESET"
+            color = Fore.YELLOW
         elif email_type == "security_alert":
             emoji = "⚠️"
             title = "SECURITY ALERT"
+            color = Fore.RED
         elif "welcome" in message.subject.lower():
             emoji = "🎉"
             title = "WELCOME EMAIL"
+            color = Fore.MAGENTA
         else:
             emoji = "📧"
             title = "EMAIL NOTIFICATION"
+            color = Fore.CYAN
 
         header_text = f"{emoji} {title}"
 
         # Create decorative header
-        return self.box_formatter.create_box(header_text, width=width, style="double")
+        return self.box_formatter.create_box(
+            header_text, width=width, style="double", color=color if use_color else ""
+        )
 
-    def _format_metadata(self, message: EmailMessage, width: int) -> str:
+    def _format_metadata(self, message: EmailMessage, width: int, use_color: bool) -> str:
         """Format email metadata."""
         lines = []
 
         # Basic metadata
-        lines.append(f"To: {', '.join(message.to)}")
-        lines.append(f"Subject: {message.subject}")
+        to_str = f"{Style.BRIGHT}To:{Style.RESET_ALL} {', '.join(message.to)}"
+        subject_str = f"{Style.BRIGHT}Subject:{Style.RESET_ALL} {message.subject}"
+        lines.append(to_str)
+        lines.append(subject_str)
 
         if message.from_email:
-            from_line = f"From: {message.from_email}"
+            from_line = f"{Style.BRIGHT}From:{Style.RESET_ALL} {message.from_email}"
             if message.from_name:
-                from_line = f"From: {message.from_name} <{message.from_email}>"
+                from_line = f"{Style.BRIGHT}From:{Style.RESET_ALL} {message.from_name} <{message.from_email}>"
             lines.append(from_line)
 
         if message.cc:
-            lines.append(f"CC: {', '.join(message.cc)}")
+            lines.append(f"{Style.BRIGHT}CC:{Style.RESET_ALL} {', '.join(message.cc)}")
 
-        return "\n".join(lines)
+        if use_color:
+            return "\n".join(lines)
+        else:
+            return "\n".join([re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines])
 
     def _determine_email_type(self, message: EmailMessage) -> str:
         """Determine the type of email."""
@@ -464,7 +487,11 @@ class ConsoleFormatter:
 
             # Token display
             token_box = self.box_formatter.create_box(
-                f"Verification Token: {token}", title="TOKEN", width=width
+                f"Verification Token: {token}",
+                title="TOKEN",
+                width=width,
+                style="rounded",
+                color=Fore.CYAN if use_color else "",
             )
             lines.append(token_box)
             lines.append("")
@@ -478,7 +505,7 @@ class ConsoleFormatter:
             actions = self._create_quick_actions_verification(link, message.to[0])
             lines.append(actions)
         else:
-            lines.append("⚠️  No verification link found in email")
+            lines.append(f"{Fore.RED}⚠️  No verification link found in email{Style.RESET_ALL}")
 
         return "\n".join(lines)
 
@@ -498,7 +525,11 @@ class ConsoleFormatter:
 
             # Token display
             token_box = self.box_formatter.create_box(
-                f"Reset Token: {token}", title="TOKEN", width=width
+                f"Reset Token: {token}",
+                title="TOKEN",
+                width=width,
+                style="rounded",
+                color=Fore.CYAN if use_color else "",
             )
             lines.append(token_box)
             lines.append("")
@@ -514,7 +545,7 @@ class ConsoleFormatter:
             lines.append("2. Enter your new password")
             lines.append("3. Confirm the password change")
         else:
-            lines.append("⚠️  No reset link found in email")
+            lines.append(f"{Fore.RED}⚠️  No reset link found in email{Style.RESET_ALL}")
 
         return "\n".join(lines)
 
@@ -596,9 +627,10 @@ class ConsoleFormatter:
 
         return "\n".join(actions)
 
-    def _format_footer(self, width: int) -> str:
+    def _format_footer(self, width: int, use_color: bool) -> str:
         """Format email footer."""
         separator = "═" * width
         timestamp = "📅 Email sent via Console Provider (Development Mode)"
-
+        if use_color:
+            return f"\n{Fore.CYAN}{separator}{Style.RESET_ALL}\n{timestamp}\n"
         return f"\n{separator}\n{timestamp}\n"

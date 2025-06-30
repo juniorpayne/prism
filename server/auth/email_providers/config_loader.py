@@ -100,7 +100,7 @@ class EmailConfigLoader:
             raw_config = self._load_config_from_env(provider)
 
         # Add provider to config data
-        raw_config["provider"] = provider
+        raw_config["provider"] = provider.value
 
         # Create configuration instance
         try:
@@ -114,7 +114,6 @@ class EmailConfigLoader:
                 raise ValueError(f"Unknown email provider: {provider}")
 
             self._loaded_config = config
-            logger.info(f"Loaded {provider} email configuration for {self.env} environment")
 
             return config
 

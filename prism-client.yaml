@@ -9,6 +9,7 @@ service:
 # Server connection settings
 server:
   host: localhost #prism.thepaynes.ca
+  #host: prism.thepaynes.ca
   port: 8080
   timeout: 10
 

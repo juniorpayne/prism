@@ -32,8 +32,7 @@ class EmailProviderFactory:
     _providers: Dict[EmailProviderType, Type[EmailProvider]] = {
         EmailProviderType.CONSOLE: ConsoleEmailProvider,
         EmailProviderType.SMTP: SMTPEmailProvider,
-        # Future providers will be added here:
-        # EmailProviderType.AWS_SES: SESEmailProvider,
+        EmailProviderType.AWS_SES: None,  # Will be registered lazily to avoid import issues
     }
 
     @classmethod
@@ -136,10 +135,20 @@ class EmailProviderFactory:
         provider_class = cls._providers[provider_type]
 
         try:
+            # Lazy import AWS SES provider to avoid circular imports
+            if provider_type == EmailProviderType.AWS_SES and provider_class is None:
+                from .aws_ses import AWSSESEmailProvider
+
+                cls._providers[EmailProviderType.AWS_SES] = AWSSESEmailProvider
+                provider_class = AWSSESEmailProvider
+
             # Create provider with appropriate config type
             if provider_type == EmailProviderType.SMTP:
                 # Use factory function that returns basic or enhanced SMTP provider
                 provider = create_smtp_provider(config)
+            elif provider_type == EmailProviderType.AWS_SES:
+                # AWS SES expects config object directly
+                provider = provider_class(config)
             else:
                 # Other providers expect dict for now
                 config_dict = config.model_dump(exclude={"provider"})

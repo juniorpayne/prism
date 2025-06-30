@@ -17,6 +17,11 @@ services:
     environment:
       - PRISM_ENV=development
       - PRISM_CONFIG_PATH=/app/config/server.yaml
+      - EMAIL_PROVIDER=console
+      - EMAIL_CONSOLE_FORMAT=pretty
+      - EMAIL_FROM_ADDRESS=dev@prism.local
+      - EMAIL_FROM_NAME=Prism DNS (Dev)
+      - APP_URL=http://localhost:8090
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
     command: >

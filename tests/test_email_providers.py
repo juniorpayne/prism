@@ -8,6 +8,7 @@ import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiosmtplib import SMTPException
 
 from server.auth.email_providers import (
     ConsoleEmailProvider,
@@ -16,6 +17,7 @@ from server.auth.email_providers import (
     EmailResult,
     SMTPEmailProvider,
 )
+from server.auth.email_providers.config import SMTPEmailConfig
 
 
 class TestConsoleEmailProvider:
@@ -24,7 +26,9 @@ class TestConsoleEmailProvider:
     @pytest.fixture
     def console_provider(self):
         """Create a console email provider instance."""
-        return ConsoleEmailProvider({"format": "pretty", "highlight_links": True})
+        return ConsoleEmailProvider(
+            {"format": "pretty", "highlight_links": True, "enhanced_formatting": False}
+        )
 
     @pytest.mark.asyncio
     async def test_send_verification_email(self, console_provider, capsys):
@@ -193,75 +197,75 @@ class TestSMTPEmailProvider:
     """Test cases for SMTPEmailProvider."""
 
     @pytest.fixture
-    def mock_fastmail(self):
-        """Create a mock FastMail instance."""
-        return MagicMock()
-
-    @pytest.fixture
-    def smtp_provider(self, mock_fastmail):
+    def smtp_provider(self):
         """Create an SMTP email provider instance."""
-        with patch("server.auth.email_providers.smtp.FastMail", return_value=mock_fastmail):
-            config = {
-                "host": "smtp.example.com",
-                "port": "587",
-                "username": "test@example.com",
-                "password": "password",
-            }
-            return SMTPEmailProvider(config)
+        config = SMTPEmailConfig(
+            provider="smtp",
+            from_email="test@example.com",
+            from_name="Test App",
+            host="smtp.example.com",
+            port=587,
+            username="test@example.com",
+            password="password",
+            use_tls=True,
+        )
+        return SMTPEmailProvider(config)
 
     @pytest.mark.asyncio
-    async def test_send_email_success(self, smtp_provider, mock_fastmail):
+    async def test_send_email_success(self, smtp_provider):
         """Test successful email sending via SMTP."""
-        # Configure mock to succeed
-        mock_fastmail.send_message = AsyncMock(return_value=None)
+        # Mock aiosmtplib.send
+        with patch("server.auth.email_providers.smtp.aiosmtplib.send") as mock_send:
+            # Configure mock to succeed
+            mock_send.return_value = {"message_id": "test-message-id"}
 
-        # Create email message
-        message = EmailMessage(
-            to=["test@example.com"],
-            subject="Test Subject",
-            html_body="<p>Test content</p>",
-        )
+            # Create email message
+            message = EmailMessage(
+                to=["test@example.com"],
+                subject="Test Subject",
+                html_body="<p>Test content</p>",
+            )
 
-        # Send email
-        result = await smtp_provider.send_email(message)
+            # Send email
+            result = await smtp_provider.send_email(message)
 
-        # Check result
-        assert result.success is True
-        assert result.provider == "SMTP"
+            # Check result
+            assert result.success is True
+            assert result.provider == "smtp"  # Note: lowercase now due to provider_name property
 
-        # Verify send_message was called
-        mock_fastmail.send_message.assert_called_once()
-
-        # Check the message that was sent
-        call_args = mock_fastmail.send_message.call_args[0][0]
-        assert call_args.subject == "Test Subject"
-        assert "test@example.com" in str(call_args.recipients)
-        assert call_args.body == "<p>Test content</p>"
+            # Verify send was called
+            mock_send.assert_called_once()
+            call_kwargs = mock_send.call_args[1]
+            assert call_kwargs["hostname"] == "smtp.example.com"
+            assert call_kwargs["port"] == 587
+            assert call_kwargs["username"] == "test@example.com"
+            assert call_kwargs["password"] == "password"
 
     @pytest.mark.asyncio
-    async def test_send_email_failure(self, smtp_provider, mock_fastmail):
+    async def test_send_email_failure(self, smtp_provider):
         """Test email sending failure via SMTP."""
-        # Configure mock to raise exception
-        mock_fastmail.send_message = AsyncMock(side_effect=Exception("SMTP connection failed"))
+        # Mock aiosmtplib.send to raise exception
+        with patch("server.auth.email_providers.smtp.aiosmtplib.send") as mock_send:
+            # Configure mock to raise exception
+            mock_send.side_effect = SMTPException("SMTP connection failed")
 
-        # Create email message
-        message = EmailMessage(
-            to=["test@example.com"],
-            subject="Test Subject",
-            html_body="<p>Test content</p>",
-        )
+            # Create email message
+            message = EmailMessage(
+                to=["test@example.com"],
+                subject="Test Subject",
+                html_body="<p>Test content</p>",
+            )
 
-        # Send email - should raise EmailDeliveryError
-        with pytest.raises(EmailDeliveryError) as exc_info:
-            await smtp_provider.send_email(message)
+            # Send email - should return failure result
+            result = await smtp_provider.send_email(message)
 
-        # Check that it's an SMTP-related error
-        error_message = str(exc_info.value)
-        assert "SMTP" in error_message
-        assert "connection failed" in error_message.lower()
+            # Check result
+            assert result.success is False
+            assert "connection failed" in result.error.lower()
+            assert result.provider == "smtp"
 
-        # Verify send_message was called
-        mock_fastmail.send_message.assert_called_once()
+            # Verify send was called
+            mock_send.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -316,9 +320,12 @@ async def test_email_service_uses_smtp_provider():
                 "SMTP_PORT": "587",
                 "SMTP_USERNAME": "test@example.com",
                 "SMTP_PASSWORD": "password123",
+                "SMTP_USE_TLS": "true",
+                "SMTP_USE_SSL": "false",
             },
+            clear=True,  # Clear all env vars to avoid conflicts
         ):
-            with patch("server.auth.email_providers.smtp.FastMail"):
+            with patch("server.auth.email_providers.smtp.aiosmtplib"):
                 # Configure settings
                 mock_settings.return_value = {
                     "email_from": "noreply@example.com",

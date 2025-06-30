@@ -1,0 +1,131 @@
+# CloudWatch Alarms for AWS SES Monitoring
+# Deploy with: aws cloudformation create-stack --stack-name prism-ses-alarms --template-body file://ses-alarms.yaml
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch Alarms for Prism DNS SES Email Monitoring
+
+Parameters:
+  AlarmEmail:
+    Type: String
+    Default: alerts@prism.thepaynes.ca
+    Description: Email address for alarm notifications
+  
+  ConfigurationSetName:
+    Type: String
+    Default: prism-dns-production
+    Description: SES Configuration Set name
+
+Resources:
+  # SNS Topic for Alarms
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: prism-ses-alarms
+      DisplayName: Prism DNS SES Alarms
+      Subscription:
+        - Endpoint: !Ref AlarmEmail
+          Protocol: email
+
+  # High Bounce Rate Alarm
+  HighBounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: prism-dns-high-bounce-rate
+      AlarmDescription: Alert when email bounce rate exceeds 5%
+      MetricName: Reputation.BounceRate
+      Namespace: AWS/SES
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0.05
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ConfigurationSet
+          Value: !Ref ConfigurationSetName
+
+  # High Complaint Rate Alarm
+  HighComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: prism-dns-high-complaint-rate
+      AlarmDescription: Alert when email complaint rate exceeds 0.1%
+      MetricName: Reputation.ComplaintRate
+      Namespace: AWS/SES
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0.001
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ConfigurationSet
+          Value: !Ref ConfigurationSetName
+
+  # Send Quota Usage Alarm
+  SendQuotaUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: prism-dns-send-quota-usage
+      AlarmDescription: Alert when 80% of daily send quota is used
+      MetricName: Send
+      Namespace: AWS/SES
+      Statistic: Sum
+      Period: 86400  # 24 hours
+      EvaluationPeriods: 1
+      Threshold: 16000  # Adjust based on your quota (80% of 20000)
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # Failed Send Attempts Alarm
+  FailedSendAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: prism-dns-failed-sends
+      AlarmDescription: Alert when email send failures exceed threshold
+      MetricName: Bounce
+      Namespace: AWS/SES
+      Statistic: Sum
+      Period: 3600  # 1 hour
+      EvaluationPeriods: 1
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ConfigurationSet
+          Value: !Ref ConfigurationSetName
+
+  # Low Send Rate Alarm (indicates potential issues)
+  LowSendRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: prism-dns-low-send-rate
+      AlarmDescription: Alert when email sending drops below expected rate
+      MetricName: Send
+      Namespace: AWS/SES
+      Statistic: Sum
+      Period: 3600  # 1 hour
+      EvaluationPeriods: 2
+      Threshold: 10  # Adjust based on expected volume
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ConfigurationSet
+          Value: !Ref ConfigurationSetName
+
+Outputs:
+  AlarmTopicArn:
+    Description: ARN of the SNS topic for alarms
+    Value: !Ref AlarmTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-AlarmTopicArn

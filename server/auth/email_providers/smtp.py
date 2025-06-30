@@ -214,7 +214,7 @@ class SMTPEmailProvider(EmailProvider):
     @property
     def provider_name(self) -> str:
         """Get provider name."""
-        return "smtp"
+        return "SMTP"
 
     def __repr__(self) -> str:
         """String representation."""

@@ -245,11 +245,17 @@ async def main() -> int:
         # Load configuration
         try:
             if os.path.exists(args.config):
-                config = ServerConfiguration.from_file(args.config)
+                config_dict = ServerConfiguration.from_file(args.config).to_dict()
             else:
                 # Use default configuration if file doesn't exist
                 print(f"Configuration file {args.config} not found, using defaults")
-                config = ServerConfiguration({})
+                config_dict = {}
+
+            # Add environment variable to config for API app
+            config_dict["server"] = config_dict.get("server", {})
+            config_dict["server"]["environment"] = os.getenv("PRISM_ENV", "production")
+
+            config = ServerConfiguration(config_dict)
 
         except (ConfigFileError, ConfigValidationError) as e:
             print(f"Configuration error: {e}", file=sys.stderr)

@@ -17,6 +17,7 @@ from server.auth.email_providers import (
     EmailProviderFactory,
     EmailResult,
 )
+from server.auth.email_providers.config import EmailProviderType
 from server.auth.email_providers.config_loader import get_config_loader
 from server.auth.email_providers.validators import validate_config_for_environment
 from server.auth.email_templates import get_template_service
@@ -50,11 +51,13 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to load email configuration: {e}")
             # Fall back to console provider
-            from server.auth.email_providers.config import ConsoleEmailConfig, EmailProviderType
+            from server.auth.email_providers.config import ConsoleEmailConfig
 
             email_config = ConsoleEmailConfig(
                 provider=EmailProviderType.CONSOLE,
                 from_email=self.settings.get("email_from", "noreply@prism.local"),
+                from_name=self.settings.get("email_from_name", "Prism DNS"),
+                reply_to=self.settings.get("email_reply_to"),
             )
             logger.info("Using fallback console email provider")
 
@@ -63,11 +66,28 @@ class EmailService:
 
         # Store config for later use
         self.email_config = email_config
+        # Ensure provider is an EmailProviderType enum
+        if isinstance(self.email_config.provider, str):
+            self.email_config.provider = EmailProviderType(self.email_config.provider)
 
         # Initialize template service
         self.template_service = get_template_service()
 
         logger.info(f"Email service initialized with {self.provider.provider_name} provider")
+
+        # Log email configuration details
+        logger.info("Email Configuration Details:")
+        logger.info(f"  Provider: {self.email_config.provider}")
+        logger.info(f"  From Address: {self.email_config.from_email}")
+        if self.email_config.from_name:
+            logger.info(f"  From Name: {self.email_config.from_name}")
+        if self.email_config.reply_to:
+            logger.info(f"  Reply To: {self.email_config.reply_to}")
+        if hasattr(self.email_config, "host"):
+            logger.info(f"  SMTP Host: {self.email_config.host}:{self.email_config.port}")
+        if hasattr(self.email_config, "region"):
+            logger.info(f"  AWS Region: {self.email_config.region}")
+        logger.info("-------------------------------------")
 
     async def send_verification_email(self, email: EmailStr, username: str, token: str) -> None:
         """

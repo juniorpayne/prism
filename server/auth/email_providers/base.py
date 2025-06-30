@@ -174,7 +174,7 @@ class EmailProvider(ABC):
     @property
     def provider_name(self) -> str:
         """Get provider name."""
-        return self.__class__.__name__.replace("EmailProvider", "")
+        return self.__class__.__name__.replace("EmailProvider", "").lower()
 
     def __repr__(self) -> str:
         """String representation of provider."""

@@ -99,6 +99,7 @@ class ServerConfigSection:
     api_port: int = 8081
     host: str = "0.0.0.0"  # nosec B104 - Required for Docker/container deployment
     max_connections: int = 1000
+    environment: str = "production"
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -339,6 +340,7 @@ class ServerConfiguration:
             "PRISM_SERVER_API_PORT": ("server", "api_port", int),
             "PRISM_SERVER_HOST": ("server", "host", str),
             "PRISM_SERVER_MAX_CONNECTIONS": ("server", "max_connections", int),
+            "PRISM_ENV": ("server", "environment", str),
             "PRISM_DATABASE_PATH": ("database", "path", str),
             "PRISM_DATABASE_CONNECTION_POOL_SIZE": ("database", "connection_pool_size", int),
             "PRISM_HEARTBEAT_CHECK_INTERVAL": ("heartbeat", "check_interval", int),
@@ -391,6 +393,7 @@ class ServerConfiguration:
                 "api_port": self.server.api_port,
                 "host": self.server.host,
                 "max_connections": self.server.max_connections,
+                "environment": self.server.environment,
             },
             "database": {
                 "path": self.database.path,

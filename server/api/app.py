@@ -152,6 +152,12 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(users.router)
 
+    # Include email-related routers
+    from server.api.routes import email_metrics, ses_webhooks
+
+    app.include_router(ses_webhooks.router)
+    app.include_router(email_metrics.router)
+
     # Add custom exception handlers
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
@@ -228,6 +234,23 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         }
 
     logger.info("FastAPI application created and configured")
+
+    # Debugging: Print the config object and environment
+    logger.info(f"Debug: Config object in create_app: {config}")
+    logger.info(f"Debug: Environment from config: {config.get('server', {}).get('environment')}")
+
+    # Log email configuration in development
+    if config.get("server", {}).get("environment") == "development":
+        from server.auth.email import get_email_service
+
+        email_service = get_email_service()
+        logger.info("=" * 60)
+        logger.info("📧 EMAIL CONFIGURATION")
+        logger.info("=" * 60)
+        logger.info(f"Provider: {email_service.email_config.provider}")
+        logger.info(f"From: {email_service.email_config.from_email}")
+        logger.info("Verification links will appear in logs above ☝️")
+        logger.info("=" * 60)
 
     return app
 
