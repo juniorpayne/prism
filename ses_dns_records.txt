@@ -1,0 +1,5 @@
+_amazonses.prism.thepaynes.ca  TXT  "gfxtIO4IzRtg2parzABJPcrMTvAFfxj8BSUek92eKXM="
+dkim1._domainkey.prism.thepaynes.ca  CNAME  dkim1.amazonses.com
+
+mail.prism.thepaynes.ca  MX  10 feedback-smtp.us-east-1.amazonses.com
+mail.prism.thepaynes.ca  TXT  "v=spf1 include:amazonses.com ~all"
