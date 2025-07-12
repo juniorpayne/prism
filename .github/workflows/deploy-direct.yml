@@ -403,6 +403,15 @@ jobs:
                 - PRISM_SERVER_API_PORT=8081
                 - PRISM_LOGGING_LEVEL=INFO
                 - PRISM_DATABASE_PATH=/data/prism.db
+                # Email configuration
+                - EMAIL_PROVIDER=aws_ses
+                - EMAIL_FROM_ADDRESS=noreply@prism.thepaynes.ca
+                - EMAIL_FROM_NAME=Prism DNS
+                - EMAIL_ENABLED=true
+                - EMAIL_DEBUG=false
+                - AWS_REGION=us-east-1
+                - SES_USE_IAM_ROLE=true
+                - SES_CONFIGURATION_SET=prism-email-events
               volumes:
                 - ./data:/data
                 - ./config:/app/config
