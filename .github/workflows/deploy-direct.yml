@@ -390,6 +390,12 @@ jobs:
           fi
           
           # Create docker-compose.yml for production
+          # Check if .env.production exists and preserve it
+          if [ -f .env.production ]; then
+            echo "📋 Found existing .env.production file, preserving it..."
+            cp .env.production .env.production.backup
+          fi
+          
           cat > docker-compose.production.yml <<'COMPOSE'
           
           services:
@@ -397,6 +403,8 @@ jobs:
               image: prism-server:latest
               container_name: prism-server
               restart: unless-stopped
+              env_file:
+                - .env.production
               environment:
                 - PRISM_SERVER_HOST=0.0.0.0
                 - PRISM_SERVER_TCP_PORT=8080
@@ -410,7 +418,7 @@ jobs:
                 - EMAIL_ENABLED=true
                 - EMAIL_DEBUG=false
                 - AWS_REGION=us-east-1
-                - SES_USE_IAM_ROLE=true
+                - SES_USE_IAM_ROLE=false
                 - SES_CONFIGURATION_SET=prism-email-events
               volumes:
                 - ./data:/data
@@ -436,6 +444,16 @@ jobs:
               environment:
                 - API_URL=http://server:8081
           COMPOSE
+          
+          # Restore .env.production if it was backed up
+          if [ -f .env.production.backup ]; then
+            echo "📋 Restoring .env.production file..."
+            mv .env.production.backup .env.production
+          else
+            echo "⚠️  No .env.production file found. AWS credentials will need to be configured."
+            # Create empty .env.production to avoid docker-compose errors
+            touch .env.production
+          fi
           
           echo "🚀 Starting new containers..."
           docker compose -f docker-compose.production.yml up -d
