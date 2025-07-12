@@ -3,3 +3,6 @@ dkim1._domainkey.prism.thepaynes.ca  CNAME  dkim1.amazonses.com
 
 mail.prism.thepaynes.ca  MX  10 feedback-smtp.us-east-1.amazonses.com
 mail.prism.thepaynes.ca  TXT  "v=spf1 include:amazonses.com ~all"
+
+prism.thepaynes.ca  TXT  "v=spf1 include:amazonses.com ~all"
+_dmarc.prism.thepaynes.ca  TXT  "v=DMARC1; p=quarantine; rua=mailto:dmarc@prism.thepaynes.ca; ruf=mailto:dmarc@prism.thepaynes.ca; fo=1"

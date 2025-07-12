@@ -1,0 +1,20 @@
+# Complete DNS Records for AWS SES - prism.thepaynes.ca
+# Add these records to your DNS provider
+
+# 1. Domain Verification
+_amazonses.prism.thepaynes.ca  TXT  "gfxtIO4IzRtg2parzABJPcrMTvAFfxj8BSUek92eKXM="
+
+# 2. DKIM Records (all 3)
+zbvfrvlrviqelwdklety4be3i4bzuykg._domainkey.prism.thepaynes.ca  CNAME  zbvfrvlrviqelwdklety4be3i4bzuykg.dkim.amazonses.com
+f42iaximjxnnwaqnefccemwn5iprgg5y._domainkey.prism.thepaynes.ca  CNAME  f42iaximjxnnwaqnefccemwn5iprgg5y.dkim.amazonses.com
+tcul75llc66ye4rezsf6mixgjltcuso4._domainkey.prism.thepaynes.ca  CNAME  tcul75llc66ye4rezsf6mixgjltcuso4.dkim.amazonses.com
+
+# 3. SPF Record
+prism.thepaynes.ca  TXT  "v=spf1 include:amazonses.com ~all"
+
+# 4. DMARC Record
+_dmarc.prism.thepaynes.ca  TXT  "v=DMARC1; p=quarantine; rua=mailto:dmarc@prism.thepaynes.ca; ruf=mailto:dmarc@prism.thepaynes.ca; fo=1"
+
+# 5. Custom MAIL FROM Domain
+mail.prism.thepaynes.ca  MX  10 feedback-smtp.us-east-1.amazonses.com
+mail.prism.thepaynes.ca  TXT  "v=spf1 include:amazonses.com ~all"

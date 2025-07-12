@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auth.models.email_events import (
+from server.auth.email_events import (
     BounceType,
     EmailBounce,
     EmailComplaint,

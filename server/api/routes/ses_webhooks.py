@@ -17,7 +17,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auth.models.email_events import (
+from server.auth.email_events import (
     BounceType,
     EmailBounce,
     EmailComplaint,
