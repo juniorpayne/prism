@@ -167,7 +167,7 @@ async def verify_email(
 @limiter.limit("3 per hour")
 async def resend_verification(
     request: Request,
-    email: str,
+    data: dict,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
@@ -185,8 +185,33 @@ async def resend_verification(
     )
 
     try:
-        # TODO: Implement resend verification logic
-        # For now, just return the message
+        email = data.get("email", "").lower().strip()
+        if not email:
+            return {"message": response_message}
+
+        # Find user by email
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        # Only send if user exists and is not verified
+        if user and not user.email_verified:
+            # Generate new verification token
+            verification_token = auth_service.generate_verification_token()
+            
+            # Update user with new token
+            user.email_verification_token = hash_token(verification_token)
+            user.email_verification_sent_at = datetime.now(timezone.utc)
+            await db.commit()
+
+            # Send verification email
+            email_service = await get_email_service()
+            background_tasks.add_task(
+                email_service.send_verification_email,
+                user.email,
+                user.username,
+                verification_token,
+            )
+
         return {"message": response_message}
 
     except Exception as e:
