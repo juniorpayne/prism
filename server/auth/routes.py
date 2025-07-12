@@ -197,14 +197,14 @@ async def resend_verification(
         if user and not user.email_verified:
             # Generate new verification token
             verification_token = auth_service.generate_verification_token()
-            
+
             # Update user with new token
             user.email_verification_token = hash_token(verification_token)
             user.email_verification_sent_at = datetime.now(timezone.utc)
             await db.commit()
 
             # Send verification email
-            email_service = await get_email_service()
+            email_service = get_email_service()
             background_tasks.add_task(
                 email_service.send_verification_email,
                 user.email,
