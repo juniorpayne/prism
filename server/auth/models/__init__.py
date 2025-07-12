@@ -1,8 +1,5 @@
-"""Auth models package."""
+"""Auth models package - for email event models only."""
 
-# Import all models from the models.py file to make them available
-# when importing from server.auth.models
-from server.auth.models import *
-
-# Also make email_events models available
+# This directory contains additional model modules like email_events
+# The main auth models are in server/auth/models.py
 from .email_events import *
