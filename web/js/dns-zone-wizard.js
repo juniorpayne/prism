@@ -91,12 +91,15 @@ class DNSZoneWizard {
         this.currentStep = 1;
         this.createModal();
         this.bindEvents();
+        // Update navigation buttons after modal is created
+        this.updateNavigationButtons();
         
-        // Use setTimeout to ensure modal is fully rendered before showing content
-        // This fixes the race condition between modal.show() and content rendering
-        setTimeout(() => {
-            this.showStep(1);
-        }, 100);
+        // Focus on first input after modal is shown
+        const modalElement = document.getElementById('dnsZoneWizardModal');
+        modalElement.addEventListener('shown.bs.modal', () => {
+            const firstInput = document.querySelector('#wizardContent input:not([type="hidden"])');
+            if (firstInput) firstInput.focus();
+        }, { once: true });
     }
 
     /**
@@ -145,7 +148,7 @@ class DNSZoneWizard {
                         <div class="modal-body">
                             ${this.renderProgressBar()}
                             <div id="wizardContent" class="mt-4">
-                                <!-- Step content will be rendered here -->
+                                ${this.renderStep(1)}
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -217,8 +220,14 @@ class DNSZoneWizard {
     showStep(stepNumber) {
         this.currentStep = stepNumber;
         
-        // Update progress bar
-        document.querySelector('.modal-body').innerHTML = 
+        const modalBody = document.querySelector('.modal-body');
+        if (!modalBody) {
+            console.error('Modal body not found!');
+            return;
+        }
+        
+        // Update progress bar and content
+        modalBody.innerHTML = 
             this.renderProgressBar() + 
             '<div id="wizardContent" class="mt-4">' + 
             this.renderStep(stepNumber) + 
