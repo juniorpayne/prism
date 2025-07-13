@@ -266,8 +266,9 @@ class DNSZonesManager {
                 this.mockService.getStats()
             ]);
 
-            this.zones = zones;
-            this.filteredZones = zones;
+            // Transform zones to add compatibility fields
+            this.zones = await this.transformZonesForDisplay(zones);
+            this.filteredZones = this.zones;
 
             // Update stats
             this.updateStats(stats);
@@ -279,6 +280,34 @@ class DNSZonesManager {
             console.error('Error loading zones:', error);
             this.showError('Failed to load DNS zones');
         }
+    }
+
+    /**
+     * Transform PowerDNS zones to display format
+     */
+    async transformZonesForDisplay(zones) {
+        const transformedZones = [];
+        
+        for (const zone of zones) {
+            // Get full zone details to count records
+            const fullZone = await this.mockService.getZone(zone.id);
+            
+            transformedZones.push({
+                id: zone.id,
+                name: zone.name,
+                status: 'Active', // PowerDNS doesn't have status, so default to Active
+                type: zone.kind === 'Native' ? 'Master' : 'Slave',
+                kind: zone.kind,
+                serial: zone.serial,
+                dnssec: zone.dnssec,
+                nameservers: zone.nameservers || [],
+                records: fullZone.records || [],
+                rrsets: fullZone.rrsets || [],
+                modified: new Date().toISOString() // PowerDNS serial is not a timestamp
+            });
+        }
+        
+        return transformedZones;
     }
 
     updateStats(stats) {
@@ -293,7 +322,7 @@ class DNSZonesManager {
         if (this.searchTerm) {
             this.filteredZones = this.zones.filter(zone => 
                 zone.name.toLowerCase().includes(this.searchTerm) ||
-                zone.nameservers.some(ns => ns.toLowerCase().includes(this.searchTerm))
+                (zone.nameservers && zone.nameservers.some(ns => ns.toLowerCase().includes(this.searchTerm)))
             );
         } else {
             this.filteredZones = [...this.zones];
@@ -368,10 +397,10 @@ class DNSZonesManager {
                 </td>
                 <td>${zone.type}</td>
                 <td>
-                    <span class="badge bg-info">${zone.records.length}</span>
+                    <span class="badge bg-info">${zone.records ? zone.records.length : 0}</span>
                 </td>
                 <td>
-                    <small>${zone.nameservers.join(', ')}</small>
+                    <small>${zone.nameservers ? zone.nameservers.join(', ') : 'N/A'}</small>
                 </td>
                 <td>
                     <small>${this.formatDate(zone.modified)}</small>
