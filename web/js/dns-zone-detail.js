@@ -201,17 +201,17 @@ class DNSZoneDetailManager {
                                 <h6 class="mb-0"><i class="fas fa-server me-2"></i>Name Servers</h6>
                             </div>
                             <div class="card-body">
-                                <ul class="list-group list-group-flush">
+                                <ul class="list-group list-group-flush" id="nameserversList">
                                     ${zone.nameservers && zone.nameservers.length > 0 ? zone.nameservers.map(ns => `
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             <span><i class="fas fa-server text-muted me-2"></i>${ns}</span>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="alert('Remove nameserver functionality - SCRUM-99')">
+                                            <button class="btn btn-sm btn-outline-danger" onclick="window.dnsZoneDetailManager.removeNameserver('${ns}')">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </li>
                                     `).join('') : '<li class="list-group-item text-muted">No nameservers configured</li>'}
                                 </ul>
-                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="alert('Add nameserver functionality - SCRUM-99')">
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="window.dnsZoneDetailManager.showAddNameserverModal()">
                                     <i class="fas fa-plus me-1"></i>Add Name Server
                                 </button>
                             </div>
@@ -546,6 +546,176 @@ class DNSZoneDetailManager {
         } catch (error) {
             console.error('Export error:', error);
             this.showError('Failed to export zone: ' + error.message);
+        }
+    }
+
+    /**
+     * Show modal to add nameserver
+     */
+    showAddNameserverModal() {
+        const modalHtml = `
+            <div class="modal fade" id="addNameserverModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-plus-circle me-2"></i>Add Name Server
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="newNameserver" class="form-label">Name Server</label>
+                                <input type="text" class="form-control" id="newNameserver" 
+                                       placeholder="ns1.example.com." 
+                                       pattern="^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}\\.$"
+                                       required>
+                                <div class="form-text">
+                                    Enter the fully qualified domain name ending with a dot (e.g., ns1.example.com.)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="window.dnsZoneDetailManager.addNameserver()">
+                                <i class="bi bi-plus-circle me-2"></i>Add Name Server
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        const existing = document.getElementById('addNameserverModal');
+        if (existing) existing.remove();
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('addNameserverModal'));
+        modal.show();
+
+        // Focus on input when modal is shown
+        document.getElementById('addNameserverModal').addEventListener('shown.bs.modal', () => {
+            document.getElementById('newNameserver').focus();
+        });
+
+        // Handle enter key in input
+        document.getElementById('newNameserver').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.addNameserver();
+            }
+        });
+    }
+
+    /**
+     * Add a new nameserver
+     */
+    async addNameserver() {
+        const input = document.getElementById('newNameserver');
+        const nameserver = input.value.trim();
+
+        // Validate nameserver
+        if (!nameserver) {
+            input.classList.add('is-invalid');
+            return;
+        }
+
+        // Ensure it ends with a dot
+        const nsWithDot = nameserver.endsWith('.') ? nameserver : nameserver + '.';
+
+        // Check if already exists
+        if (this.currentZone.nameservers && this.currentZone.nameservers.includes(nsWithDot)) {
+            alert('This nameserver already exists!');
+            return;
+        }
+
+        try {
+            // Update nameservers array
+            if (!this.currentZone.nameservers) {
+                this.currentZone.nameservers = [];
+            }
+            this.currentZone.nameservers.push(nsWithDot);
+
+            // Save to mock service
+            await this.mockService.updateZone(this.currentZone.id, {
+                nameservers: this.currentZone.nameservers
+            });
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addNameserverModal'));
+            modal.hide();
+
+            // Update UI
+            this.updateNameserversList();
+
+            // Show success
+            if (window.dnsZonesManager && window.dnsZonesManager.showNotification) {
+                window.dnsZonesManager.showNotification('success', `Name server ${nsWithDot} added successfully.`);
+            }
+        } catch (error) {
+            console.error('Error adding nameserver:', error);
+            this.showError('Failed to add nameserver: ' + error.message);
+        }
+    }
+
+    /**
+     * Remove a nameserver
+     */
+    async removeNameserver(nameserver) {
+        // Confirm removal
+        if (!confirm(`Are you sure you want to remove nameserver ${nameserver}?`)) {
+            return;
+        }
+
+        // Check if it's the last nameserver
+        if (this.currentZone.nameservers && this.currentZone.nameservers.length <= 2) {
+            alert('A zone must have at least 2 nameservers. Add another nameserver before removing this one.');
+            return;
+        }
+
+        try {
+            // Update nameservers array
+            this.currentZone.nameservers = this.currentZone.nameservers.filter(ns => ns !== nameserver);
+
+            // Save to mock service
+            await this.mockService.updateZone(this.currentZone.id, {
+                nameservers: this.currentZone.nameservers
+            });
+
+            // Update UI
+            this.updateNameserversList();
+
+            // Show success
+            if (window.dnsZonesManager && window.dnsZonesManager.showNotification) {
+                window.dnsZonesManager.showNotification('success', `Name server ${nameserver} removed successfully.`);
+            }
+        } catch (error) {
+            console.error('Error removing nameserver:', error);
+            this.showError('Failed to remove nameserver: ' + error.message);
+        }
+    }
+
+    /**
+     * Update nameservers list in UI
+     */
+    updateNameserversList() {
+        const listElement = document.getElementById('nameserversList');
+        if (!listElement) return;
+
+        if (this.currentZone.nameservers && this.currentZone.nameservers.length > 0) {
+            listElement.innerHTML = this.currentZone.nameservers.map(ns => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-server text-muted me-2"></i>${ns}</span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="window.dnsZoneDetailManager.removeNameserver('${ns}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </li>
+            `).join('');
+        } else {
+            listElement.innerHTML = '<li class="list-group-item text-muted">No nameservers configured</li>';
         }
     }
 }

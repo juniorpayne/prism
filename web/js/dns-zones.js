@@ -637,6 +637,8 @@ class DNSZonesManager {
     // Zone detail modal
     showZoneDetail(zoneId) {
         const detailManager = new DNSZoneDetailManager();
+        // Make it globally accessible for onclick handlers
+        window.dnsZoneDetailManager = detailManager;
         detailManager.showZoneDetail(zoneId);
     }
 
