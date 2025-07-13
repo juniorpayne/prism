@@ -1,9 +1,9 @@
 /**
- * Mock Data Service for DNS Zone Management - PowerDNS Compatible
+ * Mock Data Service for DNS Zone Management - PowerDNS API Compatible
  * This service mimics PowerDNS API responses for frontend development
  */
 
-class DNSMockDataServiceV2 {
+class DNSMockDataService {
     constructor() {
         this.storageKey = 'prism-dns-zones-v2';
         this.defaultTTL = 3600;
@@ -176,7 +176,8 @@ class DNSMockDataServiceV2 {
             kind: zone.kind,
             serial: zone.serial,
             dnssec: zone.dnssec,
-            account: zone.account
+            account: zone.account,
+            nameservers: zone.nameservers
         }));
     }
 
@@ -334,7 +335,7 @@ class DNSMockDataServiceV2 {
     }
 
     /**
-     * Get statistics for dashboard (compatibility method)
+     * Get statistics for dashboard
      */
     async getStats() {
         await this.simulateDelay();
@@ -371,152 +372,5 @@ class DNSMockDataServiceV2 {
             const error = errors[Math.floor(Math.random() * errors.length)];
             throw new Error(`PowerDNS API Error: ${error.status} - ${error.message}`);
         }
-    }
-}
-
-// Create a compatibility layer for the existing mock service
-class DNSMockDataService extends DNSMockDataServiceV2 {
-    constructor() {
-        super();
-    }
-
-    /**
-     * Adapter method to convert from simple format to PowerDNS rrsets format
-     */
-    async addRecord(zoneId, record) {
-        const normalizedZoneId = this.normalizeZoneName(zoneId);
-        
-        // For MX records, prepend priority to content
-        let content = record.content;
-        if (record.type === 'MX' && record.priority !== undefined) {
-            content = `${record.priority} ${content}`;
-        }
-
-        const rrsetChange = {
-            name: record.name === '@' ? normalizedZoneId : `${record.name}.${normalizedZoneId}`,
-            type: record.type,
-            ttl: record.ttl || this.defaultTTL,
-            changetype: 'REPLACE',
-            records: [{
-                content: content,
-                disabled: false
-            }]
-        };
-
-        // Get existing records of same name/type to merge
-        const zone = await this.getZone(zoneId);
-        const existingRrset = zone.rrsets.find(rrset => 
-            rrset.name === rrsetChange.name && rrset.type === rrsetChange.type
-        );
-
-        if (existingRrset) {
-            // Merge with existing records
-            rrsetChange.records = [...existingRrset.records, ...rrsetChange.records];
-        }
-
-        await this.updateZone(zoneId, { rrsets: [rrsetChange] });
-        
-        return {
-            id: `${record.name}-${record.type}-${Date.now()}`,
-            ...record
-        };
-    }
-
-    /**
-     * Adapter method to update a record
-     */
-    async updateRecord(zoneId, recordId, updates) {
-        // This is simplified - in reality we'd need to track record IDs
-        // For now, we'll update based on name/type combination
-        const normalizedZoneId = this.normalizeZoneName(zoneId);
-        
-        let content = updates.content;
-        if (updates.type === 'MX' && updates.priority !== undefined) {
-            content = `${updates.priority} ${content}`;
-        }
-
-        const rrsetChange = {
-            name: updates.name === '@' ? normalizedZoneId : `${updates.name}.${normalizedZoneId}`,
-            type: updates.type,
-            ttl: updates.ttl || this.defaultTTL,
-            changetype: 'REPLACE',
-            records: [{
-                content: content,
-                disabled: false
-            }]
-        };
-
-        await this.updateZone(zoneId, { rrsets: [rrsetChange] });
-        
-        return {
-            id: recordId,
-            ...updates
-        };
-    }
-
-    /**
-     * Adapter method to delete a record
-     */
-    async deleteRecord(zoneId, recordId) {
-        // This is simplified - we'd need to properly track and delete specific records
-        // For now, this serves as a placeholder
-        return { success: true, message: `Record ${recordId} deleted` };
-    }
-
-    /**
-     * Helper to flatten rrsets into simple record format
-     */
-    flattenRecords(zone) {
-        const records = [];
-        
-        zone.rrsets.forEach(rrset => {
-            // Skip SOA and NS records for simplified view
-            if (rrset.type === 'SOA' || rrset.type === 'NS') return;
-            
-            rrset.records.forEach(record => {
-                const simpleName = rrset.name === zone.name ? '@' : 
-                    rrset.name.replace(`.${zone.name}`, '');
-                
-                // Extract priority from MX records
-                let priority = undefined;
-                let content = record.content;
-                
-                if (rrset.type === 'MX') {
-                    const parts = content.split(' ');
-                    if (parts.length >= 2) {
-                        priority = parseInt(parts[0]);
-                        content = parts.slice(1).join(' ');
-                    }
-                }
-                
-                records.push({
-                    id: `${rrset.name}-${rrset.type}-${records.length}`,
-                    name: simpleName,
-                    type: rrset.type,
-                    content: content,
-                    ttl: rrset.ttl,
-                    priority: priority,
-                    disabled: record.disabled
-                });
-            });
-        });
-        
-        return records;
-    }
-
-    /**
-     * Override getZone to provide backward compatibility
-     */
-    async getZone(zoneId) {
-        const zone = await super.getZone(zoneId);
-        
-        // Add backward-compatible 'records' property
-        zone.records = this.flattenRecords(zone);
-        
-        // Add status for compatibility
-        zone.status = 'Active';
-        zone.type = zone.kind === 'Native' ? 'Master' : 'Slave';
-        
-        return zone;
     }
 }

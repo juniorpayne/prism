@@ -161,16 +161,16 @@ class DNSZonesManager {
                                                 <th class="sortable" data-sort="name">
                                                     Zone Name <i class="bi bi-arrow-down-up"></i>
                                                 </th>
-                                                <th class="sortable" data-sort="status">
+                                                <th class="sortable" data-sort="dnssec">
                                                     Status <i class="bi bi-arrow-down-up"></i>
                                                 </th>
-                                                <th>Type</th>
-                                                <th class="sortable" data-sort="records">
-                                                    Records <i class="bi bi-arrow-down-up"></i>
+                                                <th class="sortable" data-sort="kind">
+                                                    Kind <i class="bi bi-arrow-down-up"></i>
                                                 </th>
+                                                <th>Records</th>
                                                 <th>Name Servers</th>
-                                                <th class="sortable" data-sort="modified">
-                                                    Last Modified <i class="bi bi-arrow-down-up"></i>
+                                                <th class="sortable" data-sort="serial">
+                                                    Serial <i class="bi bi-arrow-down-up"></i>
                                                 </th>
                                                 <th>Actions</th>
                                             </tr>
@@ -266,9 +266,9 @@ class DNSZonesManager {
                 this.mockService.getStats()
             ]);
 
-            // Transform zones to add compatibility fields
-            this.zones = await this.transformZonesForDisplay(zones);
-            this.filteredZones = this.zones;
+            // Store zones directly in PowerDNS format
+            this.zones = zones;
+            this.filteredZones = zones;
 
             // Update stats
             this.updateStats(stats);
@@ -280,34 +280,6 @@ class DNSZonesManager {
             console.error('Error loading zones:', error);
             this.showError('Failed to load DNS zones');
         }
-    }
-
-    /**
-     * Transform PowerDNS zones to display format
-     */
-    async transformZonesForDisplay(zones) {
-        const transformedZones = [];
-        
-        for (const zone of zones) {
-            // Get full zone details to count records
-            const fullZone = await this.mockService.getZone(zone.id);
-            
-            transformedZones.push({
-                id: zone.id,
-                name: zone.name,
-                status: 'Active', // PowerDNS doesn't have status, so default to Active
-                type: zone.kind === 'Native' ? 'Master' : 'Slave',
-                kind: zone.kind,
-                serial: zone.serial,
-                dnssec: zone.dnssec,
-                nameservers: zone.nameservers || [],
-                records: fullZone.records || [],
-                rrsets: fullZone.rrsets || [],
-                modified: new Date().toISOString() // PowerDNS serial is not a timestamp
-            });
-        }
-        
-        return transformedZones;
     }
 
     updateStats(stats) {
@@ -331,6 +303,38 @@ class DNSZonesManager {
         // Reset to first page when filtering
         this.currentPage = 1;
         this.displayZones();
+        
+        // Load record counts asynchronously
+        this.loadRecordCounts();
+    }
+
+    /**
+     * Load record counts for each zone asynchronously
+     */
+    async loadRecordCounts() {
+        for (const zone of this.filteredZones) {
+            try {
+                const fullZone = await this.mockService.getZone(zone.id);
+                let recordCount = 0;
+                
+                if (fullZone.rrsets) {
+                    // Count all records in all rrsets (excluding SOA and NS)
+                    fullZone.rrsets.forEach(rrset => {
+                        if (rrset.type !== 'SOA' && rrset.type !== 'NS') {
+                            recordCount += rrset.records.length;
+                        }
+                    });
+                }
+                
+                // Update the count in the table
+                const countElement = document.getElementById(`zone-${zone.id}-records`);
+                if (countElement) {
+                    countElement.textContent = recordCount;
+                }
+            } catch (error) {
+                console.error(`Error loading record count for zone ${zone.id}:`, error);
+            }
+        }
     }
 
     sortZones(column) {
@@ -349,11 +353,11 @@ class DNSZonesManager {
 
             // Handle special cases
             if (column === 'records') {
-                aVal = a.records.length;
-                bVal = b.records.length;
-            } else if (column === 'modified') {
-                aVal = new Date(a.modified);
-                bVal = new Date(b.modified);
+                // Can't sort by records since we load them async
+                return 0;
+            } else if (column === 'serial') {
+                aVal = a.serial || 0;
+                bVal = b.serial || 0;
             }
 
             if (aVal < bVal) return this.currentSort.direction === 'asc' ? -1 : 1;
@@ -391,19 +395,19 @@ class DNSZonesManager {
                     </a>
                 </td>
                 <td>
-                    <span class="badge bg-${zone.status === 'Active' ? 'success' : 'secondary'}">
-                        ${zone.status}
+                    <span class="badge bg-${zone.dnssec ? 'warning' : 'success'}">
+                        ${zone.dnssec ? 'DNSSEC' : 'Active'}
                     </span>
                 </td>
-                <td>${zone.type}</td>
+                <td>${zone.kind}</td>
                 <td>
-                    <span class="badge bg-info">${zone.records ? zone.records.length : 0}</span>
+                    <span class="badge bg-info" id="zone-${zone.id}-records">...</span>
                 </td>
                 <td>
                     <small>${zone.nameservers ? zone.nameservers.join(', ') : 'N/A'}</small>
                 </td>
                 <td>
-                    <small>${this.formatDate(zone.modified)}</small>
+                    <small>Serial: ${zone.serial || 'N/A'}</small>
                 </td>
                 <td>
                     <div class="dropdown">

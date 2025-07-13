@@ -130,6 +130,11 @@ class DNSZoneDetailManager {
      */
     renderOverviewTab() {
         const zone = this.currentZone;
+        
+        // Parse SOA record from rrsets
+        const soaRrset = zone.rrsets ? zone.rrsets.find(rrset => rrset.type === 'SOA') : null;
+        const soaData = soaRrset ? this.parseSOARecord(soaRrset) : null;
+        
         return `
             <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
                 <div class="row">
@@ -143,23 +148,23 @@ class DNSZoneDetailManager {
                                     <dt class="col-sm-4">Domain Name</dt>
                                     <dd class="col-sm-8">${zone.name}</dd>
                                     
-                                    <dt class="col-sm-4">Zone Type</dt>
+                                    <dt class="col-sm-4">Zone Kind</dt>
                                     <dd class="col-sm-8">
-                                        <span class="badge bg-primary">${zone.type}</span>
+                                        <span class="badge bg-primary">${zone.kind}</span>
                                     </dd>
                                     
-                                    <dt class="col-sm-4">Status</dt>
+                                    <dt class="col-sm-4">DNSSEC</dt>
                                     <dd class="col-sm-8">
-                                        <span class="badge bg-${zone.status === 'active' ? 'success' : 'warning'}">
-                                            ${zone.status}
+                                        <span class="badge bg-${zone.dnssec ? 'warning' : 'secondary'}">
+                                            ${zone.dnssec ? 'Enabled' : 'Disabled'}
                                         </span>
                                     </dd>
                                     
-                                    <dt class="col-sm-4">Created</dt>
-                                    <dd class="col-sm-8">${new Date(zone.created).toLocaleString()}</dd>
+                                    <dt class="col-sm-4">Serial</dt>
+                                    <dd class="col-sm-8"><code>${zone.serial || 'N/A'}</code></dd>
                                     
-                                    <dt class="col-sm-4">Last Modified</dt>
-                                    <dd class="col-sm-8">${new Date(zone.lastModified).toLocaleString()}</dd>
+                                    <dt class="col-sm-4">Account</dt>
+                                    <dd class="col-sm-8">${zone.account || 'None'}</dd>
                                 </dl>
                             </div>
                         </div>
@@ -170,14 +175,14 @@ class DNSZoneDetailManager {
                             </div>
                             <div class="card-body">
                                 <ul class="list-group list-group-flush">
-                                    ${zone.nameservers.map(ns => `
+                                    ${zone.nameservers && zone.nameservers.length > 0 ? zone.nameservers.map(ns => `
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             <span><i class="fas fa-server text-muted me-2"></i>${ns}</span>
                                             <button class="btn btn-sm btn-outline-danger" onclick="alert('Remove nameserver functionality - SCRUM-99')">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </li>
-                                    `).join('')}
+                                    `).join('') : '<li class="list-group-item text-muted">No nameservers configured</li>'}
                                 </ul>
                                 <button class="btn btn-sm btn-outline-primary mt-2" onclick="alert('Add nameserver functionality - SCRUM-99')">
                                     <i class="fas fa-plus me-1"></i>Add Name Server
@@ -192,28 +197,30 @@ class DNSZoneDetailManager {
                                 <h6 class="mb-0"><i class="fas fa-bookmark me-2"></i>SOA (Start of Authority)</h6>
                             </div>
                             <div class="card-body">
+                                ${soaData ? `
                                 <dl class="row mb-0">
                                     <dt class="col-sm-5">Primary NS</dt>
-                                    <dd class="col-sm-7">${zone.soa.primaryNs}</dd>
+                                    <dd class="col-sm-7">${soaData.primaryNs}</dd>
                                     
                                     <dt class="col-sm-5">Admin Email</dt>
-                                    <dd class="col-sm-7">${zone.soa.email}</dd>
+                                    <dd class="col-sm-7">${soaData.email}</dd>
                                     
                                     <dt class="col-sm-5">Serial Number</dt>
-                                    <dd class="col-sm-7"><code>${zone.soa.serial}</code></dd>
+                                    <dd class="col-sm-7"><code>${soaData.serial}</code></dd>
                                     
                                     <dt class="col-sm-5">Refresh</dt>
-                                    <dd class="col-sm-7">${zone.soa.refresh} seconds</dd>
+                                    <dd class="col-sm-7">${soaData.refresh} seconds</dd>
                                     
                                     <dt class="col-sm-5">Retry</dt>
-                                    <dd class="col-sm-7">${zone.soa.retry} seconds</dd>
+                                    <dd class="col-sm-7">${soaData.retry} seconds</dd>
                                     
                                     <dt class="col-sm-5">Expire</dt>
-                                    <dd class="col-sm-7">${zone.soa.expire} seconds</dd>
+                                    <dd class="col-sm-7">${soaData.expire} seconds</dd>
                                     
                                     <dt class="col-sm-5">Minimum TTL</dt>
-                                    <dd class="col-sm-7">${zone.soa.ttl} seconds</dd>
+                                    <dd class="col-sm-7">${soaData.ttl} seconds</dd>
                                 </dl>
+                                ` : '<p class="text-muted">No SOA record found</p>'}
                             </div>
                         </div>
 
@@ -405,6 +412,33 @@ class DNSZoneDetailManager {
         this.currentZone = null;
         this.hasUnsavedChanges = false;
         this.activeTab = 'overview';
+    }
+
+    /**
+     * Parse SOA record from PowerDNS rrset format
+     */
+    parseSOARecord(soaRrset) {
+        if (!soaRrset || !soaRrset.records || soaRrset.records.length === 0) {
+            return null;
+        }
+
+        // SOA content format: "primary.ns. email. serial refresh retry expire ttl"
+        const content = soaRrset.records[0].content;
+        const parts = content.split(' ');
+
+        if (parts.length < 7) {
+            return null;
+        }
+
+        return {
+            primaryNs: parts[0],
+            email: parts[1].replace('.', '@'), // Convert DNS email format
+            serial: parts[2],
+            refresh: parts[3],
+            retry: parts[4],
+            expire: parts[5],
+            ttl: parts[6]
+        };
     }
 }
 
