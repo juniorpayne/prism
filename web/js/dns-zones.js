@@ -546,9 +546,171 @@ class DNSZonesManager {
         alert('Edit functionality coming soon!');
     }
 
-    deleteZone(zoneId) {
-        console.log('Delete zone:', zoneId);
-        alert('Delete functionality coming soon! (SCRUM-100)');
+    async deleteZone(zoneId) {
+        try {
+            // Get zone details for the confirmation dialog
+            const zone = await this.mockService.getZone(zoneId);
+            
+            // Count records (excluding SOA and NS)
+            let recordCount = 0;
+            if (zone.rrsets) {
+                zone.rrsets.forEach(rrset => {
+                    if (rrset.type !== 'SOA' && rrset.type !== 'NS') {
+                        recordCount += rrset.records.length;
+                    }
+                });
+            }
+            
+            // Show confirmation dialog
+            const confirmed = await this.showDeleteConfirmation(zone, recordCount);
+            
+            if (!confirmed) {
+                return;
+            }
+            
+            // Delete the zone
+            await this.mockService.deleteZone(zoneId);
+            
+            // Show success notification
+            this.showNotification('success', `Zone ${zone.name} has been deleted successfully.`);
+            
+            // Reload zones list
+            await this.loadZones();
+            
+        } catch (error) {
+            console.error('Error deleting zone:', error);
+            this.showNotification('error', 'Failed to delete zone: ' + error.message);
+        }
+    }
+
+    /**
+     * Show delete confirmation dialog
+     */
+    async showDeleteConfirmation(zone, recordCount) {
+        return new Promise((resolve) => {
+            const requireTypeConfirm = recordCount > 10;
+            
+            const modalHtml = `
+                <div class="modal fade" id="deleteZoneModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    Delete DNS Zone
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <strong>Warning:</strong> This action cannot be undone!
+                                </div>
+                                
+                                <h6>You are about to delete:</h6>
+                                <ul>
+                                    <li><strong>Zone:</strong> ${zone.name}</li>
+                                    <li><strong>Records:</strong> ${recordCount} DNS records</li>
+                                    <li><strong>Nameservers:</strong> ${zone.nameservers ? zone.nameservers.length : 0}</li>
+                                </ul>
+                                
+                                ${recordCount > 0 ? `
+                                    <div class="alert alert-danger mt-3">
+                                        <strong>Active Services Warning:</strong>
+                                        <p class="mb-0">This zone contains active DNS records. Deleting it may affect:</p>
+                                        <ul class="mb-0">
+                                            <li>Website availability</li>
+                                            <li>Email delivery</li>
+                                            <li>Other services depending on these DNS records</li>
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                
+                                ${requireTypeConfirm ? `
+                                    <div class="mt-3">
+                                        <label class="form-label text-danger">
+                                            Type <strong>${zone.name}</strong> to confirm deletion:
+                                        </label>
+                                        <input type="text" class="form-control" id="confirmZoneName" 
+                                               placeholder="Enter zone name to confirm">
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                                    <i class="bi bi-trash me-2"></i>Delete Zone
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('deleteZoneModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Get modal instance
+            const modalElement = document.getElementById('deleteZoneModal');
+            const modal = new bootstrap.Modal(modalElement);
+            
+            // Handle confirm button
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            confirmBtn.addEventListener('click', () => {
+                if (requireTypeConfirm) {
+                    const input = document.getElementById('confirmZoneName');
+                    if (input.value !== zone.name) {
+                        input.classList.add('is-invalid');
+                        return;
+                    }
+                }
+                
+                modal.hide();
+                resolve(true);
+            });
+            
+            // Clean up on modal close
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                modalElement.remove();
+                resolve(false);
+            });
+            
+            // Show modal
+            modal.show();
+        });
+    }
+
+    /**
+     * Show notification
+     */
+    showNotification(type, message) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const icon = type === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill';
+        
+        const notification = `
+            <div class="alert ${alertClass} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3" 
+                 style="z-index: 9999; min-width: 300px;" role="alert">
+                <i class="bi bi-${icon} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', notification);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const alert = document.querySelector('.alert.position-fixed');
+            if (alert) {
+                alert.remove();
+            }
+        }, 5000);
     }
 }
 

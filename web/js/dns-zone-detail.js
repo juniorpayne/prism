@@ -75,6 +75,9 @@ class DNSZoneDetailManager {
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <button type="button" class="btn btn-danger" id="deleteZoneBtn">
+                                <i class="bi bi-trash me-2"></i>Delete Zone
+                            </button>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             <button type="button" class="btn btn-primary" id="saveZoneChanges" style="display: none;">
                                 Save Changes
@@ -351,6 +354,12 @@ class DNSZoneDetailManager {
         if (saveButton) {
             saveButton.addEventListener('click', () => this.saveChanges());
         }
+        
+        // Handle delete button
+        const deleteButton = document.getElementById('deleteZoneBtn');
+        if (deleteButton) {
+            deleteButton.addEventListener('click', () => this.deleteZone());
+        }
     }
 
     /**
@@ -463,6 +472,24 @@ class DNSZoneDetailManager {
         if (countElement) {
             countElement.textContent = recordCount;
         }
+    }
+
+    /**
+     * Delete zone
+     */
+    async deleteZone() {
+        if (!this.currentZone) return;
+        
+        // Close this modal first
+        this.modal.hide();
+        
+        // Wait a bit for modal to close
+        setTimeout(() => {
+            // Use the zones manager delete function which has the confirmation
+            if (window.dnsZonesManager) {
+                window.dnsZonesManager.deleteZone(this.currentZone.id);
+            }
+        }, 300);
     }
 }
 
