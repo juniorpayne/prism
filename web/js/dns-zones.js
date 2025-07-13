@@ -496,10 +496,10 @@ class DNSZonesManager {
         }
     }
 
-    // Placeholder methods for future implementation
+    // Zone detail modal
     showZoneDetail(zoneId) {
-        console.log('Show zone detail:', zoneId);
-        alert('Zone detail view coming soon! (SCRUM-96)');
+        const detailManager = new DNSZoneDetailManager();
+        detailManager.showZoneDetail(zoneId);
     }
 
     showCreateZoneModal() {

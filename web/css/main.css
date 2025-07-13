@@ -1117,6 +1117,33 @@ body.route-loading::after {
     }
 }
 /* DNS Zones Styles */
+#dnsZoneDetailModal .modal-dialog {
+    max-width: 1200px;
+}
+
+#dnsZoneDetailModal .nav-tabs .nav-link {
+    color: #495057;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+#dnsZoneDetailModal .nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+#dnsZoneDetailModal .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+#dnsZoneDetailModal dl.row dt {
+    text-align: right;
+}
+
+#dnsZoneDetailModal dl.row dd {
+    margin-bottom: .5rem;
+}
 #dns-zones-view .stat-card {
     transition: transform 0.2s;
 }
