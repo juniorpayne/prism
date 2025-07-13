@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Mock Data Service Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #output {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            background: #f8f8f8;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DNS Mock Data Service Tests</h1>
+        <div id="output">Loading tests...</div>
+        <button onclick="runTests()">Run Tests Again</button>
+    </div>
+
+    <!-- Load the mock data service -->
+    <script src="js/dns-mock-data.js"></script>
+    
+    <!-- Load the test file -->
+    <script src="tests/test-dns-mock-data.js"></script>
+    
+    <script>
+        // Capture console output
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            const message = args.join(' ');
+            if (message.includes('✓')) {
+                output.innerHTML += `<span class="success">${message}</span>\n`;
+            } else {
+                output.innerHTML += message + '\n';
+            }
+            originalLog.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            const message = args.join(' ');
+            output.innerHTML += `<span class="error">${message}</span>\n`;
+            originalError.apply(console, args);
+        };
+        
+        // Run tests on load
+        async function runTests() {
+            output.innerHTML = '';
+            try {
+                const success = await window.runDNSMockDataTests();
+                if (success) {
+                    output.innerHTML += '\n<span class="success">All tests passed!</span>';
+                } else {
+                    output.innerHTML += '\n<span class="error">Some tests failed.</span>';
+                }
+            } catch (error) {
+                output.innerHTML += `\n<span class="error">Test runner error: ${error.message}</span>`;
+            }
+        }
+        
+        // Run tests when page loads
+        runTests();
+    </script>
+</body>
+</html>
