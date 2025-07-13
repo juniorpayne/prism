@@ -7,6 +7,7 @@ class DNSRecordsManagerV2 {
     constructor(zoneDetailManager) {
         this.zoneDetailManager = zoneDetailManager;
         this.mockService = zoneDetailManager.mockService;
+        this.searchFilter = new DNSSearchFilter();
         this.currentZone = null;
         this.filteredRrsets = [];
         this.searchTerm = '';
@@ -118,18 +119,21 @@ class DNSRecordsManagerV2 {
             
             return `
                 <tr>
-                    <td>${this.escapeHtml(simpleName)}</td>
-                    <td><span class="badge bg-secondary">${rrset.type}</span></td>
+                    <td>${this.searchFilter.highlightSearchTerm(this.escapeHtml(simpleName), this.searchTerm)}</td>
+                    <td><span class="badge bg-secondary">${this.searchFilter.highlightSearchTerm(rrset.type, this.searchTerm)}</span></td>
                     <td>${rrset.ttl || 'Default'}</td>
                     <td>
-                        ${rrset.records.map(record => `
+                        ${rrset.records.map(record => {
+                            const formattedContent = this.formatRecordContent(rrset.type, record.content);
+                            const highlightedContent = this.searchFilter.highlightSearchTerm(formattedContent, this.searchTerm);
+                            return `
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="text-break">${this.formatRecordContent(rrset.type, record.content)}</span>
+                                <span class="text-break">${highlightedContent}</span>
                                 <span class="ms-2">
                                     ${record.disabled ? '<span class="badge bg-warning">Disabled</span>' : ''}
                                 </span>
                             </div>
-                        `).join('')}
+                        `}).join('')}
                     </td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary edit-rrset" 

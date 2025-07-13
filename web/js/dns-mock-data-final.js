@@ -24,7 +24,7 @@ class DNSMockDataService {
      * Generate sample DNS zones in PowerDNS format
      */
     generateSampleZones() {
-        return {
+        const zones = {
             'example.com.': {
                 id: 'example.com.',
                 name: 'example.com.',
@@ -145,6 +145,76 @@ class DNSMockDataService {
                 ]
             }
         };
+        
+        // Generate additional test zones for performance testing
+        for (let i = 1; i <= 20; i++) {
+            const domain = `test-zone-${i}.com.`;
+            zones[domain] = {
+                id: domain,
+                name: domain,
+                kind: i % 3 === 0 ? 'Slave' : 'Native',
+                account: '',
+                dnssec: i % 5 === 0,
+                api_rectify: false,
+                serial: 2024120000 + i,
+                notified_serial: 2024120000 + i,
+                edited_serial: 2024120000 + i,
+                masters: i % 3 === 0 ? ['master1.example.com.', 'master2.example.com.'] : [],
+                nameservers: [`ns1.${domain}`, `ns2.${domain}`],
+                rrsets: [
+                    {
+                        name: domain,
+                        type: 'SOA',
+                        ttl: 3600,
+                        records: [{
+                            content: `ns1.${domain} admin.${domain} ${2024120000 + i} 3600 600 86400 3600`,
+                            disabled: false
+                        }],
+                        comments: []
+                    },
+                    {
+                        name: domain,
+                        type: 'NS',
+                        ttl: 3600,
+                        records: [
+                            { content: `ns1.${domain}`, disabled: false },
+                            { content: `ns2.${domain}`, disabled: false }
+                        ],
+                        comments: []
+                    },
+                    {
+                        name: domain,
+                        type: 'A',
+                        ttl: 3600,
+                        records: [{ content: `192.168.${Math.floor(i/10)}.${i}`, disabled: false }],
+                        comments: []
+                    },
+                    {
+                        name: `www.${domain}`,
+                        type: 'A',
+                        ttl: 3600,
+                        records: [{ content: `192.168.${Math.floor(i/10)}.${i}`, disabled: false }],
+                        comments: []
+                    },
+                    {
+                        name: `mail.${domain}`,
+                        type: 'A',
+                        ttl: 3600,
+                        records: [{ content: `192.168.${Math.floor(i/10)}.${100 + i}`, disabled: false }],
+                        comments: []
+                    },
+                    {
+                        name: domain,
+                        type: 'MX',
+                        ttl: 3600,
+                        records: [{ content: `10 mail.${domain}`, disabled: false }],
+                        comments: []
+                    }
+                ]
+            };
+        }
+        
+        return zones;
     }
 
     /**

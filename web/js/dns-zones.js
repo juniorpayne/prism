@@ -6,6 +6,7 @@
 class DNSZonesManager {
     constructor() {
         this.mockService = new DNSMockDataService();
+        this.searchFilter = new DNSSearchFilter();
         this.zones = [];
         this.filteredZones = [];
         this.currentSort = { column: 'name', direction: 'asc' };
@@ -122,22 +123,7 @@ class DNSZonesManager {
             </div>
 
             <!-- Search and Filter -->
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <input type="text" class="form-control" id="search-zones" 
-                               placeholder="Search zones by name...">
-                    </div>
-                </div>
-                <div class="col-md-6 text-end">
-                    <button class="btn btn-outline-secondary" id="refresh-zones">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
-                </div>
-            </div>
+            ${this.searchFilter.createFilterUI()}
 
             <!-- Zones Table -->
             <div class="row">
@@ -214,14 +200,10 @@ class DNSZonesManager {
     }
 
     attachEventHandlers() {
-        // Search
-        const searchInput = document.getElementById('search-zones');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.searchTerm = e.target.value.toLowerCase();
-                this.filterAndDisplayZones();
-            });
-        }
+        // Initialize search and filter handlers
+        this.searchFilter.initializeEventHandlers((filters) => {
+            this.applyFilters(filters);
+        });
 
         // Refresh
         const refreshBtn = document.getElementById('refresh-zones');
@@ -290,15 +272,8 @@ class DNSZonesManager {
     }
 
     filterAndDisplayZones() {
-        // Apply search filter
-        if (this.searchTerm) {
-            this.filteredZones = this.zones.filter(zone => 
-                zone.name.toLowerCase().includes(this.searchTerm) ||
-                (zone.nameservers && zone.nameservers.some(ns => ns.toLowerCase().includes(this.searchTerm)))
-            );
-        } else {
-            this.filteredZones = [...this.zones];
-        }
+        // Apply filters using the search filter module
+        this.filteredZones = this.searchFilter.filterZones(this.zones);
 
         // Reset to first page when filtering
         this.currentPage = 1;
@@ -306,6 +281,13 @@ class DNSZonesManager {
         
         // Load record counts asynchronously
         this.loadRecordCounts();
+    }
+
+    /**
+     * Apply filters from the search filter module
+     */
+    applyFilters(filters) {
+        this.filterAndDisplayZones();
     }
 
     /**
@@ -386,12 +368,21 @@ class DNSZonesManager {
 
         this.showTable();
 
-        // Populate table
-        tbody.innerHTML = pagezones.map(zone => `
+        // Populate table with search highlighting
+        const searchTerm = this.searchFilter.activeFilters.search;
+        tbody.innerHTML = pagezones.map(zone => {
+            // Apply highlighting to zone name
+            const highlightedZoneName = this.searchFilter.highlightSearchTerm(zone.name, searchTerm);
+            // Apply highlighting to nameservers
+            const highlightedNameservers = zone.nameservers ? 
+                zone.nameservers.map(ns => this.searchFilter.highlightSearchTerm(ns, searchTerm)).join(', ') : 
+                'N/A';
+            
+            return `
             <tr>
                 <td>
                     <a href="#" class="text-decoration-none" onclick="dnsZonesManager.showZoneDetail('${zone.id}'); return false;">
-                        <i class="bi bi-globe2"></i> ${zone.name}
+                        <i class="bi bi-globe2"></i> ${highlightedZoneName}
                     </a>
                 </td>
                 <td>
@@ -404,7 +395,7 @@ class DNSZonesManager {
                     <span class="badge bg-info" id="zone-${zone.id}-records">...</span>
                 </td>
                 <td>
-                    <small>${zone.nameservers ? zone.nameservers.join(', ') : 'N/A'}</small>
+                    <small>${highlightedNameservers}</small>
                 </td>
                 <td>
                     <small>Serial: ${zone.serial || 'N/A'}</small>
@@ -439,7 +430,7 @@ class DNSZonesManager {
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
 
         // Update pagination
         this.updatePagination(totalPages);
