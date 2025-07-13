@@ -13,6 +13,7 @@ class DNSZoneDetailManager {
         this.hasUnsavedChanges = false;
         this.isLoading = false;
         this.recordsManager = null;
+        this.settingsManager = null;
     }
 
     /**
@@ -319,14 +320,7 @@ class DNSZoneDetailManager {
     renderSettingsTab() {
         return `
             <div class="tab-pane fade" id="settings" role="tabpanel" aria-labelledby="settings-tab">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    Zone settings and configuration will be implemented in SCRUM-99
-                </div>
-                <div class="text-center py-5">
-                    <i class="fas fa-cog fa-3x text-muted mb-3"></i>
-                    <p class="text-muted">Settings interface coming soon</p>
-                </div>
+                <!-- Settings content will be managed by DNSZoneSettingsManager -->
             </div>
         `;
     }
@@ -365,6 +359,16 @@ class DNSZoneDetailManager {
                         window.dnsRecordsManager = this.recordsManager;
                     }
                     this.recordsManager.initialize(this.currentZone);
+                }
+                
+                // Initialize settings manager when settings tab is shown
+                if (this.activeTab === 'settings' && this.currentZone) {
+                    if (!this.settingsManager) {
+                        this.settingsManager = new DNSZoneSettingsManager(this);
+                        // Make it globally accessible for the modal
+                        window.dnsZoneSettings = this.settingsManager;
+                    }
+                    this.settingsManager.initialize(this.currentZone);
                 }
             });
         });
@@ -453,6 +457,10 @@ class DNSZoneDetailManager {
         this.currentZone = null;
         this.hasUnsavedChanges = false;
         this.activeTab = 'overview';
+        this.recordsManager = null;
+        this.settingsManager = null;
+        window.dnsRecordsManager = null;
+        window.dnsZoneSettings = null;
     }
 
     /**
