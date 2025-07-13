@@ -91,6 +91,9 @@ class DNSZoneDetailManager {
         // Initialize Bootstrap modal
         this.modal = new bootstrap.Modal(document.getElementById('dnsZoneDetailModal'));
         this.modal.show();
+        
+        // Update record count
+        this.updateRecordCount();
     }
 
     /**
@@ -111,7 +114,7 @@ class DNSZoneDetailManager {
                             data-bs-target="#records" type="button" role="tab" 
                             aria-controls="records" aria-selected="false">
                         <i class="fas fa-list me-2"></i>Records
-                        <span class="badge bg-secondary ms-2">${this.currentZone.records.length}</span>
+                        <span class="badge bg-secondary ms-2" id="zone-records-count">...</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -439,6 +442,27 @@ class DNSZoneDetailManager {
             expire: parts[5],
             ttl: parts[6]
         };
+    }
+
+    /**
+     * Update record count in the tab
+     */
+    updateRecordCount() {
+        if (!this.currentZone || !this.currentZone.rrsets) return;
+        
+        let recordCount = 0;
+        
+        // Count all records except SOA and NS
+        this.currentZone.rrsets.forEach(rrset => {
+            if (rrset.type !== 'SOA' && rrset.type !== 'NS') {
+                recordCount += rrset.records.length;
+            }
+        });
+        
+        const countElement = document.getElementById('zone-records-count');
+        if (countElement) {
+            countElement.textContent = recordCount;
+        }
     }
 }
 

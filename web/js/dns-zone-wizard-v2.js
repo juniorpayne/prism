@@ -456,10 +456,20 @@ class DNSZoneWizardV2 {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
         
         try {
-            // Simulate API call - replace with actual implementation
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Create zone using mock service
+            const mockService = new DNSMockDataService();
             
-            // For now, just show success
+            // Prepare zone data for PowerDNS format
+            const zoneData = {
+                name: this.data.domainName,
+                kind: this.data.zoneType === 'master' ? 'Native' : 'Slave',
+                nameservers: this.data.nameservers,
+                email: this.data.adminEmail || `hostmaster.${this.data.domainName}`
+            };
+            
+            await mockService.createZone(zoneData);
+            
+            // Show success
             alert(`Zone ${this.data.domainName} created successfully!`);
             
             // Close modal
