@@ -6,6 +6,7 @@
 class DNSZoneDetailManager {
     constructor() {
         this.mockService = new DNSMockDataService();
+        this.importExport = new DNSImportExport();
         this.currentZone = null;
         this.modal = null;
         this.activeTab = 'overview';
@@ -75,6 +76,25 @@ class DNSZoneDetailManager {
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <div class="me-auto">
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-primary dropdown-toggle" type="button" 
+                                            data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-download me-2"></i>Export Zone
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item export-zone" href="#" data-format="bind">
+                                            <i class="bi bi-file-text me-2"></i>BIND Format
+                                        </a></li>
+                                        <li><a class="dropdown-item export-zone" href="#" data-format="json">
+                                            <i class="bi bi-file-code me-2"></i>JSON Format
+                                        </a></li>
+                                        <li><a class="dropdown-item export-zone" href="#" data-format="csv">
+                                            <i class="bi bi-file-spreadsheet me-2"></i>CSV Format
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
                             <button type="button" class="btn btn-danger" id="deleteZoneBtn">
                                 <i class="bi bi-trash me-2"></i>Delete Zone
                             </button>
@@ -360,6 +380,15 @@ class DNSZoneDetailManager {
         if (deleteButton) {
             deleteButton.addEventListener('click', () => this.deleteZone());
         }
+        
+        // Handle export buttons
+        document.querySelectorAll('.export-zone').forEach(link => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const format = e.target.closest('.export-zone').dataset.format;
+                await this.exportZone(format);
+            });
+        });
     }
 
     /**
@@ -490,6 +519,26 @@ class DNSZoneDetailManager {
                 window.dnsZonesManager.deleteZone(this.currentZone.id);
             }
         }, 300);
+    }
+
+    /**
+     * Export zone in specified format
+     */
+    async exportZone(format) {
+        try {
+            if (!this.currentZone) return;
+            
+            await this.importExport.exportZone(this.currentZone.id, format);
+            
+            // Show success notification
+            if (window.dnsZonesManager && window.dnsZonesManager.showNotification) {
+                window.dnsZonesManager.showNotification('success', 
+                    `Zone ${this.currentZone.name} exported successfully in ${format.toUpperCase()} format.`);
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            this.showError('Failed to export zone: ' + error.message);
+        }
     }
 }
 

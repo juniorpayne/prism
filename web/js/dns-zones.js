@@ -7,12 +7,14 @@ class DNSZonesManager {
     constructor() {
         this.mockService = new DNSMockDataService();
         this.searchFilter = new DNSSearchFilter();
+        this.importExport = new DNSImportExport();
         this.zones = [];
         this.filteredZones = [];
         this.currentSort = { column: 'name', direction: 'asc' };
         this.currentPage = 1;
         this.itemsPerPage = 10;
         this.searchTerm = '';
+        this.selectedZones = new Set();
         this.initialize();
     }
 
@@ -59,9 +61,29 @@ class DNSZonesManager {
                 <div class="col-12">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h2><i class="bi bi-diagram-3"></i> DNS Zones</h2>
-                        <button class="btn btn-primary" id="create-zone-btn">
-                            <i class="bi bi-plus-circle"></i> Create Zone
-                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-primary" id="import-zones-btn">
+                                <i class="bi bi-upload"></i> Import
+                            </button>
+                            <button class="btn btn-outline-primary dropdown-toggle" 
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item export-option" href="#" data-format="bind">
+                                    <i class="bi bi-file-text me-2"></i>BIND Format
+                                </a></li>
+                                <li><a class="dropdown-item export-option" href="#" data-format="json">
+                                    <i class="bi bi-file-code me-2"></i>JSON Format
+                                </a></li>
+                                <li><a class="dropdown-item export-option" href="#" data-format="csv">
+                                    <i class="bi bi-file-spreadsheet me-2"></i>CSV Format
+                                </a></li>
+                            </ul>
+                            <button class="btn btn-primary" id="create-zone-btn">
+                                <i class="bi bi-plus-circle"></i> Create Zone
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -144,6 +166,9 @@ class DNSZonesManager {
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
+                                                <th style="width: 40px;">
+                                                    <input type="checkbox" id="selectAllZones" class="form-check-input">
+                                                </th>
                                                 <th class="sortable" data-sort="name">
                                                     Zone Name <i class="bi bi-arrow-down-up"></i>
                                                 </th>
@@ -216,6 +241,25 @@ class DNSZonesManager {
         if (createBtn) {
             createBtn.addEventListener('click', () => this.showCreateZoneModal());
         }
+
+        // Import Zones
+        const importBtn = document.getElementById('import-zones-btn');
+        if (importBtn) {
+            importBtn.addEventListener('click', () => {
+                if (window.dnsImportModal) {
+                    window.dnsImportModal.show();
+                }
+            });
+        }
+
+        // Export options
+        document.querySelectorAll('.export-option').forEach(link => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const format = e.target.closest('.export-option').dataset.format;
+                await this.exportSelectedZones(format);
+            });
+        });
 
         // Sorting
         document.querySelectorAll('.sortable').forEach(th => {
@@ -381,6 +425,9 @@ class DNSZonesManager {
             return `
             <tr>
                 <td>
+                    <input type="checkbox" class="zone-checkbox form-check-input" data-zone-id="${zone.id}">
+                </td>
+                <td>
                     <a href="#" class="text-decoration-none" onclick="dnsZonesManager.showZoneDetail('${zone.id}'); return false;">
                         <i class="bi bi-globe2"></i> ${highlightedZoneName}
                     </a>
@@ -434,6 +481,73 @@ class DNSZonesManager {
 
         // Update pagination
         this.updatePagination(totalPages);
+        
+        // Add checkbox event handlers
+        this.attachCheckboxHandlers();
+    }
+
+    /**
+     * Attach checkbox event handlers
+     */
+    attachCheckboxHandlers() {
+        // Select all checkbox
+        const selectAll = document.getElementById('selectAllZones');
+        if (selectAll) {
+            selectAll.addEventListener('change', (e) => {
+                const checkboxes = document.querySelectorAll('.zone-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = e.target.checked;
+                    if (e.target.checked) {
+                        this.selectedZones.add(cb.dataset.zoneId);
+                    } else {
+                        this.selectedZones.delete(cb.dataset.zoneId);
+                    }
+                });
+            });
+        }
+
+        // Individual checkboxes
+        document.querySelectorAll('.zone-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.selectedZones.add(e.target.dataset.zoneId);
+                } else {
+                    this.selectedZones.delete(e.target.dataset.zoneId);
+                }
+                
+                // Update select all checkbox
+                const allChecked = document.querySelectorAll('.zone-checkbox:checked').length === 
+                                 document.querySelectorAll('.zone-checkbox').length;
+                if (selectAll) {
+                    selectAll.checked = allChecked;
+                }
+            });
+        });
+    }
+
+    /**
+     * Export selected zones
+     */
+    async exportSelectedZones(format) {
+        try {
+            if (this.selectedZones.size === 0) {
+                // If no zones selected, export all zones
+                const confirmExport = confirm('No zones selected. Export all zones?');
+                if (!confirmExport) return;
+                
+                const allZoneIds = this.filteredZones.map(z => z.id);
+                await this.importExport.exportMultipleZones(allZoneIds, format);
+            } else {
+                // Export selected zones
+                const zoneIds = Array.from(this.selectedZones);
+                await this.importExport.exportMultipleZones(zoneIds, format);
+            }
+            
+            this.showNotification('success', `Zones exported successfully in ${format.toUpperCase()} format.`);
+        } catch (error) {
+            console.error('Export error:', error);
+            this.showNotification('error', 'Failed to export zones: ' + error.message);
+        }
     }
 
     updatePagination(totalPages) {
