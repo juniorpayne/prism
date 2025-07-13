@@ -242,7 +242,7 @@ docker compose restart server
 
 ## Jira Workflow Notes
 
-- When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format)
+- When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format), But not when createing new issues, ONLY when updating issues.
 - After you finish reviewing a jira ticket and it has passed its review you need to change the status to done.
 - Jira workflow: todo -> in progress -> waiting for review -> in review -> done
 - Always update the status of jira issues when your work affects it.
@@ -292,6 +292,20 @@ ls -la data/prism.db
 ```
 
 - Make sure to check in your code into github after each task has been completed.
+
+## Test User Credentials
+
+Test with existing user credentials:
+- Username: junior
+- Password: 9STVJYCuWpuC7r-!
+
+## Code Style for DNS Frontend
+
+- Use ES6 classes for modules
+- Prefix DNS-related files with `dns-`
+- Use Bootstrap 5 components (cards, modals, dropdowns)
+- Keep methods small and focused (KISS principle)
+- Add placeholder alerts for unimplemented features
 
 ## User Story Management
 
