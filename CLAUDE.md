@@ -307,6 +307,106 @@ Test with existing user credentials:
 - Keep methods small and focused (KISS principle)
 - Add placeholder alerts for unimplemented features
 
+## PowerDNS API Data Structure
+
+**IMPORTANT**: The frontend DNS management system uses PowerDNS API data structures exactly. This ensures seamless transition from mock to real PowerDNS backend.
+
+### Zone Object Structure
+```javascript
+{
+    id: 'example.com.',              // Zone ID (always ends with dot)
+    name: 'example.com.',            // Zone name (always ends with dot)
+    kind: 'Native',                  // Zone kind: Native, Master, Slave
+    account: '',                     // Account name (optional)
+    dnssec: false,                   // DNSSEC enabled
+    api_rectify: false,              // API rectify enabled
+    serial: 2024122001,              // Zone serial number
+    notified_serial: 2024122001,     // Last notified serial
+    edited_serial: 2024122001,       // Last edited serial
+    masters: [],                     // Master servers (for slave zones)
+    nameservers: ['ns1.example.com.', 'ns2.example.com.'], // Nameservers
+    rrsets: [...]                    // Resource Record Sets (see below)
+}
+```
+
+### RRSet (Resource Record Set) Structure
+```javascript
+{
+    name: 'www.example.com.',        // Record name (always ends with dot)
+    type: 'A',                       // Record type: A, AAAA, CNAME, MX, TXT, etc.
+    ttl: 3600,                       // Time to live in seconds
+    records: [                       // Array of records for this name/type
+        {
+            content: '192.168.1.1',  // Record content (format varies by type)
+            disabled: false          // Whether record is disabled
+        }
+    ],
+    comments: []                     // Comments array (optional)
+}
+```
+
+### Special Record Type Formats
+
+**SOA Record**: Content is space-separated string
+```
+"ns1.example.com. admin.example.com. 2024122001 3600 600 86400 3600"
+```
+
+**MX Record**: Priority is part of content
+```
+"10 mail.example.com."
+```
+
+**TXT Record**: Content is quoted
+```
+"\"v=spf1 mx ~all\""
+```
+
+### Zone CRUD Operations
+
+**Create Zone**: POST /api/v1/servers/localhost/zones
+```javascript
+{
+    name: 'example.com.',
+    kind: 'Native',
+    nameservers: ['ns1.example.com.', 'ns2.example.com.']
+}
+```
+
+**Update Zone Records**: PATCH /api/v1/servers/localhost/zones/{zone-id}
+```javascript
+{
+    rrsets: [{
+        name: 'www.example.com.',
+        type: 'A',
+        ttl: 3600,
+        changetype: 'REPLACE',    // REPLACE or DELETE
+        records: [{
+            content: '192.168.1.1',
+            disabled: false
+        }]
+    }]
+}
+```
+
+### Important PowerDNS Conventions
+
+1. **Domain names MUST end with a dot** (e.g., `example.com.` not `example.com`)
+2. **Records are grouped by name and type** in rrsets, not stored as flat array
+3. **SOA and NS records** are automatically created when creating a zone
+4. **No 'status' field** - PowerDNS doesn't have zone status
+5. **No 'records' array** at zone level - use rrsets instead
+6. **Serial numbers** are not timestamps - use YYYYMMDDNN format
+7. **All API paths** are relative to `/api/v1`
+
+### Frontend Adaptations
+
+- Mock service uses localStorage with key `prism-dns-zones-v2`
+- Zone listing shows simplified format (without full rrsets)
+- Record counts are calculated dynamically from rrsets
+- UI shows "Active" status for all zones (PowerDNS has no status)
+- Zone kind "Native" displays as "Master" in UI for clarity
+
 ## User Story Management
 
 - Make sure you always are updating user stories before, during and after doing issues.
