@@ -20,6 +20,7 @@ class Router {
             '/activity': { component: 'activity', protected: true, title: 'Activity Log' },
             '/delete-account': { component: 'delete-account', protected: true, title: 'Delete Account' },
             '/zones': { component: 'zones', protected: true, title: 'DNS Zones' },
+            '/dns-zones': { component: 'dns-zones', protected: true, title: 'DNS Zones' },
             '/clients': { component: 'clients', protected: true, title: 'Clients' },
             '/hosts': { component: 'hosts', protected: true, title: 'Hosts' },
             '/404': { component: '404', public: true, title: 'Page Not Found' }
@@ -253,7 +254,7 @@ class Router {
         });
         
         // Special handling for existing views
-        const existingViews = ['dashboard', 'hosts', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings', 'password-change', 'activity', 'delete-account'];
+        const existingViews = ['dashboard', 'hosts', 'dns-zones', 'login', 'register', 'verify-email-sent', 'verify-email', 'forgot-password', 'reset-password', 'profile', 'settings', 'password-change', 'activity', 'delete-account'];
         if (existingViews.includes(componentName)) {
             const viewElement = document.getElementById(`${componentName}-view`);
             const navElement = document.getElementById(`nav-${componentName}`);
@@ -351,6 +352,11 @@ class Router {
                 }
                 // Create new delete account page instance
                 window.currentDeleteAccountPage = new window.DeleteAccountPage();
+            } else if (componentName === 'dns-zones') {
+                // Dispatch event to DNS zones manager
+                document.dispatchEvent(new CustomEvent('navigateTo', { 
+                    detail: { view: 'dns-zones' } 
+                }));
             } else if (window.app) {
                 // Use existing app logic to load data for dashboard/hosts
                 await window.app.loadViewData(componentName);

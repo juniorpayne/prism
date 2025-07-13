@@ -1116,3 +1116,45 @@ body.route-loading::after {
         background-color: white !important;
     }
 }
+/* DNS Zones Styles */
+#dns-zones-view .stat-card {
+    transition: transform 0.2s;
+}
+
+#dns-zones-view .stat-card:hover {
+    transform: translateY(-2px);
+}
+
+#dns-zones-view .stat-card .card-body {
+    padding: 1.25rem;
+}
+
+#dns-zones-view .stat-card h4 {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+#dns-zones-view .sortable {
+    position: relative;
+    padding-right: 1.5rem;
+}
+
+#dns-zones-view .sortable i {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.875rem;
+}
+
+#dns-zones-view .pagination {
+    margin-bottom: 0;
+}
+
+#dns-zones-view .dropdown-toggle::after {
+    display: none;
+}
+
+#dns-zones-view .zone-name {
+    font-weight: 500;
+}
