@@ -43,11 +43,11 @@ class DNSMockDataService {
                 },
                 nameservers: ['ns1.example.com', 'ns2.example.com'],
                 records: [
-                    { name: '@', type: 'A', value: '192.168.1.1', ttl: 3600 },
-                    { name: 'www', type: 'A', value: '192.168.1.1', ttl: 3600 },
-                    { name: '@', type: 'MX', value: 'mail.example.com', priority: 10, ttl: 3600 },
-                    { name: 'mail', type: 'A', value: '192.168.1.2', ttl: 3600 },
-                    { name: '@', type: 'TXT', value: 'v=spf1 mx ~all', ttl: 3600 }
+                    { id: 'rec1', name: '@', type: 'A', content: '192.168.1.1', ttl: 3600 },
+                    { id: 'rec2', name: 'www', type: 'A', content: '192.168.1.1', ttl: 3600 },
+                    { id: 'rec3', name: '@', type: 'MX', content: 'mail.example.com', priority: 10, ttl: 3600 },
+                    { id: 'rec4', name: 'mail', type: 'A', content: '192.168.1.2', ttl: 3600 },
+                    { id: 'rec5', name: '@', type: 'TXT', content: 'v=spf1 mx ~all', ttl: 3600 }
                 ]
             },
             'test-domain.org': {
@@ -68,8 +68,8 @@ class DNSMockDataService {
                 },
                 nameservers: ['ns1.test-domain.org', 'ns2.test-domain.org'],
                 records: [
-                    { name: '@', type: 'A', value: '10.0.0.1', ttl: 3600 },
-                    { name: 'app', type: 'CNAME', value: 'test-domain.org', ttl: 3600 }
+                    { id: 'rec6', name: '@', type: 'A', content: '10.0.0.1', ttl: 3600 },
+                    { id: 'rec7', name: 'app', type: 'CNAME', content: 'test-domain.org', ttl: 3600 }
                 ]
             }
         };

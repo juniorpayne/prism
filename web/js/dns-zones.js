@@ -503,11 +503,9 @@ class DNSZonesManager {
     }
 
     showCreateZoneModal() {
-        // Always use the global wizard instance to ensure consistency
-        if (!window.dnsZoneWizard) {
-            window.dnsZoneWizard = new DNSZoneWizard();
-        }
-        window.dnsZoneWizard.showWizard();
+        // Use the new simplified wizard
+        const wizard = new DNSZoneWizardV2();
+        wizard.show();
     }
 
     editZone(zoneId) {

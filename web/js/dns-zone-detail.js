@@ -11,6 +11,7 @@ class DNSZoneDetailManager {
         this.activeTab = 'overview';
         this.hasUnsavedChanges = false;
         this.isLoading = false;
+        this.recordsManager = null;
     }
 
     /**
@@ -274,14 +275,7 @@ class DNSZoneDetailManager {
     renderRecordsTab() {
         return `
             <div class="tab-pane fade" id="records" role="tabpanel" aria-labelledby="records-tab">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    DNS Records management will be implemented in SCRUM-98
-                </div>
-                <div class="text-center py-5">
-                    <i class="fas fa-list fa-3x text-muted mb-3"></i>
-                    <p class="text-muted">Records management interface coming soon</p>
-                </div>
+                <!-- Records content will be managed by DNSRecordsManager -->
             </div>
         `;
     }
@@ -329,6 +323,16 @@ class DNSZoneDetailManager {
         tabButtons.forEach(button => {
             button.addEventListener('shown.bs.tab', (event) => {
                 this.activeTab = event.target.getAttribute('aria-controls');
+                
+                // Initialize records manager when records tab is shown
+                if (this.activeTab === 'records' && this.currentZone) {
+                    if (!this.recordsManager) {
+                        this.recordsManager = new DNSRecordsManager(this);
+                        // Make it globally accessible for the modal
+                        window.dnsRecordsManager = this.recordsManager;
+                    }
+                    this.recordsManager.initialize(this.currentZone);
+                }
             });
         });
 
