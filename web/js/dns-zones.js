@@ -503,8 +503,8 @@ class DNSZonesManager {
     }
 
     showCreateZoneModal() {
-        console.log('Show create zone modal');
-        alert('Create zone wizard coming soon! (SCRUM-97)');
+        const wizard = new DNSZoneWizard();
+        wizard.showWizard();
     }
 
     editZone(zoneId) {
