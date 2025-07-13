@@ -91,7 +91,12 @@ class DNSZoneWizard {
         this.currentStep = 1;
         this.createModal();
         this.bindEvents();
-        this.showStep(1);
+        
+        // Use setTimeout to ensure modal is fully rendered before showing content
+        // This fixes the race condition between modal.show() and content rendering
+        setTimeout(() => {
+            this.showStep(1);
+        }, 100);
     }
 
     /**
@@ -222,8 +227,14 @@ class DNSZoneWizard {
         // Update navigation buttons
         this.updateNavigationButtons();
         
-        // Focus first input
+        // Fix modal height calculation issue - force Bootstrap to recalculate dimensions
         setTimeout(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('dnsZoneWizardModal'));
+            if (modal) {
+                modal.handleUpdate(); // Force Bootstrap to recalculate dimensions
+            }
+            
+            // Focus first input after modal update
             const firstInput = document.querySelector('#wizardContent input:not([type="hidden"])');
             if (firstInput) firstInput.focus();
         }, 100);
