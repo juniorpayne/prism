@@ -126,6 +126,44 @@ class PrismAPI {
     }
 
     /**
+     * HTTP method wrappers
+     */
+    async get(endpoint, options = {}) {
+        return this.request(endpoint, {
+            ...options,
+            method: 'GET',
+            returnResponse: true
+        });
+    }
+
+    async post(endpoint, data = {}, options = {}) {
+        return this.request(endpoint, {
+            ...options,
+            method: 'POST',
+            body: JSON.stringify(data),
+            returnResponse: true
+        });
+    }
+
+    async put(endpoint, data = {}, options = {}) {
+        return this.request(endpoint, {
+            ...options,
+            method: 'PUT',
+            body: JSON.stringify(data),
+            returnResponse: true
+        });
+    }
+
+    async delete(endpoint, data = {}, options = {}) {
+        return this.request(endpoint, {
+            ...options,
+            method: 'DELETE',
+            body: data ? JSON.stringify(data) : undefined,
+            returnResponse: true
+        });
+    }
+
+    /**
      * Get all hosts with optional pagination
      */
     async getHosts(page = 1, limit = 100) {
