@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.auth.dependencies import get_current_user, get_current_verified_user
 from server.auth.email import get_email_service
 from server.auth.jwt_handler import get_jwt_handler
-from server.auth.models import PasswordResetToken, RefreshToken, User
+from server.auth.models import EmailVerificationToken, PasswordResetToken, RefreshToken, User
 from server.auth.schemas import (
     EmailVerificationResponse,
     ErrorResponse,
@@ -195,12 +195,26 @@ async def resend_verification(
 
         # Only send if user exists and is not verified
         if user and not user.email_verified:
+            # Mark any existing unused tokens as used
+            existing_tokens = await db.execute(
+                select(EmailVerificationToken).where(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.used_at.is_(None),
+                )
+            )
+            for token in existing_tokens.scalars():
+                token.used_at = datetime.now(timezone.utc)
+
             # Generate new verification token
             verification_token = auth_service.generate_verification_token()
 
-            # Update user with new token
-            user.email_verification_token = hash_token(verification_token)
-            user.email_verification_sent_at = datetime.now(timezone.utc)
+            # Create new verification token record (same as registration)
+            new_token = EmailVerificationToken(
+                user_id=user.id,
+                token=verification_token,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            )
+            db.add(new_token)
             await db.commit()
 
             # Send verification email
