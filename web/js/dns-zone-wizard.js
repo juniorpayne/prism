@@ -99,6 +99,9 @@ class DNSZoneWizard {
         modalElement.addEventListener('shown.bs.modal', () => {
             const firstInput = document.querySelector('#wizardContent input:not([type="hidden"])');
             if (firstInput) firstInput.focus();
+            
+            // Validate the initial state to set Next button correctly
+            this.validateCurrentStep();
         }, { once: true });
     }
 
@@ -155,14 +158,14 @@ class DNSZoneWizard {
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                 Cancel
                             </button>
-                            <button type="button" class="btn btn-outline-primary" id="wizardBackBtn" onclick="dnsZoneWizard.previousStep()">
+                            <button type="button" class="btn btn-outline-primary" id="wizardBackBtn">
                                 <i class="fas fa-arrow-left me-2"></i>Back
                             </button>
-                            <button type="button" class="btn btn-primary" id="wizardNextBtn" onclick="dnsZoneWizard.nextStep()" 
+                            <button type="button" class="btn btn-primary" id="wizardNextBtn" 
                                     title="Complete all required fields to continue">
                                 Next<i class="fas fa-arrow-right ms-2"></i>
                             </button>
-                            <button type="button" class="btn btn-success" id="wizardCreateBtn" onclick="dnsZoneWizard.createZone()" style="display: none;">
+                            <button type="button" class="btn btn-success" id="wizardCreateBtn" style="display: none;">
                                 <i class="fas fa-check me-2"></i>Create Zone
                             </button>
                         </div>
@@ -274,8 +277,7 @@ class DNSZoneWizard {
                 <div class="mb-3">
                     <label for="domainName" class="form-label">Domain Name <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="domainName" 
-                           placeholder="example.com" value="${this.wizardData.domainName}"
-                           onkeyup="dnsZoneWizard.validateStep1()">
+                           placeholder="example.com" value="${this.wizardData.domainName}">
                     <div class="invalid-feedback">
                         Please enter a valid domain name (e.g., example.com)
                     </div>
@@ -1102,6 +1104,47 @@ class DNSZoneWizard {
                 }
             }
         });
+        
+        // Handle input validation using event delegation
+        modalElement.addEventListener('input', (e) => {
+            // Handle domain name validation
+            if (e.target.id === 'domainName') {
+                this.validateStep1();
+                this.validateCurrentStep();
+            }
+            // Handle email validation in step 3
+            else if (e.target.id === 'adminEmail') {
+                this.validateEmail();
+                this.validateCurrentStep();
+            }
+            // Handle other inputs that might affect validation
+            else if (e.target.classList.contains('nameserver-input')) {
+                this.validateCurrentStep();
+            }
+        });
+        
+        // Handle change events for radio buttons and selects
+        modalElement.addEventListener('change', (e) => {
+            // Revalidate when any form element changes
+            this.validateCurrentStep();
+        });
+        
+        // Bind navigation button click handlers
+        const backBtn = document.getElementById('wizardBackBtn');
+        const nextBtn = document.getElementById('wizardNextBtn');
+        const createBtn = document.getElementById('wizardCreateBtn');
+        
+        if (backBtn) {
+            backBtn.addEventListener('click', () => this.previousStep());
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => this.nextStep());
+        }
+        
+        if (createBtn) {
+            createBtn.addEventListener('click', () => this.createZone());
+        }
     }
 
     /**

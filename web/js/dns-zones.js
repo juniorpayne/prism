@@ -503,14 +503,11 @@ class DNSZonesManager {
     }
 
     showCreateZoneModal() {
-        // Use the global wizard instance if available, otherwise create new one
-        if (window.dnsZoneWizard) {
-            window.dnsZoneWizard.showWizard();
-        } else {
-            // Fallback: create new instance
-            const wizard = new DNSZoneWizard();
-            wizard.showWizard();
+        // Always use the global wizard instance to ensure consistency
+        if (!window.dnsZoneWizard) {
+            window.dnsZoneWizard = new DNSZoneWizard();
         }
+        window.dnsZoneWizard.showWizard();
     }
 
     editZone(zoneId) {
