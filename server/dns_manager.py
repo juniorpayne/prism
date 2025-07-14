@@ -510,7 +510,16 @@ class PowerDNSClient:
             return False
 
     async def create_zone(
-        self, zone: Optional[str] = None, nameservers: Optional[List[str]] = None
+        self,
+        zone: Optional[str] = None,
+        nameservers: Optional[List[str]] = None,
+        kind: str = "Native",
+        masters: Optional[List[str]] = None,
+        soa_edit: Optional[str] = None,
+        soa_edit_api: str = "DEFAULT",
+        api_rectify: bool = True,
+        account: str = "",
+        dnssec: bool = False,
     ) -> Dict[str, Any]:
         """
         Create DNS zone if it doesn't exist.
@@ -543,26 +552,14 @@ class PowerDNSClient:
 
         zone_data = {
             "name": zone,
-            "kind": "Native",
-            "rrsets": [
-                {
-                    "name": zone,
-                    "type": "SOA",
-                    "ttl": 3600,
-                    "records": [
-                        {
-                            "content": f"{nameservers[0]} admin.{zone} 1 10800 3600 604800 3600",
-                            "disabled": False,
-                        }
-                    ],
-                },
-                {
-                    "name": zone,
-                    "type": "NS",
-                    "ttl": 3600,
-                    "records": [{"content": ns, "disabled": False} for ns in nameservers],
-                },
-            ],
+            "kind": kind,
+            "masters": masters or [],
+            "soa_edit": soa_edit,
+            "soa_edit_api": soa_edit_api,
+            "api_rectify": api_rectify,
+            "account": account,
+            "dnssec": dnssec,
+            "nameservers": nameservers,
         }
 
         metrics = get_metrics_collector()
@@ -796,6 +793,225 @@ class PowerDNSClient:
             logger.error(f"Failed to update zone {zone_name}: {e}")
             metrics.record_powerdns_zone_operation("update", "failed")
             raise
+
+    async def list_records(self, zone_name: str) -> List[Dict[str, Any]]:
+        """
+        List all records in a zone.
+
+        Args:
+            zone_name: Name of the zone
+
+        Returns:
+            List of records (RRSets)
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        try:
+            zone = await self.get_zone_details(zone_name)
+            if not zone:
+                raise PowerDNSError(f"Zone '{zone_name}' not found")
+
+            return zone.get("rrsets", [])
+        except Exception as e:
+            logger.error(f"Failed to list records for zone {zone_name}: {e}")
+            raise
+
+    async def get_record_set(
+        self, zone_name: str, name: str, record_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific record set.
+
+        Args:
+            zone_name: Name of the zone
+            name: Record name (FQDN)
+            record_type: Record type (A, AAAA, CNAME, etc.)
+
+        Returns:
+            Record set or None if not found
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        try:
+            records = await self.list_records(zone_name)
+            for rrset in records:
+                if rrset["name"].lower() == name.lower() and rrset["type"] == record_type:
+                    return rrset
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get record {name}/{record_type} in zone {zone_name}: {e}")
+            raise
+
+    async def create_or_update_record(
+        self,
+        zone_name: str,
+        name: str,
+        record_type: str,
+        records: List[Dict[str, Any]],
+        ttl: int = 300,
+    ) -> Dict[str, Any]:
+        """
+        Create or update a record set.
+
+        Args:
+            zone_name: Name of the zone
+            name: Record name (FQDN)
+            record_type: Record type
+            records: List of record data dicts with 'content' and optional 'disabled'
+            ttl: Time to live
+
+        Returns:
+            Operation result
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        # Validate record type
+        valid_types = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "SRV", "PTR", "CAA"]
+        if record_type not in valid_types:
+            raise ValueError(f"Invalid record type: {record_type}")
+
+        # Ensure name is FQDN
+        if not name.endswith("."):
+            name += "."
+
+        # Validate records
+        for record in records:
+            if "content" not in record:
+                raise ValueError("Each record must have 'content' field")
+
+            # Type-specific validation
+            self._validate_record_content(record_type, record["content"])
+
+        rrset_data = {
+            "rrsets": [
+                {
+                    "name": name,
+                    "type": record_type,
+                    "ttl": ttl,
+                    "changetype": "REPLACE",
+                    "records": records,
+                }
+            ]
+        }
+
+        metrics = get_metrics_collector()
+        try:
+            result = await self._patch_zone(zone_name, rrset_data)
+            logger.info(
+                f"Successfully created/updated {record_type} record {name} in zone {zone_name}"
+            )
+            metrics.record_powerdns_record_operation("create_or_update", record_type, "success")
+            return {"status": "success", "name": name, "type": record_type}
+        except Exception as e:
+            logger.error(
+                f"Failed to create/update record {name}/{record_type} in zone {zone_name}: {e}"
+            )
+            metrics.record_powerdns_record_operation("create_or_update", record_type, "failed")
+            raise
+
+    async def delete_record_set(
+        self, zone_name: str, name: str, record_type: str
+    ) -> Dict[str, Any]:
+        """
+        Delete a record set.
+
+        Args:
+            zone_name: Name of the zone
+            name: Record name (FQDN)
+            record_type: Record type
+
+        Returns:
+            Deletion result
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        # Ensure name is FQDN
+        if not name.endswith("."):
+            name += "."
+
+        rrset_data = {"rrsets": [{"name": name, "type": record_type, "changetype": "DELETE"}]}
+
+        metrics = get_metrics_collector()
+        try:
+            result = await self._patch_zone(zone_name, rrset_data)
+            logger.info(f"Successfully deleted {record_type} record {name} in zone {zone_name}")
+            metrics.record_powerdns_record_operation("delete", record_type, "success")
+            return {"status": "deleted", "name": name, "type": record_type}
+        except Exception as e:
+            logger.error(f"Failed to delete record {name}/{record_type} in zone {zone_name}: {e}")
+            metrics.record_powerdns_record_operation("delete", record_type, "failed")
+            raise
+
+    def _validate_record_content(self, record_type: str, content: str):
+        """
+        Validate record content based on type.
+
+        Args:
+            record_type: Record type
+            content: Record content
+
+        Raises:
+            ValueError: If content is invalid
+        """
+        import ipaddress
+
+        if record_type == "A":
+            try:
+                ipaddress.IPv4Address(content)
+            except ValueError:
+                raise ValueError(f"Invalid IPv4 address: {content}")
+
+        elif record_type == "AAAA":
+            try:
+                ipaddress.IPv6Address(content)
+            except ValueError:
+                raise ValueError(f"Invalid IPv6 address: {content}")
+
+        elif record_type in ["CNAME", "NS", "PTR"]:
+            if not content.endswith("."):
+                raise ValueError(f"{record_type} record content must end with dot: {content}")
+
+        elif record_type == "MX":
+            parts = content.split()
+            if len(parts) != 2:
+                raise ValueError(f"MX record must have priority and domain: {content}")
+            try:
+                int(parts[0])  # Priority must be integer
+            except ValueError:
+                raise ValueError(f"MX priority must be integer: {parts[0]}")
+            if not parts[1].endswith("."):
+                raise ValueError(f"MX domain must end with dot: {parts[1]}")
+
+        elif record_type == "TXT":
+            # TXT records should be quoted
+            if not (content.startswith('"') and content.endswith('"')):
+                raise ValueError(f"TXT record should be quoted: {content}")
+
+        elif record_type == "SRV":
+            parts = content.split()
+            if len(parts) != 4:
+                raise ValueError(f"SRV record must have priority weight port target: {content}")
+            try:
+                int(parts[0])  # Priority
+                int(parts[1])  # Weight
+                int(parts[2])  # Port
+            except ValueError:
+                raise ValueError(f"SRV priority/weight/port must be integers: {content}")
+            if not parts[3].endswith("."):
+                raise ValueError(f"SRV target must end with dot: {parts[3]}")
+
+        elif record_type == "CAA":
+            parts = content.split(None, 2)
+            if len(parts) != 3:
+                raise ValueError(f"CAA record must have flag tag value: {content}")
+            try:
+                int(parts[0])  # Flag must be integer
+            except ValueError:
+                raise ValueError(f"CAA flag must be integer: {parts[0]}")
 
     async def delete_zone(self, zone_name: str) -> Dict[str, Any]:
         """

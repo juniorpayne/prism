@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: powerdns
+      POSTGRES_USER: powerdns
+      POSTGRES_PASSWORD: changeme
+    volumes:
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - powerdns-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powerdns"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  powerdns:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    image: powerdns:local
+    container_name: powerdns-server
+    restart: unless-stopped
+    ports:
+      - "5353:53/tcp"
+      - "5353:53/udp"
+      - "8053:8053"
+    environment:
+      PDNS_API_KEY: changeme
+      PDNS_DB_HOST: powerdns-db
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: powerdns
+      PDNS_DB_USER: powerdns
+      PDNS_DB_PASSWORD: changeme
+      PDNS_API_ALLOW_FROM: 0.0.0.0/0,::/0
+      PDNS_DEFAULT_ZONE: test.local
+    depends_on:
+      powerdns-db:
+        condition: service_healthy
+    networks:
+      - powerdns-net
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  powerdns-net:
+    driver: bridge

@@ -11,6 +11,8 @@ services:
         echo 'Starting Prism server in development mode...' &&
         python -m server.main --config /app/config/server.yaml
       "
+    env_file:
+      - .env.prism
     environment:
       - DEBUG=1
       - LOG_LEVEL=DEBUG

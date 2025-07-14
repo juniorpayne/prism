@@ -29,8 +29,8 @@ logging:
 # PowerDNS integration settings
 powerdns:
   enabled: true
-  api_url: "http://powerdns:8053/api/v1"
-  api_key: "${PRISM_POWERDNS_API_KEY:-test-api-key-change-in-production}"
+  api_url: "${PRISM_POWERDNS_API_URL:-http://localhost:8053/api/v1}"
+  api_key: "${PRISM_POWERDNS_API_KEY:-changeme}"
   default_zone: "managed.prism.local."
   default_ttl: 300
   timeout: 5

@@ -337,3 +337,295 @@ async def delete_zone(
         logger.error(f"Unexpected error deleting zone {zone_id}: {e}")
         metrics.record_dns_operation("delete_zone", "error")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/zones/{zone_id}/records", response_model=Dict[str, Any])
+@limiter.limit("100/minute")
+async def list_zone_records(
+    request: Request,
+    zone_id: str,
+    current_user: User = Depends(get_current_verified_user),
+    record_type: Optional[str] = Query(
+        None, description="Filter by record type (A, AAAA, CNAME, etc.)"
+    ),
+    name: Optional[str] = Query(None, description="Filter by record name"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(50, ge=1, le=500, description="Items per page"),
+):
+    """
+    List all records in a DNS zone.
+
+    Returns all RRSets in the zone with optional filtering.
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Get all records from zone
+            records = await dns_client.list_records(zone_id)
+
+            # Filter by type if specified
+            if record_type:
+                records = [r for r in records if r.get("type") == record_type.upper()]
+
+            # Filter by name if specified
+            if name:
+                # Ensure name is FQDN for comparison
+                search_name = name if name.endswith(".") else f"{name}."
+                records = [r for r in records if r.get("name", "").lower() == search_name.lower()]
+
+            # Pagination
+            total = len(records)
+            start = (page - 1) * limit
+            end = start + limit
+            paginated_records = records[start:end]
+
+            metrics.record_dns_operation("list_records", "success")
+
+            return {
+                "records": paginated_records,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "pages": (total + limit - 1) // limit,
+                },
+            }
+
+    except PowerDNSError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        logger.error(f"PowerDNS error listing records: {e}")
+        metrics.record_dns_operation("list_records", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error listing records for zone {zone_id}: {e}")
+        metrics.record_dns_operation("list_records", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/zones/{zone_id}/records/{name}/{record_type}", response_model=Dict[str, Any])
+@limiter.limit("200/minute")
+async def get_record_set(
+    request: Request,
+    zone_id: str,
+    name: str,
+    record_type: str,
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Get a specific record set.
+
+    Returns the RRSet for the specified name and type.
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Get the record set
+            record_set = await dns_client.get_record_set(zone_id, name, record_type.upper())
+
+            if not record_set:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Record {name}/{record_type} not found in zone '{zone_id}'",
+                )
+
+            metrics.record_dns_operation("get_record", "success")
+            return record_set
+
+    except HTTPException:
+        raise
+    except PowerDNSError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        logger.error(f"PowerDNS error getting record: {e}")
+        metrics.record_dns_operation("get_record", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error getting record {name}/{record_type} in zone {zone_id}: {e}")
+        metrics.record_dns_operation("get_record", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/zones/{zone_id}/records", response_model=Dict[str, Any])
+@limiter.limit("50/minute")
+async def create_record(
+    request: Request,
+    zone_id: str,
+    record_data: Dict[str, Any],
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Create a new record in a DNS zone.
+
+    Required fields:
+    - name: Record name (can be relative to zone or FQDN)
+    - type: Record type (A, AAAA, CNAME, MX, TXT, etc.)
+    - records: List of record data objects with 'content' field
+    - ttl: Time to live (optional, defaults to 300)
+
+    Example:
+    {
+        "name": "www",
+        "type": "A",
+        "ttl": 3600,
+        "records": [
+            {"content": "192.168.1.1"},
+            {"content": "192.168.1.2"}
+        ]
+    }
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Extract fields
+            name = record_data.get("name", "")
+            record_type = record_data.get("type", "").upper()
+            records = record_data.get("records", [])
+            ttl = record_data.get("ttl", 300)
+
+            # Validate required fields
+            if not name:
+                raise HTTPException(status_code=400, detail="Record name is required")
+            if not record_type:
+                raise HTTPException(status_code=400, detail="Record type is required")
+            if not records:
+                raise HTTPException(status_code=400, detail="At least one record is required")
+
+            # Convert relative name to FQDN if needed
+            if not name.endswith("."):
+                name = f"{name}.{zone_id}"
+
+            # Create the record
+            result = await dns_client.create_or_update_record(
+                zone_name=zone_id, name=name, record_type=record_type, records=records, ttl=ttl
+            )
+
+            metrics.record_dns_operation("create_record", "success")
+            return result
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PowerDNSError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        logger.error(f"PowerDNS error creating record: {e}")
+        metrics.record_dns_operation("create_record", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating record in zone {zone_id}: {e}")
+        metrics.record_dns_operation("create_record", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.put("/zones/{zone_id}/records/{name}/{record_type}", response_model=Dict[str, Any])
+@limiter.limit("50/minute")
+async def update_record(
+    request: Request,
+    zone_id: str,
+    name: str,
+    record_type: str,
+    record_data: Dict[str, Any],
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Update an existing record set.
+
+    This replaces all records for the specified name/type combination.
+
+    Required fields:
+    - records: List of record data objects with 'content' field
+    - ttl: Time to live (optional, defaults to 300)
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Extract fields
+            records = record_data.get("records", [])
+            ttl = record_data.get("ttl", 300)
+
+            # Validate required fields
+            if not records:
+                raise HTTPException(status_code=400, detail="At least one record is required")
+
+            # Ensure name is FQDN
+            if not name.endswith("."):
+                name = f"{name}.{zone_id}"
+
+            # Update the record
+            result = await dns_client.create_or_update_record(
+                zone_name=zone_id,
+                name=name,
+                record_type=record_type.upper(),
+                records=records,
+                ttl=ttl,
+            )
+
+            metrics.record_dns_operation("update_record", "success")
+            return result
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PowerDNSError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        logger.error(f"PowerDNS error updating record: {e}")
+        metrics.record_dns_operation("update_record", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(
+            f"Unexpected error updating record {name}/{record_type} in zone {zone_id}: {e}"
+        )
+        metrics.record_dns_operation("update_record", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/zones/{zone_id}/records/{name}/{record_type}", response_model=Dict[str, Any])
+@limiter.limit("50/minute")
+async def delete_record(
+    request: Request,
+    zone_id: str,
+    name: str,
+    record_type: str,
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Delete a record set.
+
+    This removes all records for the specified name/type combination.
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Ensure name is FQDN
+            if not name.endswith("."):
+                name = f"{name}.{zone_id}"
+
+            # Delete the record
+            result = await dns_client.delete_record_set(
+                zone_name=zone_id, name=name, record_type=record_type.upper()
+            )
+
+            metrics.record_dns_operation("delete_record", "success")
+            return result
+
+    except PowerDNSError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        logger.error(f"PowerDNS error deleting record: {e}")
+        metrics.record_dns_operation("delete_record", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(
+            f"Unexpected error deleting record {name}/{record_type} in zone {zone_id}: {e}"
+        )
+        metrics.record_dns_operation("delete_record", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
