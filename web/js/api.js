@@ -399,6 +399,407 @@ class PrismAPI {
         if (config.retryAttempts) this.retryAttempts = config.retryAttempts;
         if (config.retryDelay) this.retryDelay = config.retryDelay;
     }
+
+    // ==============================================
+    // DNS Management Methods (SCRUM-121)
+    // ==============================================
+
+    /**
+     * Get DNS zones with pagination and search
+     * @param {number} page - Page number (default: 1)
+     * @param {number} limit - Items per page (default: 50)
+     * @param {string} search - Search term for zone names
+     * @param {Object} filters - Additional filters
+     * @returns {Promise<Object>} Zone list with pagination
+     */
+    async getZones(page = 1, limit = 50, search = '', filters = {}) {
+        try {
+            let url = `/dns/zones?page=${page}&limit=${limit}`;
+            if (search) {
+                url += `&search=${encodeURIComponent(search)}`;
+            }
+            if (filters.sort) {
+                url += `&sort=${encodeURIComponent(filters.sort)}`;
+            }
+            if (filters.order) {
+                url += `&order=${encodeURIComponent(filters.order)}`;
+            }
+            
+            const response = await this.request(url);
+            return response;
+        } catch (error) {
+            throw new APIError(`Failed to fetch DNS zones: ${error.message}`, error.status, '/dns/zones');
+        }
+    }
+
+    /**
+     * Get specific DNS zone by ID
+     * @param {string} zoneId - Zone ID or name
+     * @returns {Promise<Object>} Zone details
+     */
+    async getZone(zoneId) {
+        try {
+            const response = await this.request(`/dns/zones/${encodeURIComponent(zoneId)}`);
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Zone '${zoneId}' not found`, 404, `/dns/zones/${zoneId}`);
+            }
+            throw new APIError(`Failed to fetch zone: ${error.message}`, error.status, `/dns/zones/${zoneId}`);
+        }
+    }
+
+    /**
+     * Create a new DNS zone
+     * @param {Object} zoneData - Zone configuration
+     * @returns {Promise<Object>} Created zone
+     */
+    async createZone(zoneData) {
+        try {
+            const response = await this.request('/dns/zones', {
+                method: 'POST',
+                body: JSON.stringify(zoneData)
+            });
+            return response;
+        } catch (error) {
+            if (error.status === 409) {
+                throw new APIError(`Zone '${zoneData.name}' already exists`, 409, '/dns/zones');
+            }
+            throw new APIError(`Failed to create zone: ${error.message}`, error.status, '/dns/zones');
+        }
+    }
+
+    /**
+     * Update DNS zone configuration
+     * @param {string} zoneId - Zone ID or name
+     * @param {Object} zoneData - Updated zone configuration
+     * @returns {Promise<Object>} Updated zone
+     */
+    async updateZone(zoneId, zoneData) {
+        try {
+            const response = await this.request(`/dns/zones/${encodeURIComponent(zoneId)}`, {
+                method: 'PUT',
+                body: JSON.stringify(zoneData)
+            });
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Zone '${zoneId}' not found`, 404, `/dns/zones/${zoneId}`);
+            }
+            throw new APIError(`Failed to update zone: ${error.message}`, error.status, `/dns/zones/${zoneId}`);
+        }
+    }
+
+    /**
+     * Delete DNS zone
+     * @param {string} zoneId - Zone ID or name
+     * @returns {Promise<Object>} Deletion result
+     */
+    async deleteZone(zoneId) {
+        try {
+            const response = await this.request(`/dns/zones/${encodeURIComponent(zoneId)}`, {
+                method: 'DELETE'
+            });
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Zone '${zoneId}' not found`, 404, `/dns/zones/${zoneId}`);
+            }
+            throw new APIError(`Failed to delete zone: ${error.message}`, error.status, `/dns/zones/${zoneId}`);
+        }
+    }
+
+    /**
+     * Get DNS records for a zone
+     * @param {string} zoneId - Zone ID or name
+     * @param {number} page - Page number (default: 1)
+     * @param {number} limit - Items per page (default: 50)
+     * @param {Object} filters - Filters (recordType, name)
+     * @returns {Promise<Object>} Record list with pagination
+     */
+    async getRecords(zoneId, page = 1, limit = 50, filters = {}) {
+        try {
+            let url = `/dns/zones/${encodeURIComponent(zoneId)}/records?page=${page}&limit=${limit}`;
+            if (filters.recordType) {
+                url += `&record_type=${encodeURIComponent(filters.recordType)}`;
+            }
+            if (filters.name) {
+                url += `&name=${encodeURIComponent(filters.name)}`;
+            }
+            
+            const response = await this.request(url);
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Zone '${zoneId}' not found`, 404, `/dns/zones/${zoneId}/records`);
+            }
+            throw new APIError(`Failed to fetch records: ${error.message}`, error.status, `/dns/zones/${zoneId}/records`);
+        }
+    }
+
+    /**
+     * Get specific DNS record
+     * @param {string} zoneId - Zone ID or name
+     * @param {string} name - Record name
+     * @param {string} type - Record type (A, AAAA, CNAME, etc.)
+     * @returns {Promise<Object>} Record details
+     */
+    async getRecord(zoneId, name, type) {
+        try {
+            const response = await this.request(
+                `/dns/zones/${encodeURIComponent(zoneId)}/records/${encodeURIComponent(name)}/${encodeURIComponent(type)}`
+            );
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Record '${name}/${type}' not found in zone '${zoneId}'`, 404, 
+                    `/dns/zones/${zoneId}/records/${name}/${type}`);
+            }
+            throw new APIError(`Failed to fetch record: ${error.message}`, error.status, 
+                `/dns/zones/${zoneId}/records/${name}/${type}`);
+        }
+    }
+
+    /**
+     * Create DNS record
+     * @param {string} zoneId - Zone ID or name
+     * @param {Object} recordData - Record configuration
+     * @returns {Promise<Object>} Created record
+     */
+    async createRecord(zoneId, recordData) {
+        try {
+            const response = await this.request(`/dns/zones/${encodeURIComponent(zoneId)}/records`, {
+                method: 'POST',
+                body: JSON.stringify(recordData)
+            });
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Zone '${zoneId}' not found`, 404, `/dns/zones/${zoneId}/records`);
+            }
+            throw new APIError(`Failed to create record: ${error.message}`, error.status, `/dns/zones/${zoneId}/records`);
+        }
+    }
+
+    /**
+     * Update DNS record
+     * @param {string} zoneId - Zone ID or name
+     * @param {string} name - Record name
+     * @param {string} type - Record type
+     * @param {Object} recordData - Updated record configuration
+     * @returns {Promise<Object>} Updated record
+     */
+    async updateRecord(zoneId, name, type, recordData) {
+        try {
+            const response = await this.request(
+                `/dns/zones/${encodeURIComponent(zoneId)}/records/${encodeURIComponent(name)}/${encodeURIComponent(type)}`,
+                {
+                    method: 'PUT',
+                    body: JSON.stringify(recordData)
+                }
+            );
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Record '${name}/${type}' not found in zone '${zoneId}'`, 404, 
+                    `/dns/zones/${zoneId}/records/${name}/${type}`);
+            }
+            throw new APIError(`Failed to update record: ${error.message}`, error.status, 
+                `/dns/zones/${zoneId}/records/${name}/${type}`);
+        }
+    }
+
+    /**
+     * Delete DNS record
+     * @param {string} zoneId - Zone ID or name
+     * @param {string} name - Record name
+     * @param {string} type - Record type
+     * @returns {Promise<Object>} Deletion result
+     */
+    async deleteRecord(zoneId, name, type) {
+        try {
+            const response = await this.request(
+                `/dns/zones/${encodeURIComponent(zoneId)}/records/${encodeURIComponent(name)}/${encodeURIComponent(type)}`,
+                {
+                    method: 'DELETE'
+                }
+            );
+            return response;
+        } catch (error) {
+            if (error.status === 404) {
+                throw new APIError(`Record '${name}/${type}' not found in zone '${zoneId}'`, 404, 
+                    `/dns/zones/${zoneId}/records/${name}/${type}`);
+            }
+            throw new APIError(`Failed to delete record: ${error.message}`, error.status, 
+                `/dns/zones/${zoneId}/records/${name}/${type}`);
+        }
+    }
+
+    /**
+     * Search DNS zones
+     * @param {string} query - Search query
+     * @param {Object} filters - Additional filters (zoneType, hierarchyLevel)
+     * @returns {Promise<Object>} Search results
+     */
+    async searchZones(query, filters = {}) {
+        try {
+            let url = `/dns/zones/search?q=${encodeURIComponent(query)}`;
+            if (filters.zoneType) {
+                url += `&zone_type=${encodeURIComponent(filters.zoneType)}`;
+            }
+            if (filters.hierarchyLevel !== undefined) {
+                url += `&hierarchy_level=${filters.hierarchyLevel}`;
+            }
+            if (filters.limit) {
+                url += `&limit=${filters.limit}`;
+            }
+            
+            const response = await this.request(url);
+            return response;
+        } catch (error) {
+            throw new APIError(`Zone search failed: ${error.message}`, error.status, '/dns/zones/search');
+        }
+    }
+
+    /**
+     * Search DNS records
+     * @param {string} query - Search query
+     * @param {Object} filters - Additional filters (recordType, zone, contentSearch)
+     * @returns {Promise<Object>} Search results
+     */
+    async searchRecords(query, filters = {}) {
+        try {
+            let url = `/dns/records/search?q=${encodeURIComponent(query)}`;
+            if (filters.recordType) {
+                url += `&record_type=${encodeURIComponent(filters.recordType)}`;
+            }
+            if (filters.zone) {
+                url += `&zone=${encodeURIComponent(filters.zone)}`;
+            }
+            if (filters.contentSearch) {
+                url += `&content=true`;
+            }
+            if (filters.limit) {
+                url += `&limit=${filters.limit}`;
+            }
+            
+            const response = await this.request(url);
+            return response;
+        } catch (error) {
+            throw new APIError(`Record search failed: ${error.message}`, error.status, '/dns/records/search');
+        }
+    }
+
+    /**
+     * Filter DNS zones with advanced criteria
+     * @param {Object} filters - Filter criteria
+     * @param {string} sortBy - Sort field (default: name)
+     * @param {string} sortOrder - Sort order (asc/desc, default: asc)
+     * @returns {Promise<Object>} Filtered zones
+     */
+    async filterZones(filters = {}, sortBy = 'name', sortOrder = 'asc') {
+        try {
+            const response = await this.request(`/dns/zones/filter?sort_by=${sortBy}&sort_order=${sortOrder}`, {
+                method: 'POST',
+                body: JSON.stringify(filters)
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Zone filter failed: ${error.message}`, error.status, '/dns/zones/filter');
+        }
+    }
+
+    /**
+     * Export DNS zones
+     * @param {string} format - Export format (json, bind, csv)
+     * @param {Array<string>} zones - Optional list of zone names to export
+     * @param {boolean} includeDnssec - Include DNSSEC data (default: true)
+     * @returns {Promise<Object|Blob>} Export data
+     */
+    async exportZones(format = 'json', zones = null, includeDnssec = true) {
+        try {
+            let url = `/dns/export/zones?format=${encodeURIComponent(format)}&include_dnssec=${includeDnssec}`;
+            if (zones && zones.length > 0) {
+                url += `&zones=${encodeURIComponent(zones.join(','))}`;
+            }
+            
+            // For non-JSON formats, we need the raw response
+            if (format !== 'json') {
+                const response = await this.get(url);
+                if (!response.ok) {
+                    throw new APIError(`Export failed: ${response.statusText}`, response.status, url);
+                }
+                return await response.blob();
+            }
+            
+            // For JSON, use normal request
+            const response = await this.request(url);
+            return response;
+        } catch (error) {
+            throw new APIError(`Zone export failed: ${error.message}`, error.status, '/dns/export/zones');
+        }
+    }
+
+    /**
+     * Import DNS zones
+     * @param {string} data - Zone data to import
+     * @param {string} format - Import format (json, bind)
+     * @param {string} mode - Import mode (merge, replace, skip)
+     * @param {boolean} dryRun - Preview import without applying (default: false)
+     * @returns {Promise<Object>} Import result
+     */
+    async importZones(data, format = 'json', mode = 'merge', dryRun = false) {
+        try {
+            const response = await this.request('/dns/import/zones', {
+                method: 'POST',
+                body: JSON.stringify({
+                    data: data,
+                    format: format,
+                    mode: mode,
+                    dry_run: dryRun
+                })
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Zone import failed: ${error.message}`, error.status, '/dns/import/zones');
+        }
+    }
+
+    /**
+     * Preview DNS zone import
+     * @param {string} data - Zone data to import
+     * @param {string} format - Import format (json, bind)
+     * @param {string} mode - Import mode (merge, replace, skip)
+     * @returns {Promise<Object>} Import preview
+     */
+    async previewImport(data, format = 'json', mode = 'merge') {
+        try {
+            const response = await this.request('/dns/import/preview', {
+                method: 'POST',
+                body: JSON.stringify({
+                    data: data,
+                    format: format,
+                    mode: mode
+                })
+            });
+            return response;
+        } catch (error) {
+            throw new APIError(`Import preview failed: ${error.message}`, error.status, '/dns/import/preview');
+        }
+    }
+
+    /**
+     * Get DNS service health
+     * @returns {Promise<Object>} DNS health status
+     */
+    async getDnsHealth() {
+        try {
+            const response = await this.request('/dns/health');
+            return response;
+        } catch (error) {
+            throw new APIError(`DNS health check failed: ${error.message}`, error.status, '/dns/health');
+        }
+    }
 }
 
 /**
