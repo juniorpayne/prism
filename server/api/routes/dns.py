@@ -783,3 +783,162 @@ async def search_records(
         logger.error(f"Unexpected error searching records: {e}")
         metrics.record_dns_operation("search_records", "error")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/export/zones", response_model=Dict[str, Any])
+@limiter.limit("30/minute")
+async def export_zones(
+    request: Request,
+    current_user: User = Depends(get_current_verified_user),
+    export_format: str = Query(
+        "json", description="Export format (json, bind, csv)", alias="format"
+    ),
+    zones: Optional[str] = Query(None, description="Comma-separated list of zone names"),
+    include_dnssec: bool = Query(True, description="Include DNSSEC data"),
+):
+    """
+    Export DNS zones in specified format.
+
+    Supports multiple export formats:
+    - JSON: PowerDNS API compatible format
+    - BIND: Standard zone file format
+    - CSV: Simplified tabular format
+
+    Optionally specify zone names to export specific zones only.
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        async with get_powerdns_client() as dns_client:
+            # Parse zone names if provided
+            zone_names = None
+            if zones:
+                zone_names = [z.strip() for z in zones.split(",") if z.strip()]
+
+            # Export zones
+            export_result = await dns_client.export_zones(
+                zone_names=zone_names, format=export_format.lower(), include_dnssec=include_dnssec
+            )
+
+            metrics.record_dns_operation("export_zones", "success")
+
+            # Return appropriate response based on format
+            if export_format.lower() == "json":
+                return export_result
+            else:
+                # For BIND and CSV, return as downloadable content
+                from fastapi.responses import Response
+
+                content_type = "text/plain" if export_format.lower() == "bind" else "text/csv"
+                filename = f"dns-export.{export_format.lower()}"
+
+                return Response(
+                    content=export_result["data"],
+                    media_type=content_type,
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+                )
+
+    except HTTPException:
+        # Re-raise HTTPException without wrapping
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PowerDNSError as e:
+        logger.error(f"PowerDNS error exporting zones: {e}")
+        metrics.record_dns_operation("export_zones", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error exporting zones: {e}")
+        metrics.record_dns_operation("export_zones", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/import/zones", response_model=Dict[str, Any])
+@limiter.limit("10/minute")
+async def import_zones(
+    request: Request,
+    import_data: Dict[str, Any],
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Import DNS zones from uploaded data.
+
+    Request body should contain:
+    - data: The zone data to import (string)
+    - format: Import format (json, bind)
+    - mode: Import mode (merge, replace, skip)
+    - dry_run: Preview changes without applying (optional, default false)
+
+    Import modes:
+    - merge: Add new records, update existing ones
+    - replace: Delete existing zone and recreate
+    - skip: Skip zones that already exist
+
+    Returns import statistics and any errors encountered.
+    """
+    metrics = get_metrics_collector()
+
+    try:
+        # Extract parameters
+        data = import_data.get("data", "")
+        import_format = import_data.get("format", "json")
+        mode = import_data.get("mode", "merge")
+        dry_run = import_data.get("dry_run", False)
+
+        # Validate parameters
+        if not data:
+            raise HTTPException(status_code=400, detail="Import data is required")
+
+        if import_format not in ["json", "bind"]:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {import_format}")
+
+        if mode not in ["merge", "replace", "skip"]:
+            raise HTTPException(status_code=400, detail=f"Invalid import mode: {mode}")
+
+        async with get_powerdns_client() as dns_client:
+            # Import zones
+            import_result = await dns_client.import_zones(
+                data=data, format=import_format, mode=mode, dry_run=dry_run
+            )
+
+            # Record metrics
+            if import_result["status"] == "success":
+                metrics.record_dns_operation("import_zones", "success")
+            else:
+                metrics.record_dns_operation("import_zones", "error")
+
+            return import_result
+
+    except HTTPException:
+        # Re-raise HTTPException without wrapping
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PowerDNSError as e:
+        logger.error(f"PowerDNS error importing zones: {e}")
+        metrics.record_dns_operation("import_zones", "error")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error importing zones: {e}")
+        metrics.record_dns_operation("import_zones", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/import/preview", response_model=Dict[str, Any])
+@limiter.limit("30/minute")
+async def preview_import(
+    request: Request,
+    import_data: Dict[str, Any],
+    current_user: User = Depends(get_current_verified_user),
+):
+    """
+    Preview DNS zone import without applying changes.
+
+    Same parameters as /import/zones but always runs in dry-run mode.
+    Returns what would be imported without making any changes.
+    """
+    # Force dry_run mode for preview
+    import_data["dry_run"] = True
+
+    # Reuse import_zones logic
+    return await import_zones(request, import_data, current_user)

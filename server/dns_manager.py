@@ -1257,6 +1257,389 @@ class PowerDNSClient:
             logger.error(f"Failed to filter zones: {e}")
             raise
 
+    async def export_zones(
+        self,
+        zone_names: Optional[List[str]] = None,
+        format: str = "json",
+        include_dnssec: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Export DNS zones in specified format.
+
+        Args:
+            zone_names: List of zone names to export (None = all zones)
+            format: Export format (json, bind, csv)
+            include_dnssec: Include DNSSEC data
+
+        Returns:
+            Exported data in requested format
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        try:
+            # Get zones to export
+            if zone_names:
+                zones = []
+                for zone_name in zone_names:
+                    zone = await self.get_zone_details(zone_name)
+                    if zone:
+                        zones.append(zone)
+            else:
+                zones = await self.list_zones()
+
+            # Export based on format
+            if format == "json":
+                return {"format": "json", "version": "1.0", "zones": zones}
+            elif format == "bind":
+                return {"format": "bind", "data": self._export_zones_bind(zones)}
+            elif format == "csv":
+                return {"format": "csv", "data": self._export_zones_csv(zones)}
+            else:
+                raise ValueError(f"Unsupported export format: {format}")
+
+        except Exception as e:
+            logger.error(f"Failed to export zones: {e}")
+            raise
+
+    def _export_zones_bind(self, zones: List[Dict[str, Any]]) -> str:
+        """
+        Export zones in BIND format.
+
+        Args:
+            zones: List of zones to export
+
+        Returns:
+            BIND formatted zone data
+        """
+        bind_data = []
+
+        for zone in zones:
+            zone_name = zone.get("name", "")
+            bind_data.append(f"; Zone: {zone_name}")
+            bind_data.append(f"; Exported from PowerDNS")
+            bind_data.append("")
+
+            # Process RRsets
+            for rrset in zone.get("rrsets", []):
+                name = rrset.get("name", "")
+                ttl = rrset.get("ttl", 300)
+                record_type = rrset.get("type", "")
+
+                for record in rrset.get("records", []):
+                    content = record.get("content", "")
+                    if not record.get("disabled", False):
+                        bind_data.append(f"{name}\t{ttl}\tIN\t{record_type}\t{content}")
+
+            bind_data.append("")  # Empty line between zones
+
+        return "\n".join(bind_data)
+
+    def _export_zones_csv(self, zones: List[Dict[str, Any]]) -> str:
+        """
+        Export zones in CSV format.
+
+        Args:
+            zones: List of zones to export
+
+        Returns:
+            CSV formatted zone data
+        """
+        import csv
+        import io
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header
+        writer.writerow(["zone", "name", "type", "ttl", "content", "disabled"])
+
+        for zone in zones:
+            zone_name = zone.get("name", "")
+
+            for rrset in zone.get("rrsets", []):
+                name = rrset.get("name", "")
+                ttl = rrset.get("ttl", 300)
+                record_type = rrset.get("type", "")
+
+                for record in rrset.get("records", []):
+                    content = record.get("content", "")
+                    disabled = record.get("disabled", False)
+                    writer.writerow([zone_name, name, record_type, ttl, content, disabled])
+
+        return output.getvalue()
+
+    async def import_zones(
+        self,
+        data: str,
+        format: str = "json",
+        mode: str = "merge",
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Import DNS zones from specified format.
+
+        Args:
+            data: Import data in specified format
+            format: Import format (json, bind)
+            mode: Import mode (merge, replace, skip)
+            dry_run: Preview changes without applying
+
+        Returns:
+            Import result with statistics
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        try:
+            # Parse data based on format
+            if format == "json":
+                import_zones = self._parse_json_import(data)
+            elif format == "bind":
+                import_zones = self._parse_bind_import(data)
+            else:
+                raise ValueError(f"Unsupported import format: {format}")
+
+            # Validate import data
+            validation_errors = self._validate_import(import_zones)
+            if validation_errors:
+                return {
+                    "status": "error",
+                    "errors": validation_errors,
+                    "zones_parsed": len(import_zones),
+                }
+
+            # Process import
+            results = {
+                "status": "success" if not dry_run else "preview",
+                "mode": mode,
+                "zones_processed": 0,
+                "zones_created": 0,
+                "zones_updated": 0,
+                "zones_skipped": 0,
+                "records_added": 0,
+                "records_updated": 0,
+                "errors": [],
+            }
+
+            for zone_data in import_zones:
+                zone_name = zone_data.get("name", "")
+
+                try:
+                    # Check if zone exists
+                    existing_zone = await self.get_zone_details(zone_name)
+
+                    if existing_zone:
+                        if mode == "skip":
+                            results["zones_skipped"] += 1
+                            continue
+                        elif mode == "replace":
+                            if not dry_run:
+                                await self.delete_zone(zone_name)
+                                await self._create_zone_from_import(zone_data)
+                            results["zones_updated"] += 1
+                        else:  # merge
+                            if not dry_run:
+                                await self._merge_zone_data(existing_zone, zone_data)
+                            results["zones_updated"] += 1
+                    else:
+                        if not dry_run:
+                            await self._create_zone_from_import(zone_data)
+                        results["zones_created"] += 1
+
+                    results["zones_processed"] += 1
+
+                    # Count records
+                    for rrset in zone_data.get("rrsets", []):
+                        results["records_added"] += len(rrset.get("records", []))
+
+                except Exception as e:
+                    logger.error(f"Failed to import zone {zone_name}: {e}")
+                    results["errors"].append(f"Zone {zone_name}: {str(e)}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to import zones: {e}")
+            raise
+
+    def _parse_json_import(self, data: str) -> List[Dict[str, Any]]:
+        """Parse JSON import data."""
+        import json
+
+        try:
+            import_data = json.loads(data)
+            if isinstance(import_data, dict) and "zones" in import_data:
+                return import_data["zones"]
+            elif isinstance(import_data, list):
+                return import_data
+            else:
+                raise ValueError("Invalid JSON format: expected zones array or object with zones")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {e}")
+
+    def _parse_bind_import(self, data: str) -> List[Dict[str, Any]]:
+        """Parse BIND zone file format."""
+        zones = {}
+        current_zone = None
+        current_origin = None
+
+        lines = data.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+
+            # Skip comments and empty lines
+            if not line or line.startswith(";"):
+                continue
+
+            # Parse $ORIGIN directive
+            if line.startswith("$ORIGIN"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    current_origin = parts[1]
+                    if not current_origin.endswith("."):
+                        current_origin += "."
+                continue
+
+            # Parse $TTL directive
+            if line.startswith("$TTL"):
+                continue  # Handle TTL in record parsing
+
+            # Parse resource records
+            parts = line.split(None, 4)
+            if len(parts) >= 4:
+                name = parts[0]
+
+                # Handle relative names
+                if name == "@" and current_origin:
+                    name = current_origin
+                elif not name.endswith(".") and current_origin:
+                    name = f"{name}.{current_origin}"
+
+                # Determine zone from name
+                zone_name = self._determine_zone_from_name(name)
+                if zone_name not in zones:
+                    zones[zone_name] = {
+                        "name": zone_name,
+                        "kind": "Native",
+                        "rrsets": {},
+                    }
+
+                # Parse record fields
+                if parts[1].isdigit():
+                    ttl = int(parts[1])
+                    record_class = parts[2]  # Usually "IN"
+                    record_type = parts[3]
+                    content = parts[4] if len(parts) > 4 else ""
+                else:
+                    ttl = 300  # Default TTL
+                    record_class = parts[1]
+                    record_type = parts[2]
+                    content = parts[3] if len(parts) > 3 else ""
+
+                # Create RRset key
+                rrset_key = f"{name}:{record_type}"
+                if rrset_key not in zones[zone_name]["rrsets"]:
+                    zones[zone_name]["rrsets"][rrset_key] = {
+                        "name": name,
+                        "type": record_type,
+                        "ttl": ttl,
+                        "records": [],
+                    }
+
+                # Add record
+                zones[zone_name]["rrsets"][rrset_key]["records"].append(
+                    {"content": content, "disabled": False}
+                )
+
+        # Convert rrsets dict to list
+        result = []
+        for zone_name, zone_data in zones.items():
+            zone_data["rrsets"] = list(zone_data["rrsets"].values())
+            result.append(zone_data)
+
+        return result
+
+    def _determine_zone_from_name(self, name: str) -> str:
+        """Determine zone name from record name."""
+        # Simple heuristic: use second-level domain
+        labels = name.strip(".").split(".")
+        if len(labels) >= 2:
+            return f"{labels[-2]}.{labels[-1]}."
+        return name
+
+    def _validate_import(self, zones: List[Dict[str, Any]]) -> List[str]:
+        """Validate import data."""
+        errors = []
+
+        for i, zone in enumerate(zones):
+            zone_name = zone.get("name", f"zone_{i}")
+
+            # Validate zone name
+            if not zone.get("name"):
+                errors.append(f"Zone {i}: Missing zone name")
+                continue
+
+            is_valid, error_msg = self.validate_zone_name(zone["name"])
+            if not is_valid:
+                errors.append(f"Zone {zone_name}: {error_msg}")
+
+            # Validate records
+            for j, rrset in enumerate(zone.get("rrsets", [])):
+                if not rrset.get("name"):
+                    errors.append(f"Zone {zone_name}, RRset {j}: Missing record name")
+
+                if not rrset.get("type"):
+                    errors.append(f"Zone {zone_name}, RRset {j}: Missing record type")
+
+                for k, record in enumerate(rrset.get("records", [])):
+                    if not record.get("content"):
+                        errors.append(f"Zone {zone_name}, RRset {j}, Record {k}: Missing content")
+
+        return errors
+
+    async def _create_zone_from_import(self, zone_data: Dict[str, Any]) -> None:
+        """Create zone from import data."""
+        # Create the zone
+        zone_name = zone_data["name"]
+        await self.create_zone(
+            zone=zone_name,
+            kind=zone_data.get("kind", "Native"),
+            nameservers=zone_data.get("nameservers", []),
+            masters=zone_data.get("masters", []),
+            dnssec=zone_data.get("dnssec", False),
+        )
+
+        # Add records
+        for rrset in zone_data.get("rrsets", []):
+            await self.create_or_update_record(
+                zone_name=zone_name,
+                name=rrset["name"],
+                record_type=rrset["type"],
+                records=rrset.get("records", []),
+                ttl=rrset.get("ttl", 300),
+            )
+
+    async def _merge_zone_data(
+        self, existing_zone: Dict[str, Any], import_zone: Dict[str, Any]
+    ) -> None:
+        """Merge imported zone data with existing zone."""
+        zone_name = existing_zone["name"]
+
+        # Update zone configuration if different
+        if import_zone.get("kind") != existing_zone.get("kind"):
+            await self.update_zone(zone_name, import_zone)
+
+        # Merge records
+        for rrset in import_zone.get("rrsets", []):
+            await self.create_or_update_record(
+                zone_name=zone_name,
+                name=rrset["name"],
+                record_type=rrset["type"],
+                records=rrset.get("records", []),
+                ttl=rrset.get("ttl", 300),
+            )
+
     async def close(self):
         """Close HTTP session."""
         if self._session and not self._session.closed:
