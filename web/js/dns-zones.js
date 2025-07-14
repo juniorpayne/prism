@@ -334,24 +334,40 @@ class DNSZonesManager {
      * Simple method to mark which zones are subdomains
      */
     organizeHierarchy() {
-        // First pass: mark parent zones and count children
+        // Initialize all zones
         this.filteredZones.forEach(zone => {
             zone.isSubdomain = false;
             zone.parentZone = null;
             zone.childCount = 0;
             zone.isExpanded = true; // Start expanded
+            zone.isVisible = true; // Default visible
+        });
+        
+        // First pass: identify parent-child relationships
+        this.filteredZones.forEach(zone => {
+            // Remove trailing dot for parsing, then add it back
+            const cleanName = zone.name.endsWith('.') ? zone.name.slice(0, -1) : zone.name;
+            const parts = cleanName.split('.');
             
-            // Check if this zone is a subdomain of any other zone
-            const parts = zone.name.split('.');
-            if (parts.length > 2) { // Potential subdomain
+            if (parts.length > 2) { // Potential subdomain (more than domain.tld)
                 // Try to find parent by removing first part
-                const potentialParent = parts.slice(1).join('.');
+                const potentialParentClean = parts.slice(1).join('.');
+                const potentialParent = potentialParentClean + '.'; // Add dot back
                 const parent = this.filteredZones.find(z => z.name === potentialParent);
                 if (parent) {
                     zone.isSubdomain = true;
                     zone.parentZone = parent.name;
+                    console.log(`Found subdomain: ${zone.name} -> parent: ${parent.name}`);
+                }
+            }
+        });
+        
+        // Second pass: count children
+        this.filteredZones.forEach(zone => {
+            if (zone.isSubdomain && zone.parentZone) {
+                const parent = this.filteredZones.find(z => z.name === zone.parentZone);
+                if (parent) {
                     parent.childCount = (parent.childCount || 0) + 1;
-                    console.log(`Found subdomain: ${zone.name} -> parent: ${parent.name} (childCount: ${parent.childCount})`);
                 }
             }
         });
