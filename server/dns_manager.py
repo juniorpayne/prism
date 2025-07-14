@@ -7,8 +7,9 @@ Manages DNS records through PowerDNS API integration.
 import asyncio
 import json
 import logging
+import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import aiohttp
@@ -627,6 +628,199 @@ class PowerDNSClient:
         except Exception as e:
             logger.error(f"Failed to get zone details for {zone_name}: {e}")
             return None
+
+    def validate_zone_name(self, zone_name: str) -> Tuple[bool, Optional[str]]:
+        """
+        Validate a DNS zone name.
+
+        Args:
+            zone_name: Zone name to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not zone_name:
+            return False, "Zone name cannot be empty"
+
+        # Zone names must end with a dot
+        if not zone_name.endswith("."):
+            return False, "Zone name must end with a dot (.)"
+
+        # Remove trailing dot for validation
+        name = zone_name[:-1]
+
+        # Check for valid characters and format
+        if not re.match(
+            r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$",
+            name,
+        ):
+            return False, "Zone name contains invalid characters or format"
+
+        # Check label length
+        labels = name.split(".")
+        for label in labels:
+            if len(label) > 63:
+                return False, f"Label '{label}' exceeds 63 characters"
+            if len(label) == 0:
+                return False, "Zone name contains empty labels"
+
+        # Total length check (including dots)
+        if len(zone_name) > 255:
+            return False, "Zone name exceeds 255 characters"
+
+        return True, None
+
+    def validate_soa_record(self, soa_content: str) -> Tuple[bool, Optional[str]]:
+        """
+        Validate SOA record format.
+
+        Args:
+            soa_content: SOA record content
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        # SOA format: primary-ns admin-email serial refresh retry expire minimum
+        parts = soa_content.split()
+        if len(parts) != 7:
+            return (
+                False,
+                "SOA record must have 7 parts: primary-ns admin-email serial refresh retry expire minimum",
+            )
+
+        # Validate primary nameserver
+        if not parts[0].endswith("."):
+            return False, "Primary nameserver must end with a dot"
+
+        # Validate admin email (in DNS format)
+        if not parts[1].endswith("."):
+            return False, "Admin email must end with a dot"
+
+        # Validate numeric fields
+        numeric_fields = ["serial", "refresh", "retry", "expire", "minimum"]
+        for i, field in enumerate(numeric_fields, 2):
+            try:
+                value = int(parts[i])
+                if value < 0:
+                    return False, f"{field} must be non-negative"
+            except ValueError:
+                return False, f"{field} must be a number"
+
+        return True, None
+
+    def detect_zone_hierarchy(self, zone_name: str, existing_zones: List[str]) -> Dict[str, Any]:
+        """
+        Detect zone hierarchy relationships.
+
+        Args:
+            zone_name: Zone to check
+            existing_zones: List of existing zone names
+
+        Returns:
+            Dictionary with parent and children zones
+        """
+        hierarchy = {"zone": zone_name, "parent": None, "children": [], "level": 0}
+
+        # Remove trailing dot for comparison
+        zone_labels = zone_name[:-1].split(".") if zone_name.endswith(".") else zone_name.split(".")
+
+        for existing in existing_zones:
+            if existing == zone_name:
+                continue
+
+            existing_labels = (
+                existing[:-1].split(".") if existing.endswith(".") else existing.split(".")
+            )
+
+            # Check if existing is a parent of zone
+            if len(existing_labels) < len(zone_labels):
+                if zone_labels[-len(existing_labels) :] == existing_labels:
+                    if not hierarchy["parent"] or len(existing_labels) > len(
+                        hierarchy["parent"][:-1].split(".")
+                    ):
+                        hierarchy["parent"] = existing
+
+            # Check if existing is a child of zone
+            elif len(existing_labels) > len(zone_labels):
+                if existing_labels[-len(zone_labels) :] == zone_labels:
+                    hierarchy["children"].append(existing)
+
+        # Calculate hierarchy level
+        if hierarchy["parent"]:
+            parent_labels = hierarchy["parent"][:-1].split(".")
+            hierarchy["level"] = len(zone_labels) - len(parent_labels)
+
+        return hierarchy
+
+    async def update_zone(self, zone_name: str, zone_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing DNS zone.
+
+        Args:
+            zone_name: Name of the zone to update
+            zone_data: Zone configuration data
+
+        Returns:
+            Update result
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        metrics = get_metrics_collector()
+        try:
+            endpoint = f"servers/localhost/zones/{zone_name}"
+
+            # PowerDNS expects specific fields for zone updates
+            update_data = {
+                "kind": zone_data.get("kind", "Native"),
+                "masters": zone_data.get("masters", []),
+                "soa_edit": zone_data.get("soa_edit", ""),
+                "soa_edit_api": zone_data.get("soa_edit_api", "DEFAULT"),
+                "api_rectify": zone_data.get("api_rectify", True),
+                "dnssec": zone_data.get("dnssec", False),
+                "nsec3param": zone_data.get("nsec3param", ""),
+                "nsec3narrow": zone_data.get("nsec3narrow", False),
+                "presigned": zone_data.get("presigned", False),
+                "account": zone_data.get("account", ""),
+                "nameservers": zone_data.get("nameservers", []),
+            }
+
+            # Remove None values
+            update_data = {k: v for k, v in update_data.items() if v is not None}
+
+            result = await self._make_request("PUT", endpoint, json_data=update_data)
+            logger.info(f"Successfully updated zone {zone_name}")
+            metrics.record_powerdns_zone_operation("update", "success")
+            return {"status": "updated", "zone": zone_name}
+        except Exception as e:
+            logger.error(f"Failed to update zone {zone_name}: {e}")
+            metrics.record_powerdns_zone_operation("update", "failed")
+            raise
+
+    async def delete_zone(self, zone_name: str) -> Dict[str, Any]:
+        """
+        Delete a DNS zone.
+
+        Args:
+            zone_name: Name of the zone to delete
+
+        Returns:
+            Deletion result
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+
+        metrics = get_metrics_collector()
+        try:
+            endpoint = f"servers/localhost/zones/{zone_name}"
+            await self._make_request("DELETE", endpoint)
+            logger.info(f"Successfully deleted zone {zone_name}")
+            metrics.record_powerdns_zone_operation("delete", "success")
+            return {"status": "deleted", "zone": zone_name}
+        except Exception as e:
+            logger.error(f"Failed to delete zone {zone_name}: {e}")
+            metrics.record_powerdns_zone_operation("delete", "failed")
+            raise
 
     async def close(self):
         """Close HTTP session."""

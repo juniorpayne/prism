@@ -119,7 +119,7 @@ def test_list_zones_endpoint(client, mock_powerdns_client):
         }
     ]
 
-    mock_powerdns_client._make_request.return_value = mock_zones
+    mock_powerdns_client.list_zones.return_value = mock_zones
 
     response = client.get("/api/dns/zones")
 
@@ -139,7 +139,7 @@ def test_list_zones_with_search(client, mock_powerdns_client):
         {"id": "test.com.", "name": "test.com.", "kind": "Native", "rrsets": []},
     ]
 
-    mock_powerdns_client._make_request.return_value = mock_zones
+    mock_powerdns_client.list_zones.return_value = mock_zones
 
     response = client.get("/api/dns/zones?search=example")
 
@@ -162,7 +162,7 @@ def test_get_zone_endpoint(client, mock_powerdns_client):
         ],
     }
 
-    mock_powerdns_client._make_request.return_value = mock_zone
+    mock_powerdns_client.get_zone_details.return_value = mock_zone
 
     response = client.get("/api/dns/zones/example.com.")
 
@@ -176,7 +176,7 @@ def test_get_zone_not_found(client, mock_powerdns_client):
     """Test get zone that doesn't exist."""
     from server.dns_manager import PowerDNSAPIError
 
-    mock_powerdns_client._make_request.side_effect = PowerDNSAPIError("Not Found", status_code=404)
+    mock_powerdns_client.get_zone_details.return_value = None
 
     response = client.get("/api/dns/zones/nonexistent.com.")
 
@@ -206,7 +206,7 @@ def test_list_zones_pagination(client, mock_powerdns_client):
             {"id": f"test{i}.com.", "name": f"test{i}.com.", "kind": "Native", "rrsets": []}
         )
 
-    mock_powerdns_client._make_request.return_value = mock_zones
+    mock_powerdns_client.list_zones.return_value = mock_zones
 
     response = client.get("/api/dns/zones?page=2&limit=25")
 
@@ -226,7 +226,7 @@ def test_list_zones_sorting(client, mock_powerdns_client):
         {"id": "alpha.com.", "name": "alpha.com.", "kind": "Native", "rrsets": []},
     ]
 
-    mock_powerdns_client._make_request.return_value = mock_zones
+    mock_powerdns_client.list_zones.return_value = mock_zones
 
     response = client.get("/api/dns/zones?sort=name&order=asc")
 
@@ -241,7 +241,7 @@ def test_powerdns_connection_error(client, mock_powerdns_client):
     """Test PowerDNS connection error handling."""
     from server.dns_manager import PowerDNSConnectionError
 
-    mock_powerdns_client._make_request.side_effect = PowerDNSConnectionError("Connection failed")
+    mock_powerdns_client.list_zones.side_effect = PowerDNSConnectionError("Connection failed")
 
     response = client.get("/api/dns/zones")
 
@@ -252,7 +252,7 @@ def test_powerdns_connection_error(client, mock_powerdns_client):
 
 def test_rate_limiting(client, mock_powerdns_client):
     """Test rate limiting on DNS endpoints."""
-    mock_powerdns_client._make_request.return_value = []
+    mock_powerdns_client.list_zones.return_value = []
 
     # Make many requests quickly
     success_count = 0
