@@ -92,6 +92,7 @@ class DNSZoneDetailManager {
                             <div class="tab-content mt-3" id="zoneDetailTabContent">
                                 ${this.renderOverviewTab()}
                                 ${this.renderRecordsTab()}
+                                ${this.renderSubdomainsTab()}
                                 ${this.renderSettingsTab()}
                             </div>
                         </div>
@@ -158,6 +159,14 @@ class DNSZoneDetailManager {
                             aria-controls="records" aria-selected="false">
                         <i class="fas fa-list me-2"></i>Records
                         <span class="badge bg-secondary ms-2" id="zone-records-count">...</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="subdomains-tab" data-bs-toggle="tab" 
+                            data-bs-target="#subdomains" type="button" role="tab" 
+                            aria-controls="subdomains" aria-selected="false">
+                        <i class="fas fa-sitemap me-2"></i>Subdomains
+                        <span class="badge bg-secondary ms-2" id="zone-subdomains-count">...</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -372,6 +381,25 @@ class DNSZoneDetailManager {
     }
 
     /**
+     * Render Subdomains tab content
+     */
+    renderSubdomainsTab() {
+        return `
+            <div class="tab-pane fade" id="subdomains" role="tabpanel" aria-labelledby="subdomains-tab">
+                <!-- Subdomains content will be managed by SubdomainManager -->
+                <div id="subdomains-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading subdomains...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading subdomains...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
      * Render Settings tab content
      */
     renderSettingsTab() {
@@ -416,6 +444,16 @@ class DNSZoneDetailManager {
                         window.dnsRecordsManager = this.recordsManager;
                     }
                     this.recordsManager.initialize(this.currentZone);
+                }
+                
+                // Initialize subdomains manager when subdomains tab is shown
+                if (this.activeTab === 'subdomains' && this.currentZone) {
+                    if (!this.subdomainManager) {
+                        this.subdomainManager = new DNSSubdomainManager(this);
+                        // Make it globally accessible for the modal
+                        window.dnsSubdomainManager = this.subdomainManager;
+                    }
+                    this.subdomainManager.initialize(this.currentZone);
                 }
                 
                 // Initialize settings manager when settings tab is shown
@@ -515,8 +553,10 @@ class DNSZoneDetailManager {
         this.hasUnsavedChanges = false;
         this.activeTab = 'overview';
         this.recordsManager = null;
+        this.subdomainManager = null;
         this.settingsManager = null;
         window.dnsRecordsManager = null;
+        window.dnsSubdomainManager = null;
         window.dnsZoneSettings = null;
     }
 
