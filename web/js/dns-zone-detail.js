@@ -63,10 +63,15 @@ class DNSZoneDetailManager {
                 <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="zoneDetailModalLabel">
-                                <i class="fas fa-globe me-2"></i>${this.currentZone.name}
-                            </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="w-100">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="modal-title" id="zoneDetailModalLabel">
+                                        <i class="fas fa-globe me-2"></i>${this.currentZone.name}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                ${this.renderBreadcrumb()}
+                            </div>
                         </div>
                         <div class="modal-body">
                             ${this.renderTabs()}
@@ -149,6 +154,34 @@ class DNSZoneDetailManager {
                     </button>
                 </li>
             </ul>
+        `;
+    }
+
+    /**
+     * Render breadcrumb navigation for modal
+     */
+    renderBreadcrumb() {
+        if (!this.currentZone) return '';
+        
+        // Use the global breadcrumb navigation if available
+        if (window.dnsBreadcrumbNav) {
+            return window.dnsBreadcrumbNav.showInModal(this.currentZone);
+        }
+        
+        // Fallback simple breadcrumb if navigation not available
+        return `
+            <nav aria-label="DNS zone navigation" class="mt-2">
+                <ol class="breadcrumb mb-0 bg-light p-2 rounded">
+                    <li class="breadcrumb-item">
+                        <a href="#" class="text-decoration-none" onclick="bootstrap.Modal.getInstance(document.getElementById('dnsZoneDetailModal')).hide(); return false;">
+                            <i class="bi bi-house-door me-1"></i>All Zones
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        <i class="bi bi-globe2 me-1"></i>${this.currentZone.name.replace(/\.$/, '')}
+                    </li>
+                </ol>
+            </nav>
         `;
     }
 

@@ -8,6 +8,7 @@ class DNSZonesManager {
         this.mockService = new DNSMockDataService();
         this.searchFilter = new DNSSearchFilter();
         this.importExport = new DNSImportExport();
+        this.breadcrumbNav = null; // Will be initialized after DOM is ready
         this.zones = [];
         this.filteredZones = [];
         this.currentSort = { column: 'name', direction: 'asc' };
@@ -48,11 +49,21 @@ class DNSZonesManager {
         // Build the UI
         container.innerHTML = this.buildDNSZonesHTML();
         
+        // Initialize breadcrumb navigation
+        if (!this.breadcrumbNav) {
+            this.breadcrumbNav = new DNSBreadcrumbNav(this);
+            // Make it globally accessible
+            window.dnsBreadcrumbNav = this.breadcrumbNav;
+        }
+        
         // Attach event handlers
         this.attachEventHandlers();
         
         // Load data
         await this.loadZones();
+        
+        // Initialize breadcrumb after zones are loaded
+        this.breadcrumbNav.initialize();
     }
 
     buildDNSZonesHTML() {
@@ -738,6 +749,14 @@ class DNSZonesManager {
 
     // Zone detail modal
     showZoneDetail(zoneId) {
+        // Update breadcrumb navigation when viewing zone details
+        if (this.breadcrumbNav) {
+            const zone = this.zones.find(z => z.id === zoneId);
+            if (zone) {
+                this.breadcrumbNav.setPathForZone(zone);
+            }
+        }
+        
         const detailManager = new DNSZoneDetailManager();
         // Make it globally accessible for onclick handlers
         window.dnsZoneDetailManager = detailManager;
