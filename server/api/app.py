@@ -21,7 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
-from server.api.routes import health, hosts, metrics, users, dns
+from server.api.routes import dns, health, hosts, metrics, users
 from server.auth.dependencies import get_current_verified_user
 from server.auth.routes import router as auth_router
 from server.database.connection import init_async_db

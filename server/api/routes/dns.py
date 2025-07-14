@@ -127,41 +127,37 @@ async def search_zones(
     request: Request,
     current_user: User = Depends(get_current_verified_user),
     q: str = Query(..., description="Search query", min_length=1),
-    zone_type: Optional[str] = Query(None, description="Filter by zone type (Native, Master, Slave)"),
+    zone_type: Optional[str] = Query(
+        None, description="Filter by zone type (Native, Master, Slave)"
+    ),
     hierarchy_level: Optional[int] = Query(None, ge=0, description="Filter by hierarchy level"),
     limit: int = Query(100, ge=1, le=500, description="Maximum results"),
 ):
     """
     Search for DNS zones by name pattern.
-    
+
     Supports:
     - Substring matching in zone names
     - Wildcard patterns (e.g., *.example.com.)
     - Filtering by zone type and hierarchy level
     """
     metrics = get_metrics_collector()
-    
+
     try:
         async with get_powerdns_client() as dns_client:
             results = await dns_client.search_zones(
-                query=q,
-                zone_type=zone_type,
-                hierarchy_level=hierarchy_level,
-                limit=limit
+                query=q, zone_type=zone_type, hierarchy_level=hierarchy_level, limit=limit
             )
-            
+
             metrics.record_dns_operation("search_zones", "success")
-            
+
             return {
                 "query": q,
                 "total": len(results),
                 "zones": results,
-                "filters": {
-                    "zone_type": zone_type,
-                    "hierarchy_level": hierarchy_level
-                }
+                "filters": {"zone_type": zone_type, "hierarchy_level": hierarchy_level},
             }
-    
+
     except PowerDNSError as e:
         logger.error(f"PowerDNS error searching zones: {e}")
         metrics.record_dns_operation("search_zones", "error")
@@ -183,14 +179,14 @@ async def filter_zones(
 ):
     """
     Filter zones based on multiple criteria.
-    
+
     Filter options in request body:
     - min_records: Minimum number of records
     - max_records: Maximum number of records
     - has_dnssec: Filter by DNSSEC status (true/false)
     - parent_zone: Filter by parent zone name
     - serial_after: Filter by serial number (zones modified after)
-    
+
     Example:
     {
         "min_records": 5,
@@ -200,27 +196,22 @@ async def filter_zones(
     }
     """
     metrics = get_metrics_collector()
-    
+
     try:
         async with get_powerdns_client() as dns_client:
             results = await dns_client.filter_zones(
-                filters=filters,
-                sort_by=sort_by,
-                sort_order=sort_order
+                filters=filters, sort_by=sort_by, sort_order=sort_order
             )
-            
+
             metrics.record_dns_operation("filter_zones", "success")
-            
+
             return {
                 "total": len(results),
                 "zones": results,
                 "filters": filters,
-                "sort": {
-                    "by": sort_by,
-                    "order": sort_order
-                }
+                "sort": {"by": sort_by, "order": sort_order},
             }
-    
+
     except PowerDNSError as e:
         logger.error(f"PowerDNS error filtering zones: {e}")
         metrics.record_dns_operation("filter_zones", "error")
@@ -747,14 +738,16 @@ async def search_records(
     request: Request,
     current_user: User = Depends(get_current_verified_user),
     q: str = Query(..., description="Search query", min_length=1),
-    record_type: Optional[str] = Query(None, description="Filter by record type (A, AAAA, CNAME, etc.)"),
+    record_type: Optional[str] = Query(
+        None, description="Filter by record type (A, AAAA, CNAME, etc.)"
+    ),
     zone: Optional[str] = Query(None, description="Limit search to specific zone"),
     content: bool = Query(False, description="Search in record content instead of names"),
     limit: int = Query(100, ge=1, le=500, description="Maximum results"),
 ):
     """
     Search for DNS records across zones.
-    
+
     Supports:
     - Search in record names or content
     - Filter by record type
@@ -762,7 +755,7 @@ async def search_records(
     - Returns records with zone information
     """
     metrics = get_metrics_collector()
-    
+
     try:
         async with get_powerdns_client() as dns_client:
             results = await dns_client.search_records(
@@ -770,22 +763,18 @@ async def search_records(
                 record_type=record_type,
                 zone_name=zone,
                 content_search=content,
-                limit=limit
+                limit=limit,
             )
-            
+
             metrics.record_dns_operation("search_records", "success")
-            
+
             return {
                 "query": q,
                 "total": len(results),
                 "records": results,
-                "filters": {
-                    "record_type": record_type,
-                    "zone": zone,
-                    "content_search": content
-                }
+                "filters": {"record_type": record_type, "zone": zone, "content_search": content},
             }
-    
+
     except PowerDNSError as e:
         logger.error(f"PowerDNS error searching records: {e}")
         metrics.record_dns_operation("search_records", "error")
@@ -794,5 +783,3 @@ async def search_records(
         logger.error(f"Unexpected error searching records: {e}")
         metrics.record_dns_operation("search_records", "error")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
