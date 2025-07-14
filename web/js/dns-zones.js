@@ -319,6 +319,9 @@ class DNSZonesManager {
         // Apply filters using the search filter module
         this.filteredZones = this.searchFilter.filterZones(this.zones);
 
+        // Organize zones hierarchically
+        this.organizeHierarchy();
+
         // Reset to first page when filtering
         this.currentPage = 1;
         this.displayZones();
@@ -328,10 +331,80 @@ class DNSZonesManager {
     }
 
     /**
+     * Simple method to mark which zones are subdomains
+     */
+    organizeHierarchy() {
+        // First pass: mark parent zones and count children
+        this.filteredZones.forEach(zone => {
+            zone.isSubdomain = false;
+            zone.parentZone = null;
+            zone.childCount = 0;
+            zone.isExpanded = true; // Start expanded
+            
+            // Check if this zone is a subdomain of any other zone
+            const parts = zone.name.split('.');
+            if (parts.length > 2) { // Potential subdomain
+                // Try to find parent by removing first part
+                const potentialParent = parts.slice(1).join('.');
+                const parent = this.filteredZones.find(z => z.name === potentialParent);
+                if (parent) {
+                    zone.isSubdomain = true;
+                    zone.parentZone = parent.name;
+                    parent.childCount = (parent.childCount || 0) + 1;
+                    console.log(`Found subdomain: ${zone.name} -> parent: ${parent.name} (childCount: ${parent.childCount})`);
+                }
+            }
+        });
+        
+        // Log summary
+        const parents = this.filteredZones.filter(z => z.childCount > 0);
+        console.log(`Hierarchy built: ${parents.length} parent zones found`);
+        parents.forEach(p => console.log(`  ${p.name}: ${p.childCount} children`));
+    }
+
+    /**
      * Apply filters from the search filter module
      */
     applyFilters(filters) {
         this.filterAndDisplayZones();
+    }
+
+    /**
+     * Build hierarchical view - simple approach
+     */
+    buildHierarchicalView() {
+        const result = [];
+        
+        // First add all root zones (non-subdomains)
+        this.filteredZones.forEach(zone => {
+            if (!zone.isSubdomain) {
+                zone.isVisible = true;
+                result.push(zone);
+                
+                // Then add its children right after
+                if (zone.childCount > 0 && zone.isExpanded) {
+                    this.filteredZones.forEach(child => {
+                        if (child.parentZone === zone.name) {
+                            child.isVisible = true;
+                            result.push(child);
+                        }
+                    });
+                }
+            }
+        });
+        
+        return result;
+    }
+
+    /**
+     * Toggle zone expansion
+     */
+    toggleZone(zoneId) {
+        const zone = this.filteredZones.find(z => z.id === zoneId);
+        if (zone) {
+            zone.isExpanded = !zone.isExpanded;
+            this.displayZones();
+        }
     }
 
     /**
@@ -398,11 +471,14 @@ class DNSZonesManager {
         const tbody = document.getElementById('zones-tbody');
         if (!tbody) return;
 
-        // Calculate pagination
-        const totalPages = Math.ceil(this.filteredZones.length / this.itemsPerPage);
+        // Build hierarchical view
+        const hierarchicalZones = this.buildHierarchicalView();
+
+        // Calculate pagination on the hierarchical list
+        const totalPages = Math.ceil(hierarchicalZones.length / this.itemsPerPage);
         const startIndex = (this.currentPage - 1) * this.itemsPerPage;
         const endIndex = startIndex + this.itemsPerPage;
-        const pagezones = this.filteredZones.slice(startIndex, endIndex);
+        const pagezones = hierarchicalZones.slice(startIndex, endIndex);
 
         // Show appropriate view
         if (this.zones.length === 0) {
@@ -422,15 +498,25 @@ class DNSZonesManager {
                 zone.nameservers.map(ns => this.searchFilter.highlightSearchTerm(ns, searchTerm)).join(', ') : 
                 'N/A';
             
+            // Simple indentation for subdomains
+            const indent = zone.isSubdomain ? 'ps-4' : '';
+            const icon = zone.childCount > 0 ? 
+                `<i class="bi bi-chevron-${zone.isExpanded ? 'down' : 'right'} me-1" 
+                    style="cursor: pointer;" 
+                    onclick="dnsZonesManager.toggleZone('${zone.id}'); event.stopPropagation(); return false;"></i>` : 
+                '<span class="me-3"></span>';
+            
             return `
-            <tr>
+            <tr class="${zone.isVisible ? '' : 'd-none'}" data-zone-id="${zone.id}">
                 <td>
                     <input type="checkbox" class="zone-checkbox form-check-input" data-zone-id="${zone.id}">
                 </td>
-                <td>
+                <td class="${indent}">
+                    ${icon}
                     <a href="#" class="text-decoration-none" onclick="dnsZonesManager.showZoneDetail('${zone.id}'); return false;">
-                        <i class="bi bi-globe2"></i> ${highlightedZoneName}
+                        <i class="bi bi-${zone.isSubdomain ? 'folder' : 'globe2'}"></i> ${highlightedZoneName}
                     </a>
+                    ${zone.childCount > 0 ? `<span class="badge bg-secondary ms-2">${zone.childCount}</span>` : ''}
                 </td>
                 <td>
                     <span class="badge bg-${zone.dnssec ? 'warning' : 'success'}">

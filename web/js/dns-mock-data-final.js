@@ -25,6 +25,67 @@ class DNSMockDataService {
      */
     generateSampleZones() {
         const zones = {
+            // Add subdomain zones for testing hierarchy
+            'api.example.com.': {
+                id: 'api.example.com.',
+                name: 'api.example.com.',
+                kind: 'Native',
+                account: '',
+                dnssec: false,
+                api_rectify: false,
+                serial: 2024122001,
+                notified_serial: 2024122001,
+                edited_serial: 2024122001,
+                masters: [],
+                nameservers: ['ns1.example.com.', 'ns2.example.com.'],
+                rrsets: [
+                    {
+                        name: 'api.example.com.',
+                        type: 'SOA',
+                        ttl: 3600,
+                        records: [{
+                            content: 'ns1.example.com. admin.example.com. 2024122001 3600 600 86400 3600',
+                            disabled: false
+                        }]
+                    },
+                    {
+                        name: 'api.example.com.',
+                        type: 'A',
+                        ttl: 3600,
+                        records: [{ content: '192.168.1.10', disabled: false }]
+                    }
+                ]
+            },
+            'dev.api.example.com.': {
+                id: 'dev.api.example.com.',
+                name: 'dev.api.example.com.',
+                kind: 'Native',
+                account: '',
+                dnssec: false,
+                api_rectify: false,
+                serial: 2024122001,
+                notified_serial: 2024122001,
+                edited_serial: 2024122001,
+                masters: [],
+                nameservers: ['ns1.example.com.', 'ns2.example.com.'],
+                rrsets: [
+                    {
+                        name: 'dev.api.example.com.',
+                        type: 'SOA',
+                        ttl: 3600,
+                        records: [{
+                            content: 'ns1.example.com. admin.example.com. 2024122001 3600 600 86400 3600',
+                            disabled: false
+                        }]
+                    },
+                    {
+                        name: 'dev.api.example.com.',
+                        type: 'A',
+                        ttl: 3600,
+                        records: [{ content: '192.168.1.11', disabled: false }]
+                    }
+                ]
+            },
             'example.com.': {
                 id: 'example.com.',
                 name: 'example.com.',
