@@ -1038,6 +1038,223 @@ class PowerDNSClient:
             metrics.record_powerdns_zone_operation("delete", "failed")
             raise
 
+    async def search_zones(
+        self,
+        query: str,
+        zone_type: Optional[str] = None,
+        hierarchy_level: Optional[int] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for zones matching query.
+        
+        Args:
+            query: Search query (searches in zone names)
+            zone_type: Filter by zone type (Native, Master, Slave)
+            hierarchy_level: Filter by hierarchy level (0=root, 1=subdomain, etc.)
+            limit: Maximum results to return
+            
+        Returns:
+            List of matching zones
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+        
+        try:
+            # Get all zones
+            zones = await self.list_zones()
+            
+            # Filter by search query
+            if query:
+                query_lower = query.lower()
+                # Support wildcard search
+                if "*" in query:
+                    import fnmatch
+                    pattern = query_lower.replace(".", r"\.")
+                    zones = [z for z in zones if fnmatch.fnmatch(z.get("name", "").lower(), pattern)]
+                else:
+                    zones = [z for z in zones if query_lower in z.get("name", "").lower()]
+            
+            # Filter by zone type
+            if zone_type:
+                zones = [z for z in zones if z.get("kind", "").lower() == zone_type.lower()]
+            
+            # Filter by hierarchy level
+            if hierarchy_level is not None:
+                filtered_zones = []
+                all_zone_names = [z.get("name", "") for z in zones]
+                
+                for zone in zones:
+                    zone_name = zone.get("name", "")
+                    hierarchy = self.detect_zone_hierarchy(zone_name, all_zone_names)
+                    if hierarchy["level"] == hierarchy_level:
+                        filtered_zones.append(zone)
+                zones = filtered_zones
+            
+            # Limit results
+            return zones[:limit]
+            
+        except Exception as e:
+            logger.error(f"Failed to search zones with query '{query}': {e}")
+            raise
+    
+    async def search_records(
+        self,
+        query: str,
+        record_type: Optional[str] = None,
+        zone_name: Optional[str] = None,
+        content_search: bool = False,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for records matching query across zones.
+        
+        Args:
+            query: Search query
+            record_type: Filter by record type (A, AAAA, CNAME, etc.)
+            zone_name: Limit search to specific zone
+            content_search: Search in record content instead of names
+            limit: Maximum results to return
+            
+        Returns:
+            List of matching records with zone information
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+        
+        try:
+            results = []
+            
+            # Get zones to search
+            if zone_name:
+                zones = [await self.get_zone_details(zone_name)]
+                if not zones[0]:
+                    return []
+            else:
+                zones = await self.list_zones()
+            
+            query_lower = query.lower() if query else ""
+            
+            # Search through each zone
+            for zone in zones:
+                zone_id = zone.get("id", zone.get("name", ""))
+                try:
+                    records = await self.list_records(zone_id)
+                    
+                    for record in records:
+                        # Filter by record type
+                        if record_type and record.get("type") != record_type.upper():
+                            continue
+                        
+                        # Search in record name or content
+                        if query:
+                            if content_search:
+                                # Search in record content
+                                match = any(
+                                    query_lower in r.get("content", "").lower()
+                                    for r in record.get("records", [])
+                                )
+                            else:
+                                # Search in record name
+                                match = query_lower in record.get("name", "").lower()
+                            
+                            if not match:
+                                continue
+                        
+                        # Add zone information to record
+                        record_with_zone = record.copy()
+                        record_with_zone["zone"] = zone_id
+                        results.append(record_with_zone)
+                        
+                        if len(results) >= limit:
+                            return results
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to search records in zone {zone_id}: {e}")
+                    continue
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to search records with query '{query}': {e}")
+            raise
+    
+    async def filter_zones(
+        self,
+        filters: Dict[str, Any],
+        sort_by: str = "name",
+        sort_order: str = "asc",
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter zones based on multiple criteria.
+        
+        Args:
+            filters: Dictionary of filter criteria
+                - min_records: Minimum number of records
+                - max_records: Maximum number of records
+                - has_dnssec: Filter by DNSSEC status
+                - parent_zone: Filter by parent zone
+                - created_after: Filter by creation date
+                - modified_after: Filter by modification date
+            sort_by: Field to sort by (name, records, serial)
+            sort_order: Sort order (asc, desc)
+            
+        Returns:
+            Filtered and sorted list of zones
+        """
+        if not self.enabled:
+            raise PowerDNSError("PowerDNS integration is disabled")
+        
+        try:
+            zones = await self.list_zones()
+            all_zone_names = [z.get("name", "") for z in zones]
+            
+            # Apply filters
+            filtered_zones = []
+            for zone in zones:
+                # Filter by record count
+                record_count = zone.get("record_count", len(zone.get("rrsets", [])))
+                if filters.get("min_records") and record_count < filters["min_records"]:
+                    continue
+                if filters.get("max_records") and record_count > filters["max_records"]:
+                    continue
+                
+                # Filter by DNSSEC
+                if filters.get("has_dnssec") is not None:
+                    if zone.get("dnssec", False) != filters["has_dnssec"]:
+                        continue
+                
+                # Filter by parent zone
+                if filters.get("parent_zone"):
+                    hierarchy = self.detect_zone_hierarchy(zone.get("name", ""), all_zone_names)
+                    if hierarchy["parent"] != filters["parent_zone"]:
+                        continue
+                
+                # Filter by serial (as proxy for modification date)
+                if filters.get("serial_after"):
+                    if zone.get("serial", 0) < filters["serial_after"]:
+                        continue
+                
+                filtered_zones.append(zone)
+            
+            # Sort results
+            reverse = sort_order.lower() == "desc"
+            if sort_by == "name":
+                filtered_zones.sort(key=lambda x: x.get("name", ""), reverse=reverse)
+            elif sort_by == "records":
+                filtered_zones.sort(
+                    key=lambda x: x.get("record_count", len(x.get("rrsets", []))),
+                    reverse=reverse
+                )
+            elif sort_by == "serial":
+                filtered_zones.sort(key=lambda x: x.get("serial", 0), reverse=reverse)
+            
+            return filtered_zones
+            
+        except Exception as e:
+            logger.error(f"Failed to filter zones: {e}")
+            raise
+
     async def close(self):
         """Close HTTP session."""
         if self._session and not self._session.closed:
