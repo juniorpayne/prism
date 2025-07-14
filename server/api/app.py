@@ -21,7 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
-from server.api.routes import health, hosts, metrics, users
+from server.api.routes import health, hosts, metrics, users, dns
 from server.auth.dependencies import get_current_verified_user
 from server.auth.routes import router as auth_router
 from server.database.connection import init_async_db
@@ -149,6 +149,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(hosts.router)
     app.include_router(health.router)
     app.include_router(metrics.router)
+    app.include_router(dns.router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(users.router)
 
@@ -227,6 +228,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "version": "1.0.0",
             "endpoints": {
                 "hosts": "/api/hosts",
+                "dns": "/api/dns",
                 "health": "/api/health",
                 "stats": "/api/stats",
                 "docs": "/api/docs",

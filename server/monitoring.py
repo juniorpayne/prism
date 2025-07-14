@@ -97,6 +97,32 @@ server_uptime_seconds = Gauge("prism_server_uptime_seconds", "Server uptime in s
 
 server_start_time = Gauge("prism_server_start_time", "Unix timestamp of server start time")
 
+# DNS metrics
+dns_operations_total = Counter(
+    "prism_dns_operations_total",
+    "Total DNS operations",
+    ["operation", "status"],  # 'list_zones', 'get_zone', 'create_zone' / 'success', 'error'
+)
+
+dns_operation_duration_seconds = Histogram(
+    "prism_dns_operation_duration_seconds",
+    "DNS operation duration in seconds",
+    ["operation"],
+)
+
+# PowerDNS integration metrics
+powerdns_api_requests_total = Counter(
+    "prism_powerdns_api_requests_total",
+    "Total PowerDNS API requests",
+    ["method", "endpoint", "status"],
+)
+
+powerdns_api_request_duration_seconds = Histogram(
+    "prism_powerdns_api_request_duration_seconds",
+    "PowerDNS API request duration in seconds",
+    ["method", "endpoint"],
+)
+
 # Business metrics
 dns_queries_total = Counter(
     "prism_dns_queries_total", "Total DNS queries", ["query_type", "status"]
@@ -108,23 +134,6 @@ host_registrations_total = Counter(
 
 host_updates_total = Counter(
     "prism_host_updates_total", "Total host updates", ["status"]  # 'success', 'failed'
-)
-
-# PowerDNS integration metrics
-powerdns_api_requests_total = Counter(
-    "prism_powerdns_api_requests_total",
-    "Total PowerDNS API requests",
-    [
-        "method",
-        "endpoint",
-        "status",
-    ],  # 'GET', 'POST', 'PATCH', 'DELETE' / endpoint / 'success', 'error'
-)
-
-powerdns_api_request_duration_seconds = Histogram(
-    "prism_powerdns_api_request_duration_seconds",
-    "PowerDNS API request duration in seconds",
-    ["method", "endpoint"],
 )
 
 powerdns_record_operations_total = Counter(
@@ -240,6 +249,12 @@ class MetricsCollector:
     def record_powerdns_zone_operation(self, operation: str, status: str):
         """Record PowerDNS zone operation."""
         powerdns_zone_operations_total.labels(operation=operation, status=status).inc()
+
+    def record_dns_operation(self, operation: str, status: str, duration: float = 0):
+        """Record DNS operation metrics."""
+        dns_operations_total.labels(operation=operation, status=status).inc()
+        if duration > 0:
+            dns_operation_duration_seconds.labels(operation=operation).observe(duration)
 
     def update_dns_sync_status(self, pending: int, synced: int, failed: int):
         """Update DNS synchronization status gauges."""

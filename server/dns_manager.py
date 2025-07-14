@@ -576,6 +576,58 @@ class PowerDNSClient:
             metrics.record_powerdns_zone_operation("create", "failed")
             raise
 
+    async def list_zones(self) -> List[Dict[str, Any]]:
+        """
+        List all DNS zones.
+
+        Returns:
+            List of zone dictionaries
+        """
+        if not self.enabled:
+            logger.debug("PowerDNS integration disabled")
+            return []
+
+        try:
+            endpoint = "servers/localhost/zones"
+            zones = await self._make_request("GET", endpoint)
+
+            # Add computed fields
+            for zone in zones:
+                zone["record_count"] = len(zone.get("rrsets", []))
+                zone["status"] = "Active"  # PowerDNS doesn't have status
+
+            return zones
+        except Exception as e:
+            logger.error(f"Failed to list zones: {e}")
+            return []
+
+    async def get_zone_details(self, zone_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed zone information.
+
+        Args:
+            zone_name: Name of the zone to retrieve
+
+        Returns:
+            Zone details or None if not found
+        """
+        if not self.enabled:
+            logger.debug("PowerDNS integration disabled")
+            return None
+
+        try:
+            endpoint = f"servers/localhost/zones/{zone_name}"
+            zone = await self._make_request("GET", endpoint)
+
+            # Add computed fields
+            zone["record_count"] = len(zone.get("rrsets", []))
+            zone["status"] = "Active"  # PowerDNS doesn't have status
+
+            return zone
+        except Exception as e:
+            logger.error(f"Failed to get zone details for {zone_name}: {e}")
+            return None
+
     async def close(self):
         """Close HTTP session."""
         if self._session and not self._session.closed:
