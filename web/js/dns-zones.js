@@ -8,14 +8,16 @@ class DNSZonesManager {
         this.mockService = new DNSMockDataService();
         this.searchFilter = new DNSSearchFilter();
         this.importExport = new DNSImportExport();
+        this.preferenceManager = window.dnsPreferenceManager || new DNSPreferenceManager();
         this.breadcrumbNav = null; // Will be initialized after DOM is ready
         this.zones = [];
         this.filteredZones = [];
-        this.currentSort = { column: 'name', direction: 'asc' };
+        this.currentSort = this.preferenceManager.getSortPreferences();
         this.currentPage = 1;
-        this.itemsPerPage = 10;
+        this.itemsPerPage = this.preferenceManager.getItemsPerPage();
         this.searchTerm = '';
         this.selectedZones = new Set();
+        this.viewMode = this.preferenceManager.getViewMode(); // 'tree' or 'flat'
         this.initialize();
     }
 
@@ -72,25 +74,79 @@ class DNSZonesManager {
                 <div class="col-12">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h2><i class="bi bi-diagram-3"></i> DNS Zones</h2>
-                        <div class="btn-group">
-                            <button class="btn btn-outline-primary" id="import-zones-btn">
-                                <i class="bi bi-upload"></i> Import
-                            </button>
-                            <button class="btn btn-outline-primary dropdown-toggle" 
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-download"></i> Export
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item export-option" href="#" data-format="bind">
-                                    <i class="bi bi-file-text me-2"></i>BIND Format
-                                </a></li>
-                                <li><a class="dropdown-item export-option" href="#" data-format="json">
-                                    <i class="bi bi-file-code me-2"></i>JSON Format
-                                </a></li>
-                                <li><a class="dropdown-item export-option" href="#" data-format="csv">
-                                    <i class="bi bi-file-spreadsheet me-2"></i>CSV Format
-                                </a></li>
-                            </ul>
+                        <div class="btn-toolbar">
+                            <!-- View Toggle -->
+                            <div class="btn-group me-2">
+                                <button class="btn btn-outline-secondary ${this.viewMode === 'tree' ? 'active' : ''}" 
+                                        id="tree-view-btn" title="Tree View">
+                                    <i class="bi bi-diagram-3"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary ${this.viewMode === 'flat' ? 'active' : ''}" 
+                                        id="flat-view-btn" title="Flat View">
+                                    <i class="bi bi-list"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Tree Controls (only in tree view) -->
+                            <div class="btn-group me-2" id="tree-controls" style="${this.viewMode === 'flat' ? 'display: none;' : ''}">
+                                <button class="btn btn-outline-secondary" id="expand-all-btn" title="Expand All">
+                                    <i class="bi bi-chevron-double-down"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" id="collapse-all-btn" title="Collapse All">
+                                    <i class="bi bi-chevron-double-up"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Import/Export -->
+                            <div class="btn-group me-2">
+                                <button class="btn btn-outline-primary" id="import-zones-btn">
+                                    <i class="bi bi-upload"></i> Import
+                                </button>
+                                <button class="btn btn-outline-primary dropdown-toggle" 
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-download"></i> Export
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item export-option" href="#" data-format="bind">
+                                        <i class="bi bi-file-text me-2"></i>BIND Format
+                                    </a></li>
+                                    <li><a class="dropdown-item export-option" href="#" data-format="json">
+                                        <i class="bi bi-file-code me-2"></i>JSON Format
+                                    </a></li>
+                                    <li><a class="dropdown-item export-option" href="#" data-format="csv">
+                                        <i class="bi bi-file-spreadsheet me-2"></i>CSV Format
+                                    </a></li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Settings Dropdown -->
+                            <div class="btn-group me-2">
+                                <button class="btn btn-outline-secondary dropdown-toggle" 
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-gear"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><h6 class="dropdown-header">Preferences</h6></li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" id="reset-tree-state">
+                                            <i class="bi bi-arrow-clockwise me-2"></i>Reset Tree State
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" id="reset-all-preferences">
+                                            <i class="bi bi-trash me-2"></i>Reset All Preferences
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" id="export-preferences">
+                                            <i class="bi bi-download me-2"></i>Export Preferences
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Create Zone -->
                             <button class="btn btn-primary" id="create-zone-btn">
                                 <i class="bi bi-plus-circle"></i> Create Zone
                             </button>
@@ -284,11 +340,94 @@ class DNSZonesManager {
         // Items per page
         const itemsPerPageSelect = document.getElementById('items-per-page');
         if (itemsPerPageSelect) {
+            itemsPerPageSelect.value = this.itemsPerPage; // Set saved value
             itemsPerPageSelect.addEventListener('change', (e) => {
                 this.itemsPerPage = parseInt(e.target.value);
+                this.preferenceManager.setItemsPerPage(this.itemsPerPage);
                 this.currentPage = 1;
                 this.displayZones();
             });
+        }
+        
+        // View mode toggle
+        const treeViewBtn = document.getElementById('tree-view-btn');
+        const flatViewBtn = document.getElementById('flat-view-btn');
+        
+        if (treeViewBtn) {
+            treeViewBtn.addEventListener('click', () => {
+                this.setViewMode('tree');
+            });
+        }
+        
+        if (flatViewBtn) {
+            flatViewBtn.addEventListener('click', () => {
+                this.setViewMode('flat');
+            });
+        }
+        
+        // Tree controls
+        const expandAllBtn = document.getElementById('expand-all-btn');
+        const collapseAllBtn = document.getElementById('collapse-all-btn');
+        
+        if (expandAllBtn) {
+            expandAllBtn.addEventListener('click', () => {
+                this.expandAllZones();
+            });
+        }
+        
+        if (collapseAllBtn) {
+            collapseAllBtn.addEventListener('click', () => {
+                this.collapseAllZones();
+            });
+        }
+        
+        // Preference management
+        const resetTreeBtn = document.getElementById('reset-tree-state');
+        const resetAllBtn = document.getElementById('reset-all-preferences');
+        const exportPrefsBtn = document.getElementById('export-preferences');
+        
+        if (resetTreeBtn) {
+            resetTreeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Reset tree expansion state?')) {
+                    this.preferenceManager.resetTreeState();
+                    this.restoreTreeState();
+                    this.displayZones();
+                    this.showNotification('success', 'Tree state reset to default');
+                }
+            });
+        }
+        
+        if (resetAllBtn) {
+            resetAllBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Reset all preferences to defaults? This cannot be undone.')) {
+                    this.preferenceManager.resetPreferences();
+                    location.reload(); // Easiest way to ensure all preferences are reset
+                }
+            });
+        }
+        
+        if (exportPrefsBtn) {
+            exportPrefsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const prefs = this.preferenceManager.exportPreferences();
+                const blob = new Blob([prefs], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `dns-preferences-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                this.showNotification('success', 'Preferences exported successfully');
+            });
+        }
+        
+        // Restore filter preferences
+        const savedFilters = this.preferenceManager.getActiveFilters();
+        if (savedFilters) {
+            // Apply saved filters to search filter
+            this.searchFilter.activeFilters = { ...this.searchFilter.activeFilters, ...savedFilters };
         }
     }
 
@@ -350,7 +489,8 @@ class DNSZonesManager {
             zone.isSubdomain = false;
             zone.parentZone = null;
             zone.childCount = 0;
-            zone.isExpanded = true; // Start expanded
+            // Restore expansion state from preferences
+            zone.isExpanded = this.preferenceManager.isZoneExpanded(zone.id);
             zone.isVisible = true; // Default visible
         });
         
@@ -361,14 +501,18 @@ class DNSZonesManager {
             const parts = cleanName.split('.');
             
             if (parts.length > 2) { // Potential subdomain (more than domain.tld)
-                // Try to find parent by removing first part
-                const potentialParentClean = parts.slice(1).join('.');
-                const potentialParent = potentialParentClean + '.'; // Add dot back
-                const parent = this.filteredZones.find(z => z.name === potentialParent);
-                if (parent) {
-                    zone.isSubdomain = true;
-                    zone.parentZone = parent.name;
-                    console.log(`Found subdomain: ${zone.name} -> parent: ${parent.name}`);
+                // Try to find the closest parent by removing parts one by one
+                for (let i = 1; i < parts.length - 1; i++) {
+                    const potentialParentClean = parts.slice(i).join('.');
+                    const potentialParent = potentialParentClean + '.'; // Add dot back
+                    const parent = this.filteredZones.find(z => z.name === potentialParent);
+                    if (parent) {
+                        zone.isSubdomain = true;
+                        zone.parentZone = parent.name;
+                        zone.depth = parts.length - parent.name.split('.').length + 1;
+                        console.log(`Found subdomain: ${zone.name} -> parent: ${parent.name} (depth: ${zone.depth})`);
+                        break; // Found the closest parent, stop looking
+                    }
                 }
             }
         });
@@ -397,28 +541,34 @@ class DNSZonesManager {
     }
 
     /**
-     * Build hierarchical view - simple approach
+     * Build hierarchical view - recursive approach for multi-level support
      */
     buildHierarchicalView() {
         const result = [];
         
-        // First add all root zones (non-subdomains)
-        this.filteredZones.forEach(zone => {
-            if (!zone.isSubdomain) {
-                zone.isVisible = true;
-                result.push(zone);
-                
-                // Then add its children right after
-                if (zone.childCount > 0 && zone.isExpanded) {
-                    this.filteredZones.forEach(child => {
-                        if (child.parentZone === zone.name) {
-                            child.isVisible = true;
-                            result.push(child);
-                        }
+        // Helper function to add zone and its descendants
+        const addZoneAndDescendants = (zone, parentExpanded = true) => {
+            zone.isVisible = parentExpanded;
+            result.push(zone);
+            
+            if (zone.childCount > 0 && zone.isExpanded && parentExpanded) {
+                // Find all direct children and add them recursively
+                this.filteredZones
+                    .filter(child => child.parentZone === zone.name)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .forEach(child => {
+                        addZoneAndDescendants(child, true);
                     });
-                }
             }
-        });
+        };
+        
+        // Start with root zones (non-subdomains)
+        this.filteredZones
+            .filter(zone => !zone.isSubdomain)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .forEach(zone => {
+                addZoneAndDescendants(zone);
+            });
         
         return result;
     }
@@ -430,6 +580,8 @@ class DNSZonesManager {
         const zone = this.filteredZones.find(z => z.id === zoneId);
         if (zone) {
             zone.isExpanded = !zone.isExpanded;
+            // Save expansion state
+            this.preferenceManager.setZoneExpanded(zoneId, zone.isExpanded);
             this.displayZones();
         }
     }
@@ -472,6 +624,9 @@ class DNSZonesManager {
             this.currentSort.direction = 'asc';
         }
 
+        // Save sort preferences
+        this.preferenceManager.setSortPreferences(this.currentSort.column, this.currentSort.direction);
+
         // Sort the filtered zones
         this.filteredZones.sort((a, b) => {
             let aVal = a[column];
@@ -498,14 +653,21 @@ class DNSZonesManager {
         const tbody = document.getElementById('zones-tbody');
         if (!tbody) return;
 
-        // Build hierarchical view
-        const hierarchicalZones = this.buildHierarchicalView();
+        // Get zones based on view mode
+        let zonesToDisplay;
+        if (this.viewMode === 'tree') {
+            // Build hierarchical view
+            zonesToDisplay = this.buildHierarchicalView();
+        } else {
+            // Flat view - just show all zones sorted
+            zonesToDisplay = [...this.filteredZones];
+        }
 
-        // Calculate pagination on the hierarchical list
-        const totalPages = Math.ceil(hierarchicalZones.length / this.itemsPerPage);
+        // Calculate pagination
+        const totalPages = Math.ceil(zonesToDisplay.length / this.itemsPerPage);
         const startIndex = (this.currentPage - 1) * this.itemsPerPage;
         const endIndex = startIndex + this.itemsPerPage;
-        const pagezones = hierarchicalZones.slice(startIndex, endIndex);
+        const pagezones = zonesToDisplay.slice(startIndex, endIndex);
 
         // Show appropriate view
         if (this.zones.length === 0) {
@@ -525,9 +687,11 @@ class DNSZonesManager {
                 zone.nameservers.map(ns => this.searchFilter.highlightSearchTerm(ns, searchTerm)).join(', ') : 
                 'N/A';
             
-            // Simple indentation for subdomains
-            const indent = zone.isSubdomain ? 'ps-4' : '';
-            const icon = zone.childCount > 0 ? 
+            // Multi-level indentation based on depth (only in tree view)
+            const depth = zone.depth || 0;
+            const showTreeFeatures = this.viewMode === 'tree' && zone.isSubdomain;
+            const indent = showTreeFeatures && depth > 0 ? `style="padding-left: ${depth * 25}px;"` : '';
+            const icon = this.viewMode === 'tree' && zone.childCount > 0 ? 
                 `<i class="bi bi-chevron-${zone.isExpanded ? 'down' : 'right'} me-1" 
                     style="cursor: pointer;" 
                     onclick="dnsZonesManager.toggleZone('${zone.id}'); event.stopPropagation(); return false;"></i>` : 
@@ -538,12 +702,14 @@ class DNSZonesManager {
                 <td>
                     <input type="checkbox" class="zone-checkbox form-check-input" data-zone-id="${zone.id}">
                 </td>
-                <td class="${indent}">
-                    ${icon}
-                    <a href="#" class="text-decoration-none" onclick="dnsZonesManager.showZoneDetail('${zone.id}'); return false;">
-                        <i class="bi bi-${zone.isSubdomain ? 'folder' : 'globe2'}"></i> ${highlightedZoneName}
-                    </a>
-                    ${zone.childCount > 0 ? `<span class="badge bg-secondary ms-2">${zone.childCount}</span>` : ''}
+                <td>
+                    <div ${indent}>
+                        ${icon}
+                        <a href="#" class="text-decoration-none" onclick="dnsZonesManager.showZoneDetail('${zone.id}'); return false;">
+                            <i class="bi bi-${zone.isSubdomain ? 'folder' : 'globe2'}"></i> ${highlightedZoneName}
+                        </a>
+                        ${zone.childCount > 0 ? `<span class="badge bg-secondary ms-2">${zone.childCount}</span>` : ''}
+                    </div>
                 </td>
                 <td>
                     <span class="badge bg-${zone.dnssec ? 'warning' : 'success'}">
@@ -616,10 +782,11 @@ class DNSZonesManager {
                         this.selectedZones.delete(cb.dataset.zoneId);
                     }
                 });
+                this.updateBulkOperationsUI();
             });
         }
 
-        // Individual checkboxes
+        // Individual checkboxes with right-click for tree selection
         document.querySelectorAll('.zone-checkbox').forEach(cb => {
             cb.addEventListener('change', (e) => {
                 if (e.target.checked) {
@@ -634,8 +801,195 @@ class DNSZonesManager {
                 if (selectAll) {
                     selectAll.checked = allChecked;
                 }
+                
+                this.updateBulkOperationsUI();
+            });
+            
+            // Add context menu for tree selection
+            cb.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const zoneId = e.target.dataset.zoneId;
+                this.showTreeSelectionMenu(e, zoneId);
             });
         });
+    }
+
+    /**
+     * Show tree selection context menu
+     */
+    showTreeSelectionMenu(event, zoneId) {
+        // Remove any existing context menu
+        const existingMenu = document.querySelector('.tree-selection-menu');
+        if (existingMenu) existingMenu.remove();
+        
+        const zone = this.zones.find(z => z.id === zoneId);
+        if (!zone) return;
+        
+        const menu = document.createElement('div');
+        menu.className = 'tree-selection-menu dropdown-menu show';
+        menu.style.position = 'fixed';
+        menu.style.left = event.pageX + 'px';
+        menu.style.top = event.pageY + 'px';
+        menu.style.zIndex = '9999';
+        
+        menu.innerHTML = `
+            <h6 class="dropdown-header">${zone.name}</h6>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#" data-action="select-zone">
+                <i class="bi bi-check2-square me-2"></i>Select Zone Only
+            </a>
+            ${zone.childCount > 0 ? `
+                <a class="dropdown-item" href="#" data-action="select-with-children">
+                    <i class="bi bi-diagram-3 me-2"></i>Select with All Subdomains (${zone.childCount})
+                </a>
+            ` : ''}
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#" data-action="deselect-all">
+                <i class="bi bi-x-square me-2"></i>Deselect All
+            </a>
+        `;
+        
+        document.body.appendChild(menu);
+        
+        // Handle menu clicks
+        menu.addEventListener('click', (e) => {
+            e.preventDefault();
+            const action = e.target.closest('[data-action]')?.dataset.action;
+            
+            switch (action) {
+                case 'select-zone':
+                    this.selectZone(zoneId);
+                    break;
+                case 'select-with-children':
+                    this.selectZoneWithChildren(zoneId);
+                    break;
+                case 'deselect-all':
+                    this.deselectAllZones();
+                    break;
+            }
+            
+            menu.remove();
+        });
+        
+        // Remove menu on click outside
+        setTimeout(() => {
+            document.addEventListener('click', () => menu.remove(), { once: true });
+        }, 0);
+    }
+    
+    /**
+     * Select a single zone
+     */
+    selectZone(zoneId) {
+        this.selectedZones.add(zoneId);
+        const checkbox = document.querySelector(`input[data-zone-id="${zoneId}"]`);
+        if (checkbox) checkbox.checked = true;
+        this.updateBulkOperationsUI();
+    }
+    
+    /**
+     * Select zone with all its children
+     */
+    selectZoneWithChildren(zoneId) {
+        const zone = this.zones.find(z => z.id === zoneId);
+        if (!zone) return;
+        
+        // Select the zone itself
+        this.selectZone(zoneId);
+        
+        // Find and select all descendants
+        this.zones.forEach(z => {
+            if (this.isDescendantOf(z.name, zone.name)) {
+                this.selectZone(z.id);
+            }
+        });
+    }
+    
+    /**
+     * Check if a zone is a descendant of another
+     */
+    isDescendantOf(childName, parentName) {
+        const child = childName.endsWith('.') ? childName.slice(0, -1) : childName;
+        const parent = parentName.endsWith('.') ? parentName.slice(0, -1) : parentName;
+        return child !== parent && child.endsWith('.' + parent);
+    }
+    
+    /**
+     * Deselect all zones
+     */
+    deselectAllZones() {
+        this.selectedZones.clear();
+        document.querySelectorAll('.zone-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        this.updateBulkOperationsUI();
+    }
+    
+    /**
+     * Update bulk operations UI based on selection
+     */
+    updateBulkOperationsUI() {
+        const selectedCount = this.selectedZones.size;
+        
+        // Update or create bulk operations bar
+        let bulkBar = document.getElementById('bulk-operations-bar');
+        if (selectedCount > 0) {
+            if (!bulkBar) {
+                bulkBar = this.createBulkOperationsBar();
+            }
+            
+            // Update selection count
+            const countElement = bulkBar.querySelector('#selected-count');
+            if (countElement) {
+                countElement.textContent = `${selectedCount} zone${selectedCount > 1 ? 's' : ''} selected`;
+            }
+            
+            bulkBar.style.display = 'block';
+        } else if (bulkBar) {
+            bulkBar.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Create bulk operations bar
+     */
+    createBulkOperationsBar() {
+        const container = document.querySelector('#zones-table-container');
+        if (!container) return null;
+        
+        const bulkBar = document.createElement('div');
+        bulkBar.id = 'bulk-operations-bar';
+        bulkBar.className = 'alert alert-info d-flex justify-content-between align-items-center mb-3';
+        bulkBar.style.display = 'none';
+        
+        bulkBar.innerHTML = `
+            <div>
+                <i class="bi bi-check2-square me-2"></i>
+                <span id="selected-count">0 zones selected</span>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-primary" onclick="dnsZonesManager.showBulkExportModal()">
+                    <i class="bi bi-download me-1"></i>Export
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="dnsZonesManager.showBulkNameserverModal()">
+                    <i class="bi bi-hdd-network me-1"></i>Change Nameservers
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="dnsZonesManager.showBulkDeleteModal()">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+                <button class="btn btn-sm btn-secondary ms-2" onclick="dnsZonesManager.deselectAllZones()">
+                    <i class="bi bi-x-circle me-1"></i>Clear Selection
+                </button>
+            </div>
+        `;
+        
+        // Insert before the table
+        const table = container.querySelector('.table-responsive');
+        if (table) {
+            container.insertBefore(bulkBar, table);
+        }
+        
+        return bulkBar;
     }
 
     /**
@@ -766,7 +1120,8 @@ class DNSZonesManager {
     showCreateZoneModal() {
         // Use the new simplified wizard
         const wizard = new DNSZoneWizardV2();
-        wizard.show();
+        // Pass zones for parent detection
+        wizard.show({ zones: this.zones });
     }
 
     editZone(zoneId) {
@@ -939,6 +1294,542 @@ class DNSZonesManager {
                 alert.remove();
             }
         }, 5000);
+    }
+    
+    /**
+     * Show bulk delete modal with cascade preview
+     */
+    async showBulkDeleteModal() {
+        if (this.selectedZones.size === 0) {
+            this.showNotification('error', 'No zones selected');
+            return;
+        }
+        
+        // Get selected zones and their children
+        const selectedZoneData = await this.getSelectedZonesWithChildren();
+        
+        const modalHtml = `
+            <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-trash me-2"></i>
+                                Delete Multiple Zones
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Warning:</strong> This action cannot be undone!
+                            </div>
+                            
+                            <h6>Zones to be deleted:</h6>
+                            <div class="border rounded p-3 mb-3" style="max-height: 300px; overflow-y: auto;">
+                                ${this.renderZoneHierarchy(selectedZoneData)}
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="cascadeDelete" checked>
+                                <label class="form-check-label" for="cascadeDelete">
+                                    <strong>Delete all subdomains</strong> (recommended to maintain consistency)
+                                </label>
+                            </div>
+                            
+                            <div class="alert alert-info" id="deleteStats">
+                                ${this.calculateDeleteStats(selectedZoneData)}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" onclick="dnsZonesManager.performBulkDelete()">
+                                <i class="bi bi-trash me-2"></i>Delete Zones
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('bulkDeleteModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+        modal.show();
+        
+        // Update stats when cascade option changes
+        document.getElementById('cascadeDelete').addEventListener('change', () => {
+            document.getElementById('deleteStats').innerHTML = this.calculateDeleteStats(selectedZoneData);
+        });
+    }
+    
+    /**
+     * Show bulk export modal
+     */
+    showBulkExportModal() {
+        if (this.selectedZones.size === 0) {
+            this.showNotification('error', 'No zones selected');
+            return;
+        }
+        
+        const modalHtml = `
+            <div class="modal fade" id="bulkExportModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-download me-2"></i>
+                                Export Selected Zones
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Export ${this.selectedZones.size} selected zone(s):</p>
+                            
+                            <div class="list-group">
+                                <button class="list-group-item list-group-item-action" 
+                                        onclick="dnsZonesManager.performBulkExport('bind')">
+                                    <i class="bi bi-file-text me-2"></i>
+                                    <strong>BIND Format</strong>
+                                    <div class="small text-muted">Standard zone file format</div>
+                                </button>
+                                <button class="list-group-item list-group-item-action" 
+                                        onclick="dnsZonesManager.performBulkExport('json')">
+                                    <i class="bi bi-file-code me-2"></i>
+                                    <strong>JSON Format</strong>
+                                    <div class="small text-muted">PowerDNS API format</div>
+                                </button>
+                                <button class="list-group-item list-group-item-action" 
+                                        onclick="dnsZonesManager.performBulkExport('csv')">
+                                    <i class="bi bi-file-spreadsheet me-2"></i>
+                                    <strong>CSV Format</strong>
+                                    <div class="small text-muted">Spreadsheet compatible</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('bulkExportModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = new bootstrap.Modal(document.getElementById('bulkExportModal'));
+        modal.show();
+    }
+    
+    /**
+     * Show bulk nameserver change modal
+     */
+    showBulkNameserverModal() {
+        if (this.selectedZones.size === 0) {
+            this.showNotification('error', 'No zones selected');
+            return;
+        }
+        
+        const modalHtml = `
+            <div class="modal fade" id="bulkNameserverModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-hdd-network me-2"></i>
+                                Change Nameservers
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Change nameservers for ${this.selectedZones.size} selected zone(s):</p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">New Nameservers</label>
+                                <textarea class="form-control" id="newNameservers" rows="4" 
+                                          placeholder="ns1.example.com.&#10;ns2.example.com.">ns1.example.com.
+ns2.example.com.</textarea>
+                                <div class="form-text">Enter one nameserver per line. Include trailing dot.</div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                This will update the NS records for all selected zones.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-warning" onclick="dnsZonesManager.performBulkNameserverChange()">
+                                <i class="bi bi-hdd-network me-2"></i>Update Nameservers
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('bulkNameserverModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = new bootstrap.Modal(document.getElementById('bulkNameserverModal'));
+        modal.show();
+    }
+    
+    /**
+     * Get selected zones with their children
+     */
+    async getSelectedZonesWithChildren() {
+        const result = [];
+        
+        for (const zoneId of this.selectedZones) {
+            const zone = this.zones.find(z => z.id === zoneId);
+            if (!zone) continue;
+            
+            const zoneData = {
+                zone: zone,
+                children: []
+            };
+            
+            // Find all children
+            this.zones.forEach(z => {
+                if (this.isDescendantOf(z.name, zone.name)) {
+                    zoneData.children.push(z);
+                }
+            });
+            
+            result.push(zoneData);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Render zone hierarchy for preview
+     */
+    renderZoneHierarchy(zoneData) {
+        let html = '<ul class="list-unstyled mb-0">';
+        
+        zoneData.forEach(item => {
+            html += `
+                <li class="mb-2">
+                    <i class="bi bi-globe2 text-primary me-2"></i>
+                    <strong>${item.zone.name}</strong>
+                    ${item.children.length > 0 ? `
+                        <ul class="mt-1">
+                            ${item.children.map(child => `
+                                <li class="text-muted">
+                                    <i class="bi bi-folder me-2"></i>${child.name}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    ` : ''}
+                </li>
+            `;
+        });
+        
+        html += '</ul>';
+        return html;
+    }
+    
+    /**
+     * Calculate delete statistics
+     */
+    calculateDeleteStats(zoneData) {
+        const cascadeChecked = document.getElementById('cascadeDelete')?.checked ?? true;
+        let totalZones = zoneData.length;
+        let totalSubdomains = 0;
+        
+        if (cascadeChecked) {
+            zoneData.forEach(item => {
+                totalSubdomains += item.children.length;
+            });
+        }
+        
+        const total = totalZones + totalSubdomains;
+        
+        return `
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Total zones to be deleted:</strong> ${total}
+            <ul class="mb-0 mt-2">
+                <li>Primary zones: ${totalZones}</li>
+                ${cascadeChecked ? `<li>Subdomains: ${totalSubdomains}</li>` : ''}
+            </ul>
+        `;
+    }
+    
+    /**
+     * Perform bulk delete operation
+     */
+    async performBulkDelete() {
+        const cascadeDelete = document.getElementById('cascadeDelete').checked;
+        const zonesToDelete = new Set(this.selectedZones);
+        
+        // Add children if cascade is enabled
+        if (cascadeDelete) {
+            for (const zoneId of this.selectedZones) {
+                const zone = this.zones.find(z => z.id === zoneId);
+                if (!zone) continue;
+                
+                this.zones.forEach(z => {
+                    if (this.isDescendantOf(z.name, zone.name)) {
+                        zonesToDelete.add(z.id);
+                    }
+                });
+            }
+        }
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
+        modal.hide();
+        
+        // Show progress
+        this.showProgressModal('Deleting Zones', zonesToDelete.size);
+        
+        let completed = 0;
+        const errors = [];
+        
+        for (const zoneId of zonesToDelete) {
+            try {
+                await this.mockService.deleteZone(zoneId);
+                completed++;
+                this.updateProgress(completed, zonesToDelete.size);
+            } catch (error) {
+                errors.push({ zoneId, error: error.message });
+            }
+        }
+        
+        // Hide progress
+        this.hideProgressModal();
+        
+        // Show result
+        if (errors.length === 0) {
+            this.showNotification('success', `Successfully deleted ${completed} zone(s)`);
+        } else {
+            this.showNotification('error', `Deleted ${completed} zone(s), but ${errors.length} failed`);
+        }
+        
+        // Clear selection and reload
+        this.deselectAllZones();
+        await this.loadZones();
+    }
+    
+    /**
+     * Perform bulk export
+     */
+    async performBulkExport(format) {
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkExportModal'));
+        modal.hide();
+        
+        try {
+            const zoneIds = Array.from(this.selectedZones);
+            await this.importExport.exportMultipleZones(zoneIds, format);
+            this.showNotification('success', `Exported ${zoneIds.length} zone(s) in ${format.toUpperCase()} format`);
+        } catch (error) {
+            this.showNotification('error', `Export failed: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Perform bulk nameserver change
+     */
+    async performBulkNameserverChange() {
+        const nameserversText = document.getElementById('newNameservers').value.trim();
+        if (!nameserversText) {
+            this.showNotification('error', 'Please enter at least one nameserver');
+            return;
+        }
+        
+        const nameservers = nameserversText.split('\n')
+            .map(ns => ns.trim())
+            .filter(ns => ns.length > 0);
+        
+        // Validate nameservers
+        for (const ns of nameservers) {
+            if (!ns.endsWith('.')) {
+                this.showNotification('error', `Nameserver ${ns} must end with a dot`);
+                return;
+            }
+        }
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkNameserverModal'));
+        modal.hide();
+        
+        // Show progress
+        this.showProgressModal('Updating Nameservers', this.selectedZones.size);
+        
+        let completed = 0;
+        const errors = [];
+        
+        for (const zoneId of this.selectedZones) {
+            try {
+                const zone = await this.mockService.getZone(zoneId);
+                if (zone) {
+                    // Update nameservers
+                    zone.nameservers = nameservers;
+                    await this.mockService.updateZone(zoneId, zone);
+                    completed++;
+                    this.updateProgress(completed, this.selectedZones.size);
+                }
+            } catch (error) {
+                errors.push({ zoneId, error: error.message });
+            }
+        }
+        
+        // Hide progress
+        this.hideProgressModal();
+        
+        // Show result
+        if (errors.length === 0) {
+            this.showNotification('success', `Successfully updated nameservers for ${completed} zone(s)`);
+        } else {
+            this.showNotification('error', `Updated ${completed} zone(s), but ${errors.length} failed`);
+        }
+        
+        // Reload zones
+        await this.loadZones();
+    }
+    
+    /**
+     * Show progress modal
+     */
+    showProgressModal(title, total) {
+        const modalHtml = `
+            <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-body text-center py-4">
+                            <h6>${title}</h6>
+                            <div class="progress mt-3 mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="progressText">0 / ${total}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+        modal.show();
+    }
+    
+    /**
+     * Update progress
+     */
+    updateProgress(completed, total) {
+        const percent = Math.round((completed / total) * 100);
+        const progressBar = document.querySelector('#progressModal .progress-bar');
+        const progressText = document.getElementById('progressText');
+        
+        if (progressBar) {
+            progressBar.style.width = percent + '%';
+        }
+        if (progressText) {
+            progressText.textContent = `${completed} / ${total}`;
+        }
+    }
+    
+    /**
+     * Hide progress modal
+     */
+    hideProgressModal() {
+        const modalElement = document.getElementById('progressModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+            setTimeout(() => modalElement.remove(), 300);
+        }
+    }
+    
+    /**
+     * Set view mode (tree or flat)
+     */
+    setViewMode(mode) {
+        if (mode !== 'tree' && mode !== 'flat') return;
+        
+        this.viewMode = mode;
+        this.preferenceManager.setViewMode(mode);
+        
+        // Update button states
+        const treeBtn = document.getElementById('tree-view-btn');
+        const flatBtn = document.getElementById('flat-view-btn');
+        const treeControls = document.getElementById('tree-controls');
+        
+        if (mode === 'tree') {
+            treeBtn?.classList.add('active');
+            flatBtn?.classList.remove('active');
+            if (treeControls) treeControls.style.display = '';
+        } else {
+            treeBtn?.classList.remove('active');
+            flatBtn?.classList.add('active');
+            if (treeControls) treeControls.style.display = 'none';
+        }
+        
+        this.displayZones();
+    }
+    
+    /**
+     * Expand all zones
+     */
+    expandAllZones() {
+        const zoneIds = this.filteredZones
+            .filter(z => z.childCount > 0)
+            .map(z => z.id);
+            
+        this.preferenceManager.expandAllZones(zoneIds);
+        
+        // Update zone states
+        this.filteredZones.forEach(zone => {
+            if (zone.childCount > 0) {
+                zone.isExpanded = true;
+            }
+        });
+        
+        this.displayZones();
+    }
+    
+    /**
+     * Collapse all zones
+     */
+    collapseAllZones() {
+        this.preferenceManager.collapseAllZones();
+        
+        // Update zone states
+        this.filteredZones.forEach(zone => {
+            zone.isExpanded = false;
+        });
+        
+        this.displayZones();
+    }
+    
+    /**
+     * Restore tree state from preferences
+     */
+    restoreTreeState() {
+        this.filteredZones.forEach(zone => {
+            zone.isExpanded = this.preferenceManager.isZoneExpanded(zone.id);
+        });
+    }
+    
+    /**
+     * Apply filters and save preferences
+     */
+    applyFilters(filters) {
+        // Save filter preferences
+        this.preferenceManager.updateFilters(filters);
+        this.filterAndDisplayZones();
     }
 }
 

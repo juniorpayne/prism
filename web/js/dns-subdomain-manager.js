@@ -37,10 +37,9 @@ class DNSSubdomainManager {
             if (window.dnsZonesManager && window.dnsZonesManager.zones) {
                 const allZones = window.dnsZonesManager.zones;
                 
-                // Find direct children (zones that have this zone as their parent)
+                // Find all descendants (not just direct children)
                 this.childZones = allZones.filter(zone => {
-                    return zone.parentZone === this.currentZone.name || 
-                           this.isDirectChildDomain(zone.name, this.currentZone.name);
+                    return this.isDescendantDomain(zone.name, this.currentZone.name);
                 });
 
                 // Get additional details for each child zone
@@ -75,20 +74,30 @@ class DNSSubdomainManager {
     }
 
     /**
-     * Check if a domain is a direct child of another domain
+     * Check if a domain is a descendant of another domain (any level)
      */
-    isDirectChildDomain(childName, parentName) {
+    isDescendantDomain(childName, parentName) {
         if (!childName || !parentName) return false;
         
         // Remove trailing dots for comparison
         const child = childName.endsWith('.') ? childName.slice(0, -1) : childName;
         const parent = parentName.endsWith('.') ? parentName.slice(0, -1) : parentName;
         
-        if (!child.endsWith('.' + parent)) return false;
+        // Check if child ends with parent domain and is not the same
+        return child !== parent && child.endsWith('.' + parent);
+    }
+    
+    /**
+     * Get the depth level of a subdomain relative to parent
+     */
+    getRelativeDepth(childName, parentName) {
+        const child = childName.endsWith('.') ? childName.slice(0, -1) : childName;
+        const parent = parentName.endsWith('.') ? parentName.slice(0, -1) : parentName;
         
-        // Check if it's a direct child (not a grandchild)
-        const prefix = child.substring(0, child.length - parent.length - 1);
-        return !prefix.includes('.');
+        const childParts = child.split('.');
+        const parentParts = parent.split('.');
+        
+        return childParts.length - parentParts.length;
     }
 
     /**
@@ -140,11 +149,14 @@ class DNSSubdomainManager {
      * Render the list of subdomains
      */
     renderSubdomainsList() {
+        // Sort zones by name to ensure proper hierarchy display
+        const sortedZones = [...this.childZones].sort((a, b) => a.name.localeCompare(b.name));
+        
         return `
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">
                     <i class="bi bi-folder me-2"></i>
-                    Direct Subdomains (${this.childZones.length})
+                    Subdomains (${this.childZones.length})
                 </h6>
                 <button class="btn btn-primary btn-sm" onclick="window.dnsSubdomainManager.showCreateSubdomainModal()">
                     <i class="bi bi-plus-circle me-1"></i>Create Subdomain
@@ -163,7 +175,7 @@ class DNSSubdomainManager {
                         </tr>
                     </thead>
                     <tbody>
-                        ${this.childZones.map(zone => this.renderSubdomainRow(zone)).join('')}
+                        ${sortedZones.map(zone => this.renderSubdomainRow(zone)).join('')}
                     </tbody>
                 </table>
             </div>
@@ -171,7 +183,7 @@ class DNSSubdomainManager {
             <div class="mt-3">
                 <small class="text-muted">
                     <i class="bi bi-info-circle me-1"></i>
-                    These are direct subdomains of <strong>${this.currentZone.name.replace(/\.$/, '')}</strong>
+                    All subdomains under <strong>${this.currentZone.name.replace(/\.$/, '')}</strong>
                 </small>
             </div>
         `;
@@ -182,17 +194,16 @@ class DNSSubdomainManager {
      */
     renderSubdomainRow(zone) {
         const zoneName = zone.name.replace(/\.$/, ''); // Remove trailing dot for display
-        const parentName = this.currentZone.name.replace(/\.$/, '');
-        const subdomainPrefix = zoneName.replace('.' + parentName, '');
+        const depth = this.getRelativeDepth(zone.name, this.currentZone.name);
+        const indent = depth * 20; // 20px per level
 
         return `
             <tr>
                 <td>
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center" style="padding-left: ${indent}px;">
                         <i class="bi bi-folder text-primary me-2"></i>
                         <div>
-                            <div class="fw-medium">${this.escapeHtml(subdomainPrefix)}</div>
-                            <small class="text-muted">${this.escapeHtml(zoneName)}</small>
+                            <div class="fw-medium">${this.escapeHtml(zoneName)}</div>
                         </div>
                     </div>
                 </td>
@@ -278,7 +289,8 @@ class DNSSubdomainManager {
                 // Pre-fill parent zone if the wizard supports it
                 wizard.show({
                     parentZone: this.currentZone.name,
-                    suggestedName: `subdomain.${this.currentZone.name.replace(/\.$/, '')}.`
+                    suggestedName: `subdomain.${this.currentZone.name.replace(/\.$/, '')}.`,
+                    zones: window.dnsZonesManager?.zones || []
                 });
             } else {
                 alert('Zone creation wizard not available. Please use the main Create Zone button.');
