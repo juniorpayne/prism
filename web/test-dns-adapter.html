@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Service Adapter Test (SCRUM-122)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .service-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .service-healthy { background-color: #4caf50; }
+        .service-unhealthy { background-color: #f44336; }
+        .log-entry { 
+            padding: 5px; 
+            margin: 2px 0; 
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .log-success { background-color: #d4edda; color: #155724; }
+        .log-error { background-color: #f8d7da; color: #721c24; }
+        .log-info { background-color: #d1ecf1; color: #0c5460; }
+        .log-warning { background-color: #fff3cd; color: #856404; }
+        #logOutput { 
+            height: 400px; 
+            overflow-y: auto; 
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .feature-flag-row {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .migration-progress {
+            margin: 15px 0;
+        }
+        .service-badge {
+            font-size: 0.75em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
+        .badge-mock { background-color: #6c757d; color: white; }
+        .badge-real { background-color: #0d6efd; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>DNS Service Adapter Test</h1>
+        <p class="lead">Test the DNS service adapter pattern with feature flags and migration controls</p>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <!-- Service Status Card -->
+                <div class="card mb-3">
+                    <div class="card-header">Service Status</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <span class="service-indicator service-healthy"></span>
+                            Mock Service: <span class="text-success">Healthy</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="service-indicator" id="realServiceIndicator"></span>
+                            Real Service: <span id="realServiceStatus">Unknown</span>
+                        </div>
+                        <div class="mt-3">
+                            <strong>Active Service:</strong> 
+                            <span id="activeService" class="badge badge-mock">Mock</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Global Configuration Card -->
+                <div class="card mb-3">
+                    <div class="card-header">Global Configuration</div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="useRealService">
+                            <label class="form-check-label" for="useRealService">
+                                Use Real Service Globally
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="fallbackToMock" checked>
+                            <label class="form-check-label" for="fallbackToMock">
+                                Fallback to Mock on Error
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="logSelection" checked>
+                            <label class="form-check-label" for="logSelection">
+                                Log Service Selection
+                            </label>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-success" onclick="enableAll()">Enable All</button>
+                            <button class="btn btn-sm btn-danger" onclick="disableAll()">Disable All</button>
+                            <button class="btn btn-sm btn-secondary" onclick="resetConfig()">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Migration Progress Card -->
+                <div class="card mb-3">
+                    <div class="card-header">Migration Progress</div>
+                    <div class="card-body">
+                        <div class="migration-progress">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Progress</span>
+                                <span id="progressText">0/0 (0%)</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" id="progressBar" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-primary w-100" onclick="showFeatureFlags()">
+                            Configure Feature Flags
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Performance Metrics Card -->
+                <div class="card">
+                    <div class="card-header">Performance Metrics</div>
+                    <div class="card-body" style="font-size: 0.9em;">
+                        <h6>Mock Service</h6>
+                        <div id="mockMetrics" class="mb-3"></div>
+                        <h6>Real Service</h6>
+                        <div id="realMetrics"></div>
+                        <button class="btn btn-sm btn-info mt-2" onclick="refreshMetrics()">
+                            Refresh Metrics
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Test Operations Card -->
+                <div class="card mb-3">
+                    <div class="card-header">Test Operations</div>
+                    <div class="card-body">
+                        <h6>Zone Operations</h6>
+                        <button class="btn btn-sm btn-primary mb-1" onclick="testGetZones()">List Zones</button>
+                        <button class="btn btn-sm btn-primary mb-1" onclick="testGetZone()">Get Zone</button>
+                        <button class="btn btn-sm btn-success mb-1" onclick="testCreateZone()">Create Zone</button>
+                        <button class="btn btn-sm btn-warning mb-1" onclick="testUpdateZone()">Update Zone</button>
+                        <button class="btn btn-sm btn-danger mb-1" onclick="testDeleteZone()">Delete Zone</button>
+                        
+                        <h6 class="mt-3">Record Operations</h6>
+                        <button class="btn btn-sm btn-primary mb-1" onclick="testGetRecords()">List Records</button>
+                        <button class="btn btn-sm btn-success mb-1" onclick="testCreateRecord()">Create Record</button>
+                        <button class="btn btn-sm btn-warning mb-1" onclick="testUpdateRecord()">Update Record</button>
+                        <button class="btn btn-sm btn-danger mb-1" onclick="testDeleteRecord()">Delete Record</button>
+                        
+                        <h6 class="mt-3">Search & Filter</h6>
+                        <button class="btn btn-sm btn-info mb-1" onclick="testSearchZones()">Search Zones</button>
+                        <button class="btn btn-sm btn-info mb-1" onclick="testSearchRecords()">Search Records</button>
+                        
+                        <h6 class="mt-3">Utilities</h6>
+                        <button class="btn btn-sm btn-secondary mb-1" onclick="testServiceComparison()">Compare Services</button>
+                        <button class="btn btn-sm btn-secondary mb-1" onclick="clearLog()">Clear Log</button>
+                    </div>
+                </div>
+                
+                <!-- A/B Testing Card -->
+                <div class="card">
+                    <div class="card-header">A/B Testing</div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="abTestingEnabled">
+                            <label class="form-check-label" for="abTestingEnabled">
+                                Enable A/B Testing
+                            </label>
+                        </div>
+                        <div class="mb-2">
+                            <label for="abPercentage" class="form-label">Percentage for Real Service</label>
+                            <input type="range" class="form-range" id="abPercentage" 
+                                   min="0" max="100" value="0" step="10">
+                            <span id="abPercentageText">0%</span>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="updateABTesting()">
+                            Apply A/B Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <h5>Operation Log</h5>
+                <div id="logOutput"></div>
+            </div>
+        </div>
+        
+        <!-- Feature Flags Modal -->
+        <div class="modal fade" id="featureFlagsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Feature Flags Configuration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" id="featureFlagsBody">
+                        <!-- Feature flags will be populated here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="saveFeatureFlags()">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/token-manager.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/dns-mock-data-final.js"></script>
+    <script src="/js/dns-adapter-config.js"></script>
+    <script src="/js/dns-service-adapter.js"></script>
+    
+    <script>
+        // Initialize
+        let dnsAdapter;
+        const TEST_ZONE = 'adapter-test.local.';
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initialize API
+            window.api.initTokenManager();
+            
+            // Create adapter
+            dnsAdapter = DNSServiceFactory.getAdapter();
+            window.dnsAdapter = dnsAdapter;
+            
+            // Load configuration
+            loadConfiguration();
+            
+            // Update UI
+            updateUI();
+            refreshMetrics();
+            
+            // Start health check updates
+            setInterval(() => {
+                updateHealthStatus();
+            }, 5000);
+            
+            log('DNS Service Adapter initialized', 'info');
+        });
+        
+        // Logging
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('logOutput');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('logOutput').innerHTML = '';
+            log('Log cleared', 'info');
+        }
+        
+        // Configuration Management
+        function loadConfiguration() {
+            const config = window.dnsAdapterConfig.getConfig();
+            document.getElementById('useRealService').checked = config.useRealService;
+            document.getElementById('fallbackToMock').checked = config.fallbackToMock;
+            document.getElementById('logSelection').checked = config.logServiceSelection;
+            document.getElementById('abTestingEnabled').checked = config.abTesting.enabled;
+            document.getElementById('abPercentage').value = config.abTesting.percentage;
+            updateABPercentageText();
+        }
+        
+        function updateConfiguration() {
+            const config = {
+                useRealService: document.getElementById('useRealService').checked,
+                fallbackToMock: document.getElementById('fallbackToMock').checked,
+                logServiceSelection: document.getElementById('logSelection').checked
+            };
+            window.dnsAdapterConfig.updateConfig(config);
+            updateUI();
+        }
+        
+        // Event handlers
+        document.getElementById('useRealService').addEventListener('change', updateConfiguration);
+        document.getElementById('fallbackToMock').addEventListener('change', updateConfiguration);
+        document.getElementById('logSelection').addEventListener('change', updateConfiguration);
+        document.getElementById('abPercentage').addEventListener('input', updateABPercentageText);
+        
+        function updateABPercentageText() {
+            const value = document.getElementById('abPercentage').value;
+            document.getElementById('abPercentageText').textContent = value + '%';
+        }
+        
+        function updateABTesting() {
+            const config = {
+                abTesting: {
+                    enabled: document.getElementById('abTestingEnabled').checked,
+                    percentage: parseInt(document.getElementById('abPercentage').value)
+                }
+            };
+            window.dnsAdapterConfig.updateConfig(config);
+            log('A/B testing configuration updated', 'info');
+        }
+        
+        // UI Updates
+        function updateUI() {
+            const config = window.dnsAdapterConfig.getConfig();
+            const progress = window.dnsAdapterConfig.getMigrationProgress();
+            
+            // Update active service badge
+            const activeService = document.getElementById('activeService');
+            if (config.useRealService) {
+                activeService.textContent = 'Real';
+                activeService.className = 'badge badge-real';
+            } else {
+                activeService.textContent = 'Mock';
+                activeService.className = 'badge badge-mock';
+            }
+            
+            // Update progress
+            document.getElementById('progressText').textContent = 
+                `${progress.enabled}/${progress.total} (${progress.percentage.toFixed(0)}%)`;
+            document.getElementById('progressBar').style.width = progress.percentage + '%';
+        }
+        
+        function updateHealthStatus() {
+            const health = dnsAdapter.getServiceHealth();
+            const indicator = document.getElementById('realServiceIndicator');
+            const status = document.getElementById('realServiceStatus');
+            
+            if (health.real.healthy) {
+                indicator.className = 'service-indicator service-healthy';
+                status.textContent = 'Healthy';
+                status.className = 'text-success';
+            } else {
+                indicator.className = 'service-indicator service-unhealthy';
+                status.textContent = 'Unhealthy';
+                status.className = 'text-danger';
+            }
+        }
+        
+        function refreshMetrics() {
+            const metrics = dnsAdapter.getPerformanceMetrics();
+            
+            // Mock metrics
+            document.getElementById('mockMetrics').innerHTML = `
+                <div>Calls: ${metrics.mock.calls}</div>
+                <div>Errors: ${metrics.mock.errors} (${metrics.mock.errorRate.toFixed(1)}%)</div>
+                <div>Avg Response: ${metrics.mock.avgResponseTime.toFixed(2)}ms</div>
+            `;
+            
+            // Real metrics
+            document.getElementById('realMetrics').innerHTML = `
+                <div>Calls: ${metrics.real.calls}</div>
+                <div>Errors: ${metrics.real.errors} (${metrics.real.errorRate.toFixed(1)}%)</div>
+                <div>Avg Response: ${metrics.real.avgResponseTime.toFixed(2)}ms</div>
+            `;
+        }
+        
+        // Control Functions
+        function enableAll() {
+            window.dnsAdapterConfig.enableAllRealService();
+            loadConfiguration();
+            updateUI();
+            log('Enabled all real service features', 'success');
+        }
+        
+        function disableAll() {
+            window.dnsAdapterConfig.disableAllRealService();
+            loadConfiguration();
+            updateUI();
+            log('Disabled all real service features', 'warning');
+        }
+        
+        function resetConfig() {
+            window.dnsAdapterConfig.reset();
+            loadConfiguration();
+            updateUI();
+            log('Configuration reset to defaults', 'info');
+        }
+        
+        // Feature Flags Modal
+        function showFeatureFlags() {
+            const config = window.dnsAdapterConfig.getConfig();
+            const body = document.getElementById('featureFlagsBody');
+            
+            let html = '<div class="container-fluid">';
+            
+            // Zones category
+            html += '<h6>Zone Operations</h6>';
+            for (const [action, enabled] of Object.entries(config.featureFlags.zones)) {
+                html += createFeatureFlagRow('zones', action, enabled);
+            }
+            
+            // Records category
+            html += '<h6 class="mt-3">Record Operations</h6>';
+            for (const [action, enabled] of Object.entries(config.featureFlags.records)) {
+                html += createFeatureFlagRow('records', action, enabled);
+            }
+            
+            // Other flags
+            html += '<h6 class="mt-3">Other Features</h6>';
+            html += createFeatureFlagRow('', 'search', config.featureFlags.search);
+            html += createFeatureFlagRow('', 'import', config.featureFlags.import);
+            html += createFeatureFlagRow('', 'export', config.featureFlags.export);
+            
+            html += '</div>';
+            body.innerHTML = html;
+            
+            const modal = new bootstrap.Modal(document.getElementById('featureFlagsModal'));
+            modal.show();
+        }
+        
+        function createFeatureFlagRow(category, action, enabled) {
+            const id = category ? `${category}-${action}` : action;
+            return `
+                <div class="feature-flag-row">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="flag-${id}" 
+                               data-category="${category}" data-action="${action}" 
+                               ${enabled ? 'checked' : ''}>
+                        <label class="form-check-label" for="flag-${id}">
+                            ${action.charAt(0).toUpperCase() + action.slice(1)}
+                        </label>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function saveFeatureFlags() {
+            const checkboxes = document.querySelectorAll('#featureFlagsBody input[type="checkbox"]');
+            const flags = { zones: {}, records: {} };
+            
+            checkboxes.forEach(checkbox => {
+                const category = checkbox.dataset.category;
+                const action = checkbox.dataset.action;
+                
+                if (category) {
+                    flags[category][action] = checkbox.checked;
+                } else {
+                    flags[action] = checkbox.checked;
+                }
+            });
+            
+            window.dnsAdapterConfig.updateFeatureFlags(flags);
+            updateUI();
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('featureFlagsModal'));
+            modal.hide();
+            
+            log('Feature flags updated', 'success');
+        }
+        
+        // Test Operations
+        async function testGetZones() {
+            try {
+                log('Testing getZones()...', 'info');
+                const result = await dnsAdapter.getZones(1, 10);
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Found ${result.zones ? result.zones.length : 0} zones`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testGetZone() {
+            try {
+                log(`Testing getZone("example.com.")...`, 'info');
+                const result = await dnsAdapter.getZone('example.com.');
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Got zone ${result.name}`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testCreateZone() {
+            try {
+                log(`Testing createZone("${TEST_ZONE}")...`, 'info');
+                const result = await dnsAdapter.createZone({
+                    name: TEST_ZONE,
+                    kind: 'Native',
+                    nameservers: ['ns1.test.local.', 'ns2.test.local.']
+                });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Created zone ${result.name || TEST_ZONE}`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testUpdateZone() {
+            try {
+                log(`Testing updateZone("${TEST_ZONE}")...`, 'info');
+                const result = await dnsAdapter.updateZone(TEST_ZONE, {
+                    account: 'test-account-updated'
+                });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Updated zone`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testDeleteZone() {
+            try {
+                log(`Testing deleteZone("${TEST_ZONE}")...`, 'info');
+                const result = await dnsAdapter.deleteZone(TEST_ZONE);
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Deleted zone`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testGetRecords() {
+            try {
+                log('Testing getRecords("example.com.")...', 'info');
+                const result = await dnsAdapter.getRecords('example.com.', 1, 10);
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Found ${result.records ? result.records.length : 0} records`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testCreateRecord() {
+            try {
+                log('Testing createRecord()...', 'info');
+                const result = await dnsAdapter.createRecord('example.com.', {
+                    name: 'test',
+                    type: 'A',
+                    ttl: 300,
+                    records: [{ content: '192.168.1.100' }]
+                });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Created record`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testUpdateRecord() {
+            try {
+                log('Testing updateRecord()...', 'info');
+                const result = await dnsAdapter.updateRecord('example.com.', 'test', 'A', {
+                    ttl: 600,
+                    records: [{ content: '192.168.1.101' }]
+                });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Updated record`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testDeleteRecord() {
+            try {
+                log('Testing deleteRecord()...', 'info');
+                const result = await dnsAdapter.deleteRecord('example.com.', 'test', 'A');
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Deleted record`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testSearchZones() {
+            try {
+                log('Testing searchZones("example")...', 'info');
+                const result = await dnsAdapter.searchZones('example', { limit: 5 });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Found ${result.total || 0} matching zones`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testSearchRecords() {
+            try {
+                log('Testing searchRecords("www")...', 'info');
+                const result = await dnsAdapter.searchRecords('www', { recordType: 'A' });
+                const service = window.dnsAdapterConfig.getConfig().useRealService ? 'real' : 'mock';
+                log(`Success (${service}): Found ${result.total || 0} matching records`, 'success');
+                refreshMetrics();
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                refreshMetrics();
+            }
+        }
+        
+        async function testServiceComparison() {
+            try {
+                log('Comparing services for getAllZones()...', 'info');
+                const comparison = await dnsAdapter.compareServices('getZones', 1, 10);
+                
+                log(`Mock: ${comparison.mock.success ? 'Success' : 'Failed'} (${comparison.mock.duration.toFixed(2)}ms)`, 
+                    comparison.mock.success ? 'success' : 'error');
+                log(`Real: ${comparison.real.success ? 'Success' : 'Failed'} (${comparison.real.duration.toFixed(2)}ms)`, 
+                    comparison.real.success ? 'success' : 'error');
+                log(`Results match: ${comparison.match}`, comparison.match ? 'success' : 'warning');
+                
+            } catch (error) {
+                log(`Comparison error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
