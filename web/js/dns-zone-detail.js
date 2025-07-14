@@ -44,6 +44,20 @@ class DNSZoneDetailManager {
         if (!zone) {
             throw new Error('Zone not found');
         }
+        
+        // Enrich zone with hierarchy information from zones manager
+        if (window.dnsZonesManager && window.dnsZonesManager.zones) {
+            const enrichedZone = window.dnsZonesManager.zones.find(z => z.id === zoneId);
+            if (enrichedZone) {
+                // Copy hierarchy properties from the enriched zone
+                zone.isSubdomain = enrichedZone.isSubdomain;
+                zone.parentZone = enrichedZone.parentZone;
+                zone.childCount = enrichedZone.childCount;
+                zone.isExpanded = enrichedZone.isExpanded;
+                zone.isVisible = enrichedZone.isVisible;
+            }
+        }
+        
         this.currentZone = zone;
     }
 
@@ -63,16 +77,22 @@ class DNSZoneDetailManager {
                 <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="zoneDetailModalLabel">
-                                <i class="fas fa-globe me-2"></i>${this.currentZone.name}
-                            </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="w-100">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="modal-title" id="zoneDetailModalLabel">
+                                        <i class="fas fa-globe me-2"></i>${this.currentZone.name}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                ${this.renderBreadcrumb()}
+                            </div>
                         </div>
                         <div class="modal-body">
                             ${this.renderTabs()}
                             <div class="tab-content mt-3" id="zoneDetailTabContent">
                                 ${this.renderOverviewTab()}
                                 ${this.renderRecordsTab()}
+                                ${this.renderSubdomainsTab()}
                                 ${this.renderSettingsTab()}
                             </div>
                         </div>
@@ -142,6 +162,14 @@ class DNSZoneDetailManager {
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="subdomains-tab" data-bs-toggle="tab" 
+                            data-bs-target="#subdomains" type="button" role="tab" 
+                            aria-controls="subdomains" aria-selected="false">
+                        <i class="fas fa-sitemap me-2"></i>Subdomains
+                        <span class="badge bg-secondary ms-2" id="zone-subdomains-count">...</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="settings-tab" data-bs-toggle="tab" 
                             data-bs-target="#settings" type="button" role="tab" 
                             aria-controls="settings" aria-selected="false">
@@ -149,6 +177,34 @@ class DNSZoneDetailManager {
                     </button>
                 </li>
             </ul>
+        `;
+    }
+
+    /**
+     * Render breadcrumb navigation for modal
+     */
+    renderBreadcrumb() {
+        if (!this.currentZone) return '';
+        
+        // Use the global breadcrumb navigation if available
+        if (window.dnsBreadcrumbNav) {
+            return window.dnsBreadcrumbNav.showInModal(this.currentZone);
+        }
+        
+        // Fallback simple breadcrumb if navigation not available
+        return `
+            <nav aria-label="DNS zone navigation" class="mt-2">
+                <ol class="breadcrumb mb-0 bg-light p-2 rounded">
+                    <li class="breadcrumb-item">
+                        <a href="#" class="text-decoration-none" onclick="bootstrap.Modal.getInstance(document.getElementById('dnsZoneDetailModal')).hide(); return false;">
+                            <i class="bi bi-house-door me-1"></i>All Zones
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        <i class="bi bi-globe2 me-1"></i>${this.currentZone.name.replace(/\.$/, '')}
+                    </li>
+                </ol>
+            </nav>
         `;
     }
 
@@ -166,6 +222,8 @@ class DNSZoneDetailManager {
             <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
                 <div class="row">
                     <div class="col-md-6">
+                        ${this.renderHierarchyInfo(zone)}
+                        
                         <div class="card mb-3">
                             <div class="card-header">
                                 <h6 class="mb-0"><i class="fas fa-info me-2"></i>Zone Information</h6>
@@ -178,6 +236,7 @@ class DNSZoneDetailManager {
                                     <dt class="col-sm-4">Zone Kind</dt>
                                     <dd class="col-sm-8">
                                         <span class="badge bg-primary">${zone.kind}</span>
+                                        ${this.getInheritanceIndicator('kind')}
                                     </dd>
                                     
                                     <dt class="col-sm-4">DNSSEC</dt>
@@ -185,13 +244,20 @@ class DNSZoneDetailManager {
                                         <span class="badge bg-${zone.dnssec ? 'warning' : 'secondary'}">
                                             ${zone.dnssec ? 'Enabled' : 'Disabled'}
                                         </span>
+                                        ${this.getInheritanceIndicator('dnssec')}
                                     </dd>
                                     
                                     <dt class="col-sm-4">Serial</dt>
-                                    <dd class="col-sm-8"><code>${zone.serial || 'N/A'}</code></dd>
+                                    <dd class="col-sm-8">
+                                        <code>${zone.serial || 'N/A'}</code>
+                                        ${this.getInheritanceIndicator('serial')}
+                                    </dd>
                                     
                                     <dt class="col-sm-4">Account</dt>
-                                    <dd class="col-sm-8">${zone.account || 'None'}</dd>
+                                    <dd class="col-sm-8">
+                                        ${zone.account || 'None'}
+                                        ${this.getInheritanceIndicator('account')}
+                                    </dd>
                                 </dl>
                             </div>
                         </div>
@@ -315,6 +381,25 @@ class DNSZoneDetailManager {
     }
 
     /**
+     * Render Subdomains tab content
+     */
+    renderSubdomainsTab() {
+        return `
+            <div class="tab-pane fade" id="subdomains" role="tabpanel" aria-labelledby="subdomains-tab">
+                <!-- Subdomains content will be managed by SubdomainManager -->
+                <div id="subdomains-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading subdomains...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading subdomains...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
      * Render Settings tab content
      */
     renderSettingsTab() {
@@ -359,6 +444,16 @@ class DNSZoneDetailManager {
                         window.dnsRecordsManager = this.recordsManager;
                     }
                     this.recordsManager.initialize(this.currentZone);
+                }
+                
+                // Initialize subdomains manager when subdomains tab is shown
+                if (this.activeTab === 'subdomains' && this.currentZone) {
+                    if (!this.subdomainManager) {
+                        this.subdomainManager = new DNSSubdomainManager(this);
+                        // Make it globally accessible for the modal
+                        window.dnsSubdomainManager = this.subdomainManager;
+                    }
+                    this.subdomainManager.initialize(this.currentZone);
                 }
                 
                 // Initialize settings manager when settings tab is shown
@@ -458,8 +553,10 @@ class DNSZoneDetailManager {
         this.hasUnsavedChanges = false;
         this.activeTab = 'overview';
         this.recordsManager = null;
+        this.subdomainManager = null;
         this.settingsManager = null;
         window.dnsRecordsManager = null;
+        window.dnsSubdomainManager = null;
         window.dnsZoneSettings = null;
     }
 
@@ -717,6 +814,285 @@ class DNSZoneDetailManager {
         } else {
             listElement.innerHTML = '<li class="list-group-item text-muted">No nameservers configured</li>';
         }
+    }
+
+    /**
+     * Render hierarchy information card
+     */
+    renderHierarchyInfo(zone) {
+        // Only show hierarchy info for subdomains
+        if (!zone.isSubdomain && !zone.parentZone) {
+            return '';
+        }
+
+        // Get parent zone info
+        const parentZone = this.getParentZone(zone);
+        const hierarchyChain = this.buildHierarchyChain(zone);
+
+        return `
+            <div class="card mb-3 border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-sitemap me-2"></i>Zone Hierarchy
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-3">
+                        <dt class="col-sm-4">Zone Type</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-folder me-1"></i>Subdomain
+                            </span>
+                        </dd>
+                        
+                        ${parentZone ? `
+                            <dt class="col-sm-4">Parent Zone</dt>
+                            <dd class="col-sm-8">
+                                <a href="#" class="text-decoration-none" 
+                                   onclick="window.dnsZoneDetailManager.viewParentZone('${parentZone.id}'); return false;">
+                                    <i class="bi bi-${parentZone.isSubdomain ? 'folder' : 'globe2'} me-1"></i>
+                                    ${parentZone.name.replace(/\.$/, '')}
+                                </a>
+                                <button class="btn btn-sm btn-outline-primary ms-2" 
+                                        onclick="window.dnsZoneDetailManager.viewParentZone('${parentZone.id}')">
+                                    <i class="bi bi-eye me-1"></i>View Parent
+                                </button>
+                            </dd>
+                        ` : ''}
+                        
+                        <dt class="col-sm-4">Hierarchy Path</dt>
+                        <dd class="col-sm-8">
+                            <nav aria-label="Zone hierarchy">
+                                <ol class="breadcrumb mb-0 bg-light">
+                                    ${hierarchyChain.map((z, index) => {
+                                        const isLast = index === hierarchyChain.length - 1;
+                                        const zoneName = z.name.replace(/\.$/, '');
+                                        
+                                        if (isLast) {
+                                            return `
+                                                <li class="breadcrumb-item active" aria-current="page">
+                                                    <i class="bi bi-${z.isSubdomain ? 'folder' : 'globe2'} me-1"></i>
+                                                    ${zoneName}
+                                                </li>
+                                            `;
+                                        } else {
+                                            return `
+                                                <li class="breadcrumb-item">
+                                                    <a href="#" onclick="window.dnsZoneDetailManager.viewParentZone('${z.id}'); return false;">
+                                                        <i class="bi bi-${z.isSubdomain ? 'folder' : 'globe2'} me-1"></i>
+                                                        ${zoneName}
+                                                    </a>
+                                                </li>
+                                            `;
+                                        }
+                                    }).join('')}
+                                </ol>
+                            </nav>
+                        </dd>
+                    </dl>
+                    
+                    ${this.renderInheritanceInfo(zone, parentZone)}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Render inheritance information
+     */
+    renderInheritanceInfo(zone, parentZone) {
+        if (!parentZone) return '';
+
+        const inheritedSettings = this.getInheritedSettings(zone, parentZone);
+        
+        if (inheritedSettings.length === 0) {
+            return `
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    This zone uses its own settings (no inheritance from parent zone).
+                </div>
+            `;
+        }
+
+        return `
+            <div class="mt-3">
+                <h6 class="text-muted mb-2">
+                    <i class="bi bi-arrow-down-circle me-1"></i>Inherited Settings
+                </h6>
+                <div class="list-group list-group-flush">
+                    ${inheritedSettings.map(setting => `
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span>
+                                <i class="bi bi-arrow-down text-success me-2"></i>
+                                ${setting.name}: <strong>${setting.value}</strong>
+                            </span>
+                            <span class="badge bg-success" 
+                                  title="Inherited from ${parentZone.name}">
+                                Inherited
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Get inheritance indicator for a field
+     */
+    getInheritanceIndicator(fieldName) {
+        if (!this.currentZone.isSubdomain && !this.currentZone.parentZone) {
+            return '';
+        }
+
+        const parentZone = this.getParentZone(this.currentZone);
+        if (!parentZone) return '';
+
+        const isInherited = this.isSettingInherited(fieldName, this.currentZone, parentZone);
+        
+        if (isInherited) {
+            return `
+                <i class="bi bi-arrow-down-circle text-success ms-2" 
+                   title="Inherited from ${parentZone.name.replace(/\.$/, '')}"
+                   data-bs-toggle="tooltip"></i>
+            `;
+        } else {
+            return `
+                <i class="bi bi-pencil-square text-warning ms-2" 
+                   title="Overridden (custom value for this zone)"
+                   data-bs-toggle="tooltip"></i>
+            `;
+        }
+    }
+
+    /**
+     * Get parent zone object
+     */
+    getParentZone(zone) {
+        if (!zone.parentZone && window.dnsZonesManager) {
+            // Try to determine parent from zones manager
+            const zones = window.dnsZonesManager.zones || [];
+            const cleanName = zone.name.endsWith('.') ? zone.name.slice(0, -1) : zone.name;
+            const parts = cleanName.split('.');
+            
+            if (parts.length > 2) {
+                const potentialParentClean = parts.slice(1).join('.');
+                const potentialParent = potentialParentClean + '.';
+                return zones.find(z => z.name === potentialParent);
+            }
+        }
+        
+        if (window.dnsZonesManager && window.dnsZonesManager.zones) {
+            return window.dnsZonesManager.zones.find(z => z.name === zone.parentZone);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Build hierarchy chain from root to current zone
+     */
+    buildHierarchyChain(zone) {
+        const chain = [];
+        let currentZone = zone;
+        
+        // Add current zone
+        chain.unshift(currentZone);
+        
+        // Walk up the hierarchy
+        while (currentZone && currentZone.parentZone) {
+            const parent = this.getParentZone(currentZone);
+            if (parent && !chain.find(z => z.id === parent.id)) {
+                chain.unshift(parent);
+                currentZone = parent;
+            } else {
+                break; // Avoid infinite loops
+            }
+        }
+        
+        return chain;
+    }
+
+    /**
+     * Get list of inherited settings
+     */
+    getInheritedSettings(zone, parentZone) {
+        const inherited = [];
+        
+        // Check nameservers inheritance
+        if (this.arraysEqual(zone.nameservers, parentZone.nameservers)) {
+            inherited.push({
+                name: 'Name Servers',
+                value: zone.nameservers ? zone.nameservers.length + ' servers' : 'None'
+            });
+        }
+        
+        // Check zone kind inheritance
+        if (zone.kind === parentZone.kind) {
+            inherited.push({
+                name: 'Zone Kind',
+                value: zone.kind
+            });
+        }
+        
+        // Check account inheritance
+        if (zone.account === parentZone.account) {
+            inherited.push({
+                name: 'Account',
+                value: zone.account || 'None'
+            });
+        }
+        
+        return inherited;
+    }
+
+    /**
+     * Check if a specific setting is inherited
+     */
+    isSettingInherited(fieldName, zone, parentZone) {
+        switch (fieldName) {
+            case 'kind':
+                return zone.kind === parentZone.kind;
+            case 'account':
+                return zone.account === parentZone.account;
+            case 'dnssec':
+                return zone.dnssec === parentZone.dnssec;
+            case 'nameservers':
+                return this.arraysEqual(zone.nameservers, parentZone.nameservers);
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Navigate to parent zone
+     */
+    async viewParentZone(parentZoneId) {
+        // Close current modal
+        if (this.modal) {
+            this.modal.hide();
+        }
+        
+        // Wait a bit for modal to close, then open parent zone
+        setTimeout(() => {
+            if (window.dnsZonesManager) {
+                window.dnsZonesManager.showZoneDetail(parentZoneId);
+            }
+        }, 300);
+    }
+
+    /**
+     * Helper function to compare arrays
+     */
+    arraysEqual(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        
+        const sortedA = [...a].sort();
+        const sortedB = [...b].sort();
+        
+        return sortedA.every((val, index) => val === sortedB[index]);
     }
 }
 

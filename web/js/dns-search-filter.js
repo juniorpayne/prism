@@ -16,7 +16,11 @@ class DNSSearchFilter {
             lastModifiedFrom: null,
             lastModifiedTo: null,
             useRegex: false,
-            caseSensitive: false
+            caseSensitive: false,
+            // Hierarchy-aware search options
+            useWildcard: false,
+            pathSearch: false,
+            depthLevel: 'all'
         };
         this.debounceTimer = null;
         this.loadSavedData();
@@ -78,7 +82,7 @@ class DNSSearchFilter {
                                 <i class="bi bi-search"></i>
                             </span>
                             <input type="text" class="form-control" id="search-zones" 
-                                   placeholder="Search zones, records, or content..."
+                                   placeholder="Search zones, paths, wildcards (e.g., *.example.com)..."
                                    autocomplete="off">
                             <button class="btn btn-outline-secondary dropdown-toggle" 
                                     type="button" id="searchOptionsBtn"
@@ -86,6 +90,22 @@ class DNSSearchFilter {
                                 <i class="bi bi-gear"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="searchOptionsBtn">
+                                <li class="px-3 py-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="useWildcard">
+                                        <label class="form-check-label" for="useWildcard">
+                                            Enable Wildcards (*)
+                                        </label>
+                                    </div>
+                                </li>
+                                <li class="px-3 py-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="pathSearch">
+                                        <label class="form-check-label" for="pathSearch">
+                                            Path-based Search
+                                        </label>
+                                    </div>
+                                </li>
                                 <li class="px-3 py-2">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="useRegex">
@@ -183,6 +203,19 @@ class DNSSearchFilter {
                             </select>
                         </div>
                         
+                        <!-- Domain Depth Filter -->
+                        <div class="col-md-3">
+                            <label for="filterDepth" class="form-label">Domain Level</label>
+                            <select class="form-select" id="filterDepth">
+                                <option value="all">All Levels</option>
+                                <option value="root">Root Domains</option>
+                                <option value="2">2nd Level</option>
+                                <option value="3">3rd Level</option>
+                                <option value="4">4th Level</option>
+                                <option value="5+">5+ Levels</option>
+                            </select>
+                        </div>
+                        
                         <!-- Record Count Range -->
                         <div class="col-md-3">
                             <label class="form-label">Record Count</label>
@@ -196,7 +229,7 @@ class DNSSearchFilter {
                         </div>
                         
                         <!-- Date Range -->
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">Last Modified</label>
                             <select class="form-select" id="dateRangeQuick">
                                 <option value="">Any time</option>
@@ -260,8 +293,28 @@ class DNSSearchFilter {
         });
 
         // Search options
+        document.getElementById('useWildcard').addEventListener('change', (e) => {
+            this.activeFilters.useWildcard = e.target.checked;
+            // Disable regex if wildcard is enabled
+            if (e.target.checked) {
+                document.getElementById('useRegex').checked = false;
+                this.activeFilters.useRegex = false;
+            }
+            onFilterChange(this.activeFilters);
+        });
+
+        document.getElementById('pathSearch').addEventListener('change', (e) => {
+            this.activeFilters.pathSearch = e.target.checked;
+            onFilterChange(this.activeFilters);
+        });
+
         document.getElementById('useRegex').addEventListener('change', (e) => {
             this.activeFilters.useRegex = e.target.checked;
+            // Disable wildcard if regex is enabled
+            if (e.target.checked) {
+                document.getElementById('useWildcard').checked = false;
+                this.activeFilters.useWildcard = false;
+            }
             onFilterChange(this.activeFilters);
         });
 
@@ -346,6 +399,91 @@ class DNSSearchFilter {
                 this.hideSearchSuggestions();
             }
         } else {
+            // Show hierarchy-aware suggestions
+            this.showHierarchySuggestions(searchTerm);
+        }
+    }
+
+    /**
+     * Show hierarchy-aware search suggestions
+     */
+    showHierarchySuggestions(searchTerm) {
+        const suggestionsDiv = document.getElementById('searchSuggestions');
+        const suggestions = [];
+        
+        // Get zones from the zones manager
+        const zones = window.dnsZonesManager?.zones || [];
+        const searchLower = searchTerm.toLowerCase();
+        
+        // Find matching zones
+        zones.forEach(zone => {
+            const zoneLower = zone.name.toLowerCase();
+            if (zoneLower.includes(searchLower)) {
+                suggestions.push({
+                    type: 'zone',
+                    name: zone.name,
+                    isSubdomain: zone.isSubdomain,
+                    depth: this.getDomainDepth(zone.name)
+                });
+            }
+        });
+        
+        // Add wildcard suggestions if appropriate
+        if (this.activeFilters.useWildcard && searchTerm.length > 2) {
+            suggestions.push({
+                type: 'wildcard',
+                name: `*.${searchTerm}`,
+                description: 'All subdomains'
+            });
+        }
+        
+        // Add path search suggestion
+        if (this.activeFilters.pathSearch && searchTerm.includes('.')) {
+            suggestions.push({
+                type: 'path',
+                name: searchTerm,
+                description: 'Path-based search'
+            });
+        }
+        
+        // Limit suggestions
+        const limitedSuggestions = suggestions.slice(0, 10);
+        
+        if (limitedSuggestions.length > 0) {
+            let html = '<h6 class="dropdown-header">Suggestions</h6>';
+            
+            limitedSuggestions.forEach(suggestion => {
+                const icon = suggestion.type === 'zone' ? 
+                    (suggestion.isSubdomain ? 'bi-folder' : 'bi-globe2') :
+                    suggestion.type === 'wildcard' ? 'bi-asterisk' : 'bi-diagram-3';
+                    
+                const depth = suggestion.depth ? ` <small class="text-muted">(Level ${suggestion.depth})</small>` : '';
+                const desc = suggestion.description ? ` <small class="text-muted">- ${suggestion.description}</small>` : '';
+                
+                html += `<a class="dropdown-item search-suggestion" href="#" data-value="${this.escapeHtml(suggestion.name)}">
+                    <i class="bi ${icon} me-2"></i>${this.escapeHtml(suggestion.name)}${depth}${desc}
+                </a>`;
+            });
+            
+            suggestionsDiv.innerHTML = html;
+            suggestionsDiv.style.display = 'block';
+            
+            // Add click handlers
+            suggestionsDiv.querySelectorAll('.search-suggestion').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const value = item.dataset.value;
+                    document.getElementById('search-zones').value = value;
+                    this.activeFilters.search = value;
+                    this.hideSearchSuggestions();
+                    
+                    // Trigger search
+                    if (window.dnsZonesManager) {
+                        window.dnsZonesManager.applyFilters(this.activeFilters);
+                    }
+                });
+            });
+        } else {
             this.hideSearchSuggestions();
         }
     }
@@ -386,6 +524,7 @@ class DNSSearchFilter {
     applyAllFilters() {
         this.activeFilters.status = document.getElementById('filterStatus').value;
         this.activeFilters.type = document.getElementById('filterType').value;
+        this.activeFilters.depthLevel = document.getElementById('filterDepth').value;
         this.activeFilters.recordCountMin = parseInt(document.getElementById('recordCountMin').value) || null;
         this.activeFilters.recordCountMax = parseInt(document.getElementById('recordCountMax').value) || null;
         
@@ -415,18 +554,24 @@ class DNSSearchFilter {
             lastModifiedFrom: null,
             lastModifiedTo: null,
             useRegex: false,
-            caseSensitive: false
+            caseSensitive: false,
+            useWildcard: false,
+            pathSearch: false,
+            depthLevel: 'all'
         };
         
         // Reset form
         document.getElementById('search-zones').value = '';
         document.getElementById('filterStatus').value = 'all';
         document.getElementById('filterType').value = 'all';
+        document.getElementById('filterDepth').value = 'all';
         document.getElementById('recordCountMin').value = '';
         document.getElementById('recordCountMax').value = '';
         document.getElementById('dateRangeQuick').value = '';
         document.getElementById('dateFrom').value = '';
         document.getElementById('dateTo').value = '';
+        document.getElementById('useWildcard').checked = false;
+        document.getElementById('pathSearch').checked = false;
         document.getElementById('useRegex').checked = false;
         document.getElementById('caseSensitive').checked = false;
         
@@ -442,8 +587,13 @@ class DNSSearchFilter {
         if (this.activeFilters.search) count++;
         if (this.activeFilters.status !== 'all') count++;
         if (this.activeFilters.type !== 'all') count++;
+        if (this.activeFilters.depthLevel !== 'all') count++;
         if (this.activeFilters.recordCountMin !== null || this.activeFilters.recordCountMax !== null) count++;
         if (this.activeFilters.lastModifiedFrom || this.activeFilters.lastModifiedTo) count++;
+        if (this.activeFilters.useWildcard) count++;
+        if (this.activeFilters.pathSearch) count++;
+        if (this.activeFilters.useRegex) count++;
+        if (this.activeFilters.caseSensitive) count++;
         
         const badge = document.getElementById('activeFilterCount');
         if (count > 0) {
@@ -530,14 +680,45 @@ class DNSSearchFilter {
      */
     filterZones(zones) {
         return zones.filter(zone => {
-            // Search filter - now includes deep search in records
+            // Depth level filter
+            if (this.activeFilters.depthLevel !== 'all') {
+                const depth = this.getDomainDepth(zone.name);
+                
+                if (this.activeFilters.depthLevel === 'root' && depth !== 2) return false;
+                if (this.activeFilters.depthLevel === '2' && depth !== 2) return false;
+                if (this.activeFilters.depthLevel === '3' && depth !== 3) return false;
+                if (this.activeFilters.depthLevel === '4' && depth !== 4) return false;
+                if (this.activeFilters.depthLevel === '5+' && depth < 5) return false;
+            }
+            
+            // Search filter - now includes wildcard and path-based search
             if (this.activeFilters.search) {
                 const searchTerm = this.activeFilters.search;
                 const searchLower = this.activeFilters.caseSensitive ? searchTerm : searchTerm.toLowerCase();
                 
                 let matches = false;
                 
-                if (this.activeFilters.useRegex) {
+                // Wildcard search
+                if (this.activeFilters.useWildcard && (searchTerm.includes('*') || searchTerm.includes('?'))) {
+                    try {
+                        const wildcardRegex = this.wildcardToRegex(searchTerm);
+                        matches = wildcardRegex.test(zone.name);
+                        
+                        // Also check nameservers
+                        if (!matches && zone.nameservers) {
+                            matches = zone.nameservers.some(ns => wildcardRegex.test(ns));
+                        }
+                    } catch (e) {
+                        console.error('Wildcard search error:', e);
+                        matches = this.performBasicSearch(zone, searchLower);
+                    }
+                }
+                // Path-based search
+                else if (this.activeFilters.pathSearch) {
+                    matches = this.matchesPathSearch(zone.name, searchTerm);
+                }
+                // Regex search
+                else if (this.activeFilters.useRegex) {
                     try {
                         const regex = new RegExp(searchTerm, this.activeFilters.caseSensitive ? 'g' : 'gi');
                         // Check zone name
@@ -585,6 +766,37 @@ class DNSSearchFilter {
     highlightSearchTerm(text, searchTerm) {
         if (!searchTerm || !text) return text;
         
+        // Wildcard highlighting
+        if (this.activeFilters.useWildcard && (searchTerm.includes('*') || searchTerm.includes('?'))) {
+            try {
+                // Convert wildcard to regex for matching
+                const wildcardRegex = this.wildcardToRegex(searchTerm);
+                const matches = text.match(wildcardRegex);
+                if (matches) {
+                    // Highlight the entire match
+                    return text.replace(wildcardRegex, '<mark>$&</mark>');
+                }
+            } catch (e) {
+                // Fall back to basic highlighting
+            }
+        }
+        
+        // Path-based highlighting
+        if (this.activeFilters.pathSearch) {
+            const searchParts = searchTerm.split('.');
+            let highlightedText = text;
+            
+            searchParts.forEach(part => {
+                if (part) {
+                    const partRegex = new RegExp(`(${this.escapeRegex(part)})`, this.activeFilters.caseSensitive ? 'g' : 'gi');
+                    highlightedText = highlightedText.replace(partRegex, '<mark>$1</mark>');
+                }
+            });
+            
+            return highlightedText;
+        }
+        
+        // Regex highlighting
         if (this.activeFilters.useRegex) {
             try {
                 const regex = new RegExp(`(${searchTerm})`, this.activeFilters.caseSensitive ? 'g' : 'gi');
@@ -594,6 +806,7 @@ class DNSSearchFilter {
             }
         }
         
+        // Basic highlighting
         const flags = this.activeFilters.caseSensitive ? 'g' : 'gi';
         const regex = new RegExp(`(${this.escapeRegex(searchTerm)})`, flags);
         return text.replace(regex, '<mark>$1</mark>');
@@ -613,6 +826,54 @@ class DNSSearchFilter {
      */
     escapeRegex(text) {
         return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Convert wildcard pattern to regex
+     */
+    wildcardToRegex(pattern) {
+        // Escape special regex chars except * and ?
+        let regex = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+        // Replace wildcards with regex equivalents
+        regex = regex.replace(/\*/g, '.*');
+        regex = regex.replace(/\?/g, '.');
+        return new RegExp('^' + regex + '$', this.activeFilters.caseSensitive ? '' : 'i');
+    }
+
+    /**
+     * Get domain depth level
+     */
+    getDomainDepth(domain) {
+        // Remove trailing dot
+        const cleanDomain = domain.endsWith('.') ? domain.slice(0, -1) : domain;
+        const parts = cleanDomain.split('.');
+        return parts.length;
+    }
+
+    /**
+     * Check if domain matches path search
+     */
+    matchesPathSearch(domain, searchTerm) {
+        // Remove trailing dots
+        const cleanDomain = domain.endsWith('.') ? domain.slice(0, -1) : domain;
+        const cleanSearch = searchTerm.endsWith('.') ? searchTerm.slice(0, -1) : searchTerm;
+        
+        // Split into parts
+        const domainParts = cleanDomain.split('.');
+        const searchParts = cleanSearch.split('.');
+        
+        // Check if search parts exist in domain in order
+        let searchIndex = 0;
+        for (let i = 0; i < domainParts.length && searchIndex < searchParts.length; i++) {
+            const domainPart = this.activeFilters.caseSensitive ? domainParts[i] : domainParts[i].toLowerCase();
+            const searchPart = this.activeFilters.caseSensitive ? searchParts[searchIndex] : searchParts[searchIndex].toLowerCase();
+            
+            if (domainPart === searchPart || domainPart.includes(searchPart)) {
+                searchIndex++;
+            }
+        }
+        
+        return searchIndex === searchParts.length;
     }
 
     /**
