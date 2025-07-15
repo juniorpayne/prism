@@ -56,11 +56,11 @@ The PowerDNS integration enables Prism DNS to use a real DNS server (PowerDNS) i
    # On production server
    cd ~/prism-deployment
    
-   # Deploy PowerDNS stack
-   docker compose -f docker-compose.powerdns.yml --env-file .env.powerdns up -d
+   # Deploy PowerDNS stack (using production config)
+   docker compose -f docker-compose.powerdns-production.yml --env-file .env.powerdns up -d
    
    # Verify deployment
-   docker compose -f docker-compose.powerdns.yml ps
+   docker compose -f docker-compose.powerdns-production.yml ps
    ```
 
 ### Phase 3: Verify PowerDNS Installation
@@ -78,7 +78,7 @@ The PowerDNS integration enables Prism DNS to use a real DNS server (PowerDNS) i
 2. **Verify Database Connection**
    ```bash
    # Check PostgreSQL
-   docker compose -f docker-compose.powerdns.yml exec powerdns-db \
+   docker compose -f docker-compose.powerdns-production.yml exec powerdns-db \
      psql -U powerdns -c "\dt"
    ```
 
@@ -209,7 +209,7 @@ curl http://localhost:8081/api/dns/config
 1. **PowerDNS Container Won't Start**
    ```bash
    # Check logs
-   docker compose -f docker-compose.powerdns.yml logs powerdns
+   docker compose -f docker-compose.powerdns-production.yml logs powerdns
    
    # Common causes:
    # - Database not ready
@@ -223,10 +223,10 @@ curl http://localhost:8081/api/dns/config
    sudo lsof -i :53
    
    # Check PowerDNS logs
-   docker compose -f docker-compose.powerdns.yml logs powerdns
+   docker compose -f docker-compose.powerdns-production.yml logs powerdns
    
    # Test database connection
-   docker compose -f docker-compose.powerdns.yml exec powerdns-db \
+   docker compose -f docker-compose.powerdns-production.yml exec powerdns-db \
      psql -U powerdns -c "SELECT * FROM domains;"
    ```
 

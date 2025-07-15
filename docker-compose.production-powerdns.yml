@@ -1,0 +1,19 @@
+# Production Docker Compose for Prism DNS Server with PowerDNS
+# This extends the base production compose with PowerDNS integration
+
+services:
+  # Override prism-server to ensure it can reach PowerDNS
+  prism-server:
+    container_name: prism-server
+    networks:
+      - prism-backend
+      - prism-frontend
+
+  # Override network configuration
+networks:
+  # Backend network (shared with PowerDNS)
+  prism-backend:
+    driver: bridge
+    # Remove internal: true to allow PowerDNS connection
+    driver_opts:
+      com.docker.network.bridge.name: prism-backend

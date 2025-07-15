@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  powerdns-db:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PDNS_DB_NAME:-powerdns}
+      POSTGRES_USER: ${PDNS_DB_USER:-powerdns}
+      POSTGRES_PASSWORD: ${PDNS_DB_PASSWORD:-changeme}
+    volumes:
+      - powerdns-db-data:/var/lib/postgresql/data
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - prism-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PDNS_DB_USER:-powerdns}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  powerdns:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    image: powerdns:latest
+    container_name: powerdns-server
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8053:8053"
+    environment:
+      PDNS_API_KEY: ${PDNS_API_KEY:-changeme}
+      PDNS_DB_HOST: powerdns-db
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: ${PDNS_DB_NAME:-powerdns}
+      PDNS_DB_USER: ${PDNS_DB_USER:-powerdns}
+      PDNS_DB_PASSWORD: ${PDNS_DB_PASSWORD:-changeme}
+      PDNS_API_ALLOW_FROM: ${PDNS_API_ALLOW_FROM:-0.0.0.0/0,::/0}
+      PDNS_DEFAULT_ZONE: ${PDNS_DEFAULT_ZONE:-managed.prism.local}
+      # Performance tuning for production
+      PDNS_RECEIVER_THREADS: ${PDNS_RECEIVER_THREADS:-4}
+      PDNS_DISTRIBUTOR_THREADS: ${PDNS_DISTRIBUTOR_THREADS:-4}
+      PDNS_CACHE_TTL: ${PDNS_CACHE_TTL:-60}
+      # Security settings
+      PDNS_DISABLE_AXFR: ${PDNS_DISABLE_AXFR:-yes}
+      PDNS_LOG_LEVEL: ${PDNS_LOG_LEVEL:-4}
+    depends_on:
+      powerdns-db:
+        condition: service_healthy
+    networks:
+      - prism-backend
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  powerdns-db-data:
+    driver: local
+
+networks:
+  prism-backend:
+    external: true
