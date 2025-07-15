@@ -949,29 +949,31 @@ async def preview_import(
 @limiter.limit("100/minute")
 async def get_dns_config(
     request: Request,
-    current_user: User = Depends(get_current_verified_user),
 ):
     """
     Get DNS service configuration for frontend adapter.
 
     Returns feature flags and settings from server configuration
     to control PowerDNS integration rollout.
+    
+    Note: This endpoint is public as it only returns configuration
+    needed by the frontend to determine service availability.
     """
     try:
         # Get configuration from server's config object (single source of truth)
         app_config = get_app_config()
-        powerdns_config = app_config.powerdns
+        powerdns_config = app_config.get("powerdns", {})
         
         # Get feature flags from environment (these are deployment-specific)
         feature_flag_percentage = int(os.getenv("POWERDNS_FEATURE_FLAG_PERCENTAGE", "0"))
         fallback_to_mock = os.getenv("POWERDNS_FALLBACK_TO_MOCK", "true").lower() == "true"
         
         config = {
-            "powerdns_enabled": powerdns_config.enabled,
+            "powerdns_enabled": powerdns_config.get("enabled", False),
             "feature_flag_percentage": feature_flag_percentage,
             "fallback_to_mock": fallback_to_mock,
-            "api_url": powerdns_config.api_url,
-            "default_zone": powerdns_config.default_zone,
+            "api_url": powerdns_config.get("api_url", "http://localhost:8053/api/v1"),
+            "default_zone": powerdns_config.get("default_zone", "managed.prism.local."),
         }
 
         return config

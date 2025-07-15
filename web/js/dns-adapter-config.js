@@ -82,9 +82,9 @@ class DNSAdapterConfig {
      */
     async loadServerConfig() {
         try {
-            const response = await fetch('/api/dns/config');
-            if (response.ok) {
-                const serverConfig = await response.json();
+            // Use the API wrapper if available, otherwise fall back to fetch
+            if (window.prismAPI && window.prismAPI.request) {
+                const serverConfig = await window.prismAPI.request('/api/dns/config');
                 
                 // Override local config with server settings for production
                 if (serverConfig.powerdns_enabled !== undefined) {
@@ -101,6 +101,28 @@ class DNSAdapterConfig {
                 }
                 
                 console.log('Loaded DNS config from server:', serverConfig);
+            } else {
+                // Fallback to direct fetch (for public endpoints or before API is initialized)
+                const response = await fetch('/api/dns/config');
+                if (response.ok) {
+                    const serverConfig = await response.json();
+                    
+                    // Override local config with server settings for production
+                    if (serverConfig.powerdns_enabled !== undefined) {
+                        this.config.useRealService = serverConfig.powerdns_enabled;
+                    }
+                    
+                    if (serverConfig.feature_flag_percentage !== undefined) {
+                        this.config.abTesting.percentage = serverConfig.feature_flag_percentage;
+                        this.config.abTesting.enabled = serverConfig.feature_flag_percentage > 0;
+                    }
+                    
+                    if (serverConfig.fallback_to_mock !== undefined) {
+                        this.config.fallbackToMock = serverConfig.fallback_to_mock;
+                    }
+                    
+                    console.log('Loaded DNS config from server:', serverConfig);
+                }
             }
         } catch (error) {
             console.warn('Failed to load server DNS config, using local config:', error);

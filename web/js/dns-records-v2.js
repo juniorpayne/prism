@@ -363,7 +363,7 @@ class DNSRecordsManagerV2 {
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary" id="save-record-btn">
+                            <button type="button" class="btn btn-primary" id="save-record-btn" style="position: relative; z-index: 9999;">
                                 ${isEdit ? 'Update' : 'Add'} Record
                             </button>
                         </div>
@@ -382,16 +382,44 @@ class DNSRecordsManagerV2 {
         // Bind events
         this.bindModalEvents(modalElement, rrset);
 
-        const saveBtn = document.getElementById('save-record-btn');
-        if (saveBtn) {
-            saveBtn.addEventListener('click', async () => {
-                const success = await this.saveRecord(rrset);
-                if (success) {
-                    modal.hide();
-                    modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
-                }
-            });
-        }
+        // Use setTimeout to ensure modal is fully rendered
+        setTimeout(() => {
+            const saveBtn = document.getElementById('save-record-btn');
+            if (saveBtn) {
+                console.log('Save button found:', saveBtn);
+                console.log('Save button disabled?', saveBtn.disabled);
+                console.log('Save button classList:', saveBtn.classList.toString());
+                console.log('Save button offsetParent:', saveBtn.offsetParent);
+                console.log('Save button computed style:', window.getComputedStyle(saveBtn).pointerEvents);
+                
+                // Make sure button is not disabled and has proper pointer events
+                saveBtn.disabled = false;
+                saveBtn.style.pointerEvents = 'auto';
+                
+                // Remove any existing listeners first
+                const newSaveBtn = saveBtn.cloneNode(true);
+                saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+                
+                // Add click listener to the new button
+                newSaveBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Save button clicked!');
+                    const success = await this.saveRecord(rrset);
+                    if (success) {
+                        modal.hide();
+                        modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+                    }
+                });
+                
+                // Also add a test click handler to verify events work
+                newSaveBtn.addEventListener('mousedown', () => {
+                    console.log('Save button mousedown event fired');
+                });
+            } else {
+                console.error('Save button not found!');
+            }
+        }, 100);
 
         return modal;
     }
@@ -578,7 +606,7 @@ class DNSRecordsManagerV2 {
             : `${name}.${this.currentZone.name}`;
 
         const recordData = {
-            name: simpleName,  // Use simple name, API will convert to FQDN
+            name: name,  // Use simple name, API will convert to FQDN
             type: type,
             ttl: ttl,
             records: records
@@ -587,11 +615,11 @@ class DNSRecordsManagerV2 {
         this.setLoadingState('save-record', true);
         try {
             // Check if record exists to determine create vs update
-            const existingRecords = this.getRecordsByNameAndType(fullName, type);
+            const existingRrset = this.currentZone.rrsets.find(r => r.name === fullName && r.type === type);
             
-            if (existingRecords.length > 0) {
+            if (existingRrset) {
                 // Update existing record
-                await this.dnsService.updateRecord(this.currentZone.id, simpleName, type, recordData);
+                await this.dnsService.updateRecord(this.currentZone.id, name, type, recordData);
             } else {
                 // Create new record
                 await this.dnsService.createRecord(this.currentZone.id, recordData);
@@ -737,11 +765,13 @@ class DNSRecordsManagerV2 {
      */
     setLoadingState(operation, isLoading) {
         this.loadingStates.set(operation, isLoading);
+        console.log(`Setting loading state for ${operation}: ${isLoading}`);
         
         // Update UI loading indicators based on operation
         if (operation === 'save-record') {
             const saveBtn = document.querySelector('#recordModal .btn-primary');
             if (saveBtn) {
+                console.log(`Setting save button disabled to: ${isLoading}`);
                 saveBtn.disabled = isLoading;
                 if (isLoading) {
                     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
