@@ -577,19 +577,25 @@ class DNSRecordsManagerV2 {
             ? this.currentZone.name 
             : `${name}.${this.currentZone.name}`;
 
-        const rrsetChange = {
-            name: fullName,
+        const recordData = {
+            name: simpleName,  // Use simple name, API will convert to FQDN
             type: type,
             ttl: ttl,
-            changetype: 'REPLACE',
             records: records
         };
 
         this.setLoadingState('save-record', true);
         try {
-            await this.dnsService.updateZone(this.currentZone.id, { 
-                rrsets: [rrsetChange] 
-            });
+            // Check if record exists to determine create vs update
+            const existingRecords = this.getRecordsByNameAndType(fullName, type);
+            
+            if (existingRecords.length > 0) {
+                // Update existing record
+                await this.dnsService.updateRecord(this.currentZone.id, simpleName, type, recordData);
+            } else {
+                // Create new record
+                await this.dnsService.createRecord(this.currentZone.id, recordData);
+            }
 
             // Reload zone data and refresh display
             await this.zoneDetailManager.loadZone(this.currentZone.id);
@@ -616,15 +622,8 @@ class DNSRecordsManagerV2 {
 
         this.setLoadingState('delete-record', true);
         try {
-            const rrsetChange = {
-                name: name,
-                type: type,
-                changetype: 'DELETE'
-            };
-
-            await this.dnsService.updateZone(this.currentZone.id, { 
-                rrsets: [rrsetChange] 
-            });
+            // Use the deleteRecord method from the DNS service
+            await this.dnsService.deleteRecord(this.currentZone.id, simpleName, type);
             
             // Reload zone data and refresh display
             await this.zoneDetailManager.loadZone(this.currentZone.id);

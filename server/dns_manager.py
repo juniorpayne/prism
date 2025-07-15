@@ -589,10 +589,22 @@ class PowerDNSClient:
             endpoint = "servers/localhost/zones"
             zones = await self._make_request("GET", endpoint)
 
-            # Add computed fields
+            # Add computed fields and fetch zone details for nameservers
             for zone in zones:
-                zone["record_count"] = len(zone.get("rrsets", []))
+                zone["record_count"] = 0  # Will be updated from zone details
                 zone["status"] = "Active"  # PowerDNS doesn't have status
+                
+                # Fetch zone details to get nameservers
+                try:
+                    zone_details = await self.get_zone_details(zone["name"])
+                    if zone_details:
+                        zone["nameservers"] = zone_details.get("nameservers", [])
+                        zone["record_count"] = zone_details.get("record_count", 0)
+                    else:
+                        zone["nameservers"] = []
+                except Exception as e:
+                    logger.debug(f"Could not fetch details for zone {zone.get('name')}: {e}")
+                    zone["nameservers"] = []
 
             return zones
         except Exception as e:
@@ -620,6 +632,15 @@ class PowerDNSClient:
             # Add computed fields
             zone["record_count"] = len(zone.get("rrsets", []))
             zone["status"] = "Active"  # PowerDNS doesn't have status
+            
+            # Extract nameservers from NS records
+            nameservers = []
+            for rrset in zone.get("rrsets", []):
+                if rrset.get("type") == "NS" and rrset.get("name") == zone_name:
+                    for record in rrset.get("records", []):
+                        if not record.get("disabled", False):
+                            nameservers.append(record.get("content", ""))
+            zone["nameservers"] = nameservers
 
             return zone
         except Exception as e:
@@ -768,22 +789,48 @@ class PowerDNSClient:
             endpoint = f"servers/localhost/zones/{zone_name}"
 
             # PowerDNS expects specific fields for zone updates
-            update_data = {
-                "kind": zone_data.get("kind", "Native"),
-                "masters": zone_data.get("masters", []),
-                "soa_edit": zone_data.get("soa_edit", ""),
-                "soa_edit_api": zone_data.get("soa_edit_api", "DEFAULT"),
-                "api_rectify": zone_data.get("api_rectify", True),
-                "dnssec": zone_data.get("dnssec", False),
-                "nsec3param": zone_data.get("nsec3param", ""),
-                "nsec3narrow": zone_data.get("nsec3narrow", False),
-                "presigned": zone_data.get("presigned", False),
-                "account": zone_data.get("account", ""),
-                "nameservers": zone_data.get("nameservers", []),
+            # Define how each field should be handled when updating a zone
+            # Format: field_name -> (should_include_field_function, default_value_if_missing)
+            
+            def always_include(value):
+                """Include field regardless of value"""
+                return True
+                
+            def include_if_not_empty(value):
+                """Include field only if it has a non-empty value"""
+                return value and value != ""
+                
+            def include_if_true(value):
+                """Include field only if explicitly set to True"""
+                return value is True
+            
+            zone_update_field_handlers = {
+                # Standard zone configuration fields - always include if present
+                "kind": (always_include, None),
+                "masters": (always_include, None),
+                "soa_edit": (always_include, None),
+                "soa_edit_api": (always_include, None),
+                "api_rectify": (always_include, None),
+                "dnssec": (always_include, None),
+                "account": (always_include, None),
+                "nameservers": (always_include, None),
+                
+                # NSEC3/DNSSEC fields - only include if they have meaningful values
+                # Empty nsec3param causes PowerDNS to try removing NSEC3 parameters
+                "nsec3param": (include_if_not_empty, None),
+                "nsec3narrow": (include_if_true, None),
+                "presigned": (include_if_true, None),
             }
-
-            # Remove None values
-            update_data = {k: v for k, v in update_data.items() if v is not None}
+            
+            # Build the update payload based on the field handlers
+            update_data = {}
+            for field_name, (should_include, default_value) in zone_update_field_handlers.items():
+                if field_name in zone_data:
+                    field_value = zone_data[field_name]
+                    if should_include(field_value):
+                        update_data[field_name] = field_value
+                elif default_value is not None:
+                    update_data[field_name] = default_value
 
             result = await self._make_request("PUT", endpoint, json_data=update_data)
             logger.info(f"Successfully updated zone {zone_name}")
