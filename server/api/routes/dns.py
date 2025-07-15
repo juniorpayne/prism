@@ -949,21 +949,29 @@ async def preview_import(
 @limiter.limit("100/minute")
 async def get_dns_config(
     request: Request,
+    current_user: User = Depends(get_current_verified_user),
 ):
     """
     Get DNS service configuration for frontend adapter.
 
-    Returns feature flags and settings from environment variables
+    Returns feature flags and settings from server configuration
     to control PowerDNS integration rollout.
     """
     try:
-        # Read configuration from environment variables
+        # Get configuration from server's config object (single source of truth)
+        app_config = get_app_config()
+        powerdns_config = app_config.powerdns
+        
+        # Get feature flags from environment (these are deployment-specific)
+        feature_flag_percentage = int(os.getenv("POWERDNS_FEATURE_FLAG_PERCENTAGE", "0"))
+        fallback_to_mock = os.getenv("POWERDNS_FALLBACK_TO_MOCK", "true").lower() == "true"
+        
         config = {
-            "powerdns_enabled": os.getenv("POWERDNS_ENABLED", "false").lower() == "true",
-            "feature_flag_percentage": int(os.getenv("POWERDNS_FEATURE_FLAG_PERCENTAGE", "0")),
-            "fallback_to_mock": os.getenv("POWERDNS_FALLBACK_TO_MOCK", "true").lower() == "true",
-            "api_url": os.getenv("POWERDNS_API_URL", "http://localhost:8053/api/v1"),
-            "default_zone": os.getenv("POWERDNS_DEFAULT_ZONE", "managed.prism.local."),
+            "powerdns_enabled": powerdns_config.enabled,
+            "feature_flag_percentage": feature_flag_percentage,
+            "fallback_to_mock": fallback_to_mock,
+            "api_url": powerdns_config.api_url,
+            "default_zone": powerdns_config.default_zone,
         }
 
         return config

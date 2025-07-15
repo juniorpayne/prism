@@ -350,11 +350,13 @@ class ServerConfiguration:
             "PRISM_LOGGING_FILE": ("logging", "file", str),
             "PRISM_LOGGING_MAX_SIZE": ("logging", "max_size", int),
             "PRISM_LOGGING_BACKUP_COUNT": ("logging", "backup_count", int),
-            "PRISM_POWERDNS_ENABLED": ("powerdns", "enabled", bool),
-            "PRISM_POWERDNS_API_URL": ("powerdns", "api_url", str),
-            "PRISM_POWERDNS_API_KEY": ("powerdns", "api_key", str),
-            "PRISM_POWERDNS_DEFAULT_ZONE": ("powerdns", "default_zone", str),
-            "PRISM_POWERDNS_DEFAULT_TTL": ("powerdns", "default_ttl", int),
+            "POWERDNS_ENABLED": ("powerdns", "enabled", bool),
+            "POWERDNS_API_URL": ("powerdns", "api_url", str),
+            "POWERDNS_API_KEY": ("powerdns", "api_key", str),
+            "POWERDNS_DEFAULT_ZONE": ("powerdns", "default_zone", str),
+            "POWERDNS_DEFAULT_TTL": ("powerdns", "default_ttl", int),
+            "POWERDNS_TIMEOUT": ("powerdns", "timeout", int),
+            "POWERDNS_RETRY_ATTEMPTS": ("powerdns", "retry_attempts", int),
         }
 
         for env_var, (section, key, value_type) in env_mappings.items():
