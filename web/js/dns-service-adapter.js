@@ -7,26 +7,26 @@
 class DNSServiceAdapter {
     constructor(config = {}) {
         this.config = {
-            useRealService: false,
+            useRealService: true,
             enableFeatureFlags: true,
             featureFlags: {
                 zones: {
-                    list: false,
-                    get: false,
-                    create: false,
-                    update: false,
-                    delete: false
+                    list: true,
+                    get: true,
+                    create: true,
+                    update: true,
+                    delete: true
                 },
                 records: {
-                    list: false,
-                    get: false,
-                    create: false,
-                    update: false,
-                    delete: false
+                    list: true,
+                    get: true,
+                    create: true,
+                    update: true,
+                    delete: true
                 },
-                search: false,
-                import: false,
-                export: false
+                search: true,
+                import: true,
+                export: true
             },
             fallbackToMock: true,
             logServiceSelection: true,
@@ -505,8 +505,8 @@ class DNSRealService {
     // Zone Management
     async getZones(page, limit, search, filters) {
         const result = await this.api.getZones(page, limit, search, filters);
-        // Transform to match mock service format if needed
-        return result.zones || [];
+        // Return the full result object, not just the zones array
+        return result;
     }
     
     async getZone(zoneId) {
@@ -579,7 +579,7 @@ class DNSRealService {
     // Utility
     async getStats() {
         // Real API doesn't have getStats, so we'll simulate it
-        const zones = await this.api.getZones(1, 1000);
+        const zones = await this.api.getZones(1, 500);
         return {
             totalZones: zones.pagination ? zones.pagination.total : 0,
             activeZones: zones.pagination ? zones.pagination.total : 0,

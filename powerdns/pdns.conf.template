@@ -1,19 +1,19 @@
 # PowerDNS Configuration
 # API Configuration
 api=yes
-api-key=${PDNS_API_KEY}
+api-key=ENV_PDNS_API_KEY
 webserver=yes
 webserver-address=0.0.0.0
 webserver-port=8053
-webserver-allow-from=${PDNS_API_ALLOW_FROM}
+webserver-allow-from=ENV_PDNS_API_ALLOW_FROM
 
 # PostgreSQL Backend
 launch=gpgsql
-gpgsql-host=${PDNS_DB_HOST}
-gpgsql-port=${PDNS_DB_PORT}
-gpgsql-dbname=${PDNS_DB_NAME}
-gpgsql-user=${PDNS_DB_USER}
-gpgsql-password=${PDNS_DB_PASSWORD}
+gpgsql-host=ENV_PDNS_DB_HOST
+gpgsql-port=ENV_PDNS_DB_PORT
+gpgsql-dbname=ENV_PDNS_DB_NAME
+gpgsql-user=ENV_PDNS_DB_USER
+gpgsql-password=ENV_PDNS_DB_PASSWORD
 
 # Server Configuration
 local-address=0.0.0.0
@@ -43,5 +43,5 @@ negquery-cache-ttl=60
 query-cache-ttl=20
 
 # Zone Configuration
-default-soa-content=ns1.${PDNS_DEFAULT_ZONE}. hostmaster.${PDNS_DEFAULT_ZONE}. 0 10800 3600 604800 3600
+default-soa-content=ns1.managed.prism.local. hostmaster.managed.prism.local. 0 10800 3600 604800 3600
 default-ttl=300

@@ -12,4 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Always update the status of jira issues when your work affects it.
 - **Always update the jira issue status for the current issue you are working on.**
 
+## Development Environment Notes
+
+- Always run tests and execute code in our docker dev container environments.
+
 [... rest of the existing content remains unchanged ...]

@@ -455,7 +455,7 @@ class PowerDNSClient:
 
         try:
             # Get zone data
-            endpoint = f"/servers/localhost/zones/{zone}"
+            endpoint = f"servers/localhost/zones/{zone}"
             zone_data = await self._make_request("GET", endpoint)
 
             # Find the record
@@ -495,7 +495,7 @@ class PowerDNSClient:
 
         metrics = get_metrics_collector()
         try:
-            endpoint = f"/servers/localhost/zones/{zone}"
+            endpoint = f"servers/localhost/zones/{zone}"
             await self._make_request("GET", endpoint)
             metrics.record_powerdns_zone_operation("check", "success")
             return True
@@ -564,7 +564,7 @@ class PowerDNSClient:
 
         metrics = get_metrics_collector()
         try:
-            endpoint = "/servers/localhost/zones"
+            endpoint = "servers/localhost/zones"
             result = await self._make_request("POST", endpoint, json_data=zone_data)
             logger.info(f"Successfully created zone {zone}")
             metrics.record_powerdns_zone_operation("create", "success")

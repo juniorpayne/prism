@@ -42,3 +42,23 @@ scrape_configs:
       - targets: ['host.docker.internal:8080']
     metrics_path: '/api/health'
     scrape_interval: 30s
+
+  # PowerDNS metrics
+  - job_name: 'powerdns'
+    static_configs:
+      - targets: ['host.docker.internal:8053']
+    metrics_path: '/api/v1/servers/localhost/statistics'
+    scrape_interval: 15s
+    params:
+      format: ['prometheus']
+    headers:
+      X-API-Key: ['CHANGE_ME_IN_PRODUCTION']
+
+  # PowerDNS health check
+  - job_name: 'powerdns-health'
+    static_configs:
+      - targets: ['host.docker.internal:8053']
+    metrics_path: '/api/v1/servers/localhost'
+    scrape_interval: 30s
+    headers:
+      X-API-Key: ['CHANGE_ME_IN_PRODUCTION']

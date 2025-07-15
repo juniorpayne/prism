@@ -5,7 +5,8 @@
 
 class DNSZoneDetailManager {
     constructor() {
-        this.mockService = new DNSMockDataService();
+        // Use service adapter instead of direct mock service
+        this.dnsService = DNSServiceFactory.getAdapter();
         this.importExport = new DNSImportExport();
         this.currentZone = null;
         this.modal = null;
@@ -14,6 +15,7 @@ class DNSZoneDetailManager {
         this.isLoading = false;
         this.recordsManager = null;
         this.settingsManager = null;
+        this.loadingStates = new Map(); // Track loading states for different operations
     }
 
     /**
@@ -36,29 +38,37 @@ class DNSZoneDetailManager {
     }
 
     /**
-     * Load zone data from mock service
+     * Load zone data using service adapter
      * @param {string} zoneId - Zone ID to load
      */
     async loadZone(zoneId) {
-        const zone = await this.mockService.getZone(zoneId);
-        if (!zone) {
-            throw new Error('Zone not found');
-        }
-        
-        // Enrich zone with hierarchy information from zones manager
-        if (window.dnsZonesManager && window.dnsZonesManager.zones) {
-            const enrichedZone = window.dnsZonesManager.zones.find(z => z.id === zoneId);
-            if (enrichedZone) {
-                // Copy hierarchy properties from the enriched zone
-                zone.isSubdomain = enrichedZone.isSubdomain;
-                zone.parentZone = enrichedZone.parentZone;
-                zone.childCount = enrichedZone.childCount;
-                zone.isExpanded = enrichedZone.isExpanded;
-                zone.isVisible = enrichedZone.isVisible;
+        this.setLoadingState('zone', true);
+        try {
+            const zone = await this.dnsService.getZone(zoneId);
+            if (!zone) {
+                throw new Error('Zone not found');
             }
-        }
         
-        this.currentZone = zone;
+            // Enrich zone with hierarchy information from zones manager
+            if (window.dnsZonesManager && window.dnsZonesManager.zones) {
+                const enrichedZone = window.dnsZonesManager.zones.find(z => z.id === zoneId);
+                if (enrichedZone) {
+                    // Copy hierarchy properties from the enriched zone
+                    zone.isSubdomain = enrichedZone.isSubdomain;
+                    zone.parentZone = enrichedZone.parentZone;
+                    zone.childCount = enrichedZone.childCount;
+                    zone.isExpanded = enrichedZone.isExpanded;
+                    zone.isVisible = enrichedZone.isVisible;
+                }
+            }
+            
+            this.currentZone = zone;
+        } catch (error) {
+            console.error('Error loading zone:', error);
+            throw error;
+        } finally {
+            this.setLoadingState('zone', false);
+        }
     }
 
     /**
@@ -737,7 +747,7 @@ class DNSZoneDetailManager {
             this.currentZone.nameservers.push(nsWithDot);
 
             // Save to mock service
-            await this.mockService.updateZone(this.currentZone.id, {
+            await this.dnsService.updateZone(this.currentZone.id, {
                 nameservers: this.currentZone.nameservers
             });
 
@@ -778,7 +788,7 @@ class DNSZoneDetailManager {
             this.currentZone.nameservers = this.currentZone.nameservers.filter(ns => ns !== nameserver);
 
             // Save to mock service
-            await this.mockService.updateZone(this.currentZone.id, {
+            await this.dnsService.updateZone(this.currentZone.id, {
                 nameservers: this.currentZone.nameservers
             });
 
@@ -1093,6 +1103,62 @@ class DNSZoneDetailManager {
         const sortedB = [...b].sort();
         
         return sortedA.every((val, index) => val === sortedB[index]);
+    }
+
+    /**
+     * Set loading state for an operation
+     * @param {string} operation - Operation identifier
+     * @param {boolean} isLoading - Loading state
+     */
+    setLoadingState(operation, isLoading) {
+        this.loadingStates.set(operation, isLoading);
+        
+        // Update UI loading indicators
+        if (operation === 'zone') {
+            const modal = document.getElementById('dnsZoneDetailModal');
+            if (modal) {
+                if (isLoading) {
+                    this.showModalLoading(modal);
+                } else {
+                    this.hideModalLoading(modal);
+                }
+            }
+        }
+    }
+
+    /**
+     * Show loading overlay in modal
+     * @param {Element} modal - Modal element
+     */
+    showModalLoading(modal) {
+        const existingOverlay = modal.querySelector('.loading-overlay');
+        if (existingOverlay) return;
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'loading-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center';
+        overlay.style.cssText = 'background: rgba(255,255,255,0.8); z-index: 1050;';
+        overlay.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Loading zone details...</div>
+            </div>
+        `;
+        
+        modal.querySelector('.modal-content').style.position = 'relative';
+        modal.querySelector('.modal-content').appendChild(overlay);
+    }
+
+    /**
+     * Hide loading overlay in modal
+     * @param {Element} modal - Modal element
+     */
+    hideModalLoading(modal) {
+        const overlay = modal.querySelector('.loading-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
     }
 }
 

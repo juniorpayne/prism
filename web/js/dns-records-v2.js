@@ -6,12 +6,14 @@
 class DNSRecordsManagerV2 {
     constructor(zoneDetailManager) {
         this.zoneDetailManager = zoneDetailManager;
-        this.mockService = zoneDetailManager.mockService;
+        // Use service adapter instead of direct mock service
+        this.dnsService = zoneDetailManager.dnsService || DNSServiceFactory.getAdapter();
         this.searchFilter = new DNSSearchFilter();
         this.currentZone = null;
         this.filteredRrsets = [];
         this.searchTerm = '';
         this.selectedType = 'all';
+        this.loadingStates = new Map(); // Track loading states for different operations
     }
 
     /**
@@ -583,8 +585,9 @@ class DNSRecordsManagerV2 {
             records: records
         };
 
+        this.setLoadingState('save-record', true);
         try {
-            await this.mockService.updateZone(this.currentZone.id, { 
+            await this.dnsService.updateZone(this.currentZone.id, { 
                 rrsets: [rrsetChange] 
             });
 
@@ -597,6 +600,8 @@ class DNSRecordsManagerV2 {
             console.error('Error saving record:', error);
             alert('Failed to save record: ' + error.message);
             return false;
+        } finally {
+            this.setLoadingState('save-record', false);
         }
     }
 
@@ -609,6 +614,7 @@ class DNSRecordsManagerV2 {
 
         if (!confirmed) return;
 
+        this.setLoadingState('delete-record', true);
         try {
             const rrsetChange = {
                 name: name,
@@ -616,7 +622,7 @@ class DNSRecordsManagerV2 {
                 changetype: 'DELETE'
             };
 
-            await this.mockService.updateZone(this.currentZone.id, { 
+            await this.dnsService.updateZone(this.currentZone.id, { 
                 rrsets: [rrsetChange] 
             });
             
@@ -627,6 +633,8 @@ class DNSRecordsManagerV2 {
         } catch (error) {
             console.error('Error deleting rrset:', error);
             alert('Failed to delete record: ' + error.message);
+        } finally {
+            this.setLoadingState('delete-record', false);
         }
     }
 
@@ -721,6 +729,42 @@ class DNSRecordsManagerV2 {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Set loading state for an operation
+     * @param {string} operation - Operation identifier
+     * @param {boolean} isLoading - Loading state
+     */
+    setLoadingState(operation, isLoading) {
+        this.loadingStates.set(operation, isLoading);
+        
+        // Update UI loading indicators based on operation
+        if (operation === 'save-record') {
+            const saveBtn = document.querySelector('#recordModal .btn-primary');
+            if (saveBtn) {
+                saveBtn.disabled = isLoading;
+                if (isLoading) {
+                    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+                } else {
+                    saveBtn.innerHTML = 'Save Record';
+                }
+            }
+        } else if (operation === 'delete-record') {
+            // Find all delete buttons and disable them during delete operations
+            const deleteButtons = document.querySelectorAll('.delete-rrset-btn');
+            deleteButtons.forEach(btn => {
+                btn.disabled = isLoading;
+                if (isLoading) {
+                    const originalText = btn.innerHTML;
+                    btn.dataset.originalText = originalText;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Deleting...';
+                } else if (btn.dataset.originalText) {
+                    btn.innerHTML = btn.dataset.originalText;
+                    delete btn.dataset.originalText;
+                }
+            });
+        }
     }
 }
 

@@ -5,7 +5,8 @@
 
 class DNSZonesManager {
     constructor() {
-        this.mockService = new DNSMockDataService();
+        // Use service adapter instead of direct mock service
+        this.dnsService = DNSServiceFactory.getAdapter();
         this.searchFilter = new DNSSearchFilter();
         this.importExport = new DNSImportExport();
         this.preferenceManager = window.dnsPreferenceManager || new DNSPreferenceManager();
@@ -18,6 +19,7 @@ class DNSZonesManager {
         this.searchTerm = '';
         this.selectedZones = new Set();
         this.viewMode = this.preferenceManager.getViewMode(); // 'tree' or 'flat'
+        this.loadingStates = new Map(); // Track loading states for different operations
         this.initialize();
     }
 
@@ -435,12 +437,16 @@ class DNSZonesManager {
         try {
             // Show loading
             this.showLoading();
+            this.setLoadingState('zones', true);
 
-            // Load zones and stats
-            const [zones, stats] = await Promise.all([
-                this.mockService.getAllZones(),
-                this.mockService.getStats()
+            // Load zones and stats using service adapter
+            const [zonesResult, stats] = await Promise.all([
+                this.dnsService.getZones(1, 500), // Get up to 500 zones (API limit)
+                this.dnsService.getStats()
             ]);
+
+            // Extract zones from paginated result
+            const zones = zonesResult.zones || [];
 
             // Store zones directly in PowerDNS format
             this.zones = zones;
@@ -454,7 +460,10 @@ class DNSZonesManager {
 
         } catch (error) {
             console.error('Error loading zones:', error);
-            this.showError('Failed to load DNS zones');
+            this.showError(`Failed to load DNS zones: ${error.message || 'Unknown error'}`);
+        } finally {
+            this.setLoadingState('zones', false);
+            this.hideLoading();
         }
     }
 
@@ -592,7 +601,7 @@ class DNSZonesManager {
     async loadRecordCounts() {
         for (const zone of this.filteredZones) {
             try {
-                const fullZone = await this.mockService.getZone(zone.id);
+                const fullZone = await this.dnsService.getZone(zone.id);
                 let recordCount = 0;
                 
                 if (fullZone.rrsets) {
@@ -1131,8 +1140,10 @@ class DNSZonesManager {
 
     async deleteZone(zoneId) {
         try {
+            this.setLoadingState(`delete-${zoneId}`, true);
+            
             // Get zone details for the confirmation dialog
-            const zone = await this.mockService.getZone(zoneId);
+            const zone = await this.dnsService.getZone(zoneId);
             
             // Count records (excluding SOA and NS)
             let recordCount = 0;
@@ -1152,7 +1163,7 @@ class DNSZonesManager {
             }
             
             // Delete the zone
-            await this.mockService.deleteZone(zoneId);
+            await this.dnsService.deleteZone(zoneId);
             
             // Show success notification
             this.showNotification('success', `Zone ${zone.name} has been deleted successfully.`);
@@ -1163,6 +1174,8 @@ class DNSZonesManager {
         } catch (error) {
             console.error('Error deleting zone:', error);
             this.showNotification('error', 'Failed to delete zone: ' + error.message);
+        } finally {
+            this.setLoadingState(`delete-${zoneId}`, false);
         }
     }
 
@@ -1598,7 +1611,7 @@ ns2.example.com.</textarea>
         
         for (const zoneId of zonesToDelete) {
             try {
-                await this.mockService.deleteZone(zoneId);
+                await this.dnsService.deleteZone(zoneId);
                 completed++;
                 this.updateProgress(completed, zonesToDelete.size);
             } catch (error) {
@@ -1672,11 +1685,11 @@ ns2.example.com.</textarea>
         
         for (const zoneId of this.selectedZones) {
             try {
-                const zone = await this.mockService.getZone(zoneId);
+                const zone = await this.dnsService.getZone(zoneId);
                 if (zone) {
                     // Update nameservers
                     zone.nameservers = nameservers;
-                    await this.mockService.updateZone(zoneId, zone);
+                    await this.dnsService.updateZone(zoneId, zone);
                     completed++;
                     this.updateProgress(completed, this.selectedZones.size);
                 }
@@ -1830,6 +1843,70 @@ ns2.example.com.</textarea>
         // Save filter preferences
         this.preferenceManager.updateFilters(filters);
         this.filterAndDisplayZones();
+    }
+
+    /**
+     * Set loading state for a specific operation
+     */
+    setLoadingState(operation, isLoading) {
+        this.loadingStates.set(operation, isLoading);
+        
+        // Update UI elements based on operation
+        if (operation.startsWith('delete-')) {
+            const zoneId = operation.replace('delete-', '');
+            const deleteBtn = document.querySelector(`button[onclick*="deleteZone('${zoneId}')"]`);
+            if (deleteBtn) {
+                deleteBtn.disabled = isLoading;
+                if (isLoading) {
+                    deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Deleting...';
+                } else {
+                    deleteBtn.innerHTML = '<i class="bi bi-trash"></i>';
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if any operation is loading
+     */
+    isLoading() {
+        for (const [operation, loading] of this.loadingStates) {
+            if (loading) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Show loading overlay
+     */
+    showLoading() {
+        const container = document.getElementById('dns-zones-table-container');
+        if (container && !document.getElementById('zones-loading-overlay')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'zones-loading-overlay';
+            overlay.className = 'd-flex justify-content-center align-items-center';
+            overlay.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000;';
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary mb-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div>Loading zones...</div>
+                </div>
+            `;
+            container.style.position = 'relative';
+            container.appendChild(overlay);
+        }
+    }
+
+    /**
+     * Hide loading overlay
+     */
+    hideLoading() {
+        const overlay = document.getElementById('zones-loading-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
     }
 }
 

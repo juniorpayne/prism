@@ -1,35 +1,258 @@
-# PowerDNS Deployment Guide
+# PowerDNS Integration Deployment Guide
 
-This guide explains how to deploy PowerDNS alongside the Prism DNS application using the CI/CD pipeline.
+This document provides comprehensive instructions for deploying the PowerDNS integration to production with feature flags and gradual rollout.
 
 ## Overview
 
-PowerDNS provides actual DNS resolution capabilities for the Prism DNS system. The CI/CD pipeline has been enhanced to optionally deploy PowerDNS with its PostgreSQL backend.
+The PowerDNS integration enables Prism DNS to use a real DNS server (PowerDNS) instead of mock data. The deployment uses feature flags for gradual rollout and includes comprehensive monitoring and rollback procedures.
 
-## Deployment Methods
+## Prerequisites
 
-### 1. Manual Deployment via GitHub Actions
+1. Production environment running Prism DNS
+2. PostgreSQL database for PowerDNS
+3. Monitoring stack (Prometheus/Grafana) deployed
+4. SSH access to production server
+5. GitHub Actions deployment permissions
 
-1. Go to the [Actions tab](https://github.com/juniorpayne/prism/actions) in your repository
-2. Select "Direct Deploy to EC2" workflow
-3. Click "Run workflow"
-4. Check the "Deploy PowerDNS stack" option
-5. Click "Run workflow" to start deployment
+## Deployment Process
 
-### 2. Automatic Deployment
+### Phase 1: Infrastructure Preparation
 
-You can configure automatic PowerDNS deployment by modifying the workflow trigger in `.github/workflows/deploy-direct.yml`.
+1. **Update Environment Configuration**
+   ```bash
+   # Copy template and update with production values
+   cp .env.powerdns.template .env.powerdns
+   
+   # Generate strong passwords
+   openssl rand -hex 32  # For PDNS_API_KEY
+   openssl rand -hex 16  # For PDNS_DB_PASSWORD
+   
+   # Update .env.powerdns with actual values
+   ```
 
-## Port Configuration
+2. **Update Production Environment**
+   ```bash
+   # Update .env.production
+   POWERDNS_ENABLED=false                    # Start disabled
+   POWERDNS_API_URL=http://localhost:8053/api/v1
+   POWERDNS_API_KEY=your-secure-api-key
+   POWERDNS_DEFAULT_ZONE=managed.prism.local.
+   POWERDNS_FALLBACK_TO_MOCK=true           # Safe fallback
+   POWERDNS_FEATURE_FLAG_PERCENTAGE=0       # Start with 0%
+   ```
 
-PowerDNS uses the following ports:
+### Phase 2: Deploy PowerDNS Stack
 
-| Service | Port | Protocol | Description |
-|---------|------|----------|-------------|
-| DNS | 53 | UDP/TCP | DNS queries |
-| API | 8053 | TCP | PowerDNS REST API |
+1. **Deploy via GitHub Actions**
+   ```bash
+   # Trigger deployment with PowerDNS enabled
+   gh workflow run "Direct Deploy to EC2" \
+     --field deploy_powerdns=true \
+     --field deploy_monitoring=true
+   ```
 
-**Note**: PowerDNS API uses port 8053 instead of the default 8081 to avoid conflicts with the Prism API.
+2. **Manual Deployment (Alternative)**
+   ```bash
+   # On production server
+   cd ~/prism-deployment
+   
+   # Deploy PowerDNS stack
+   docker compose -f docker-compose.powerdns.yml --env-file .env.powerdns up -d
+   
+   # Verify deployment
+   docker compose -f docker-compose.powerdns.yml ps
+   ```
+
+### Phase 3: Verify PowerDNS Installation
+
+1. **Check PowerDNS Health**
+   ```bash
+   # Check API endpoint
+   curl -H "X-API-Key: your-api-key" \
+        http://localhost:8053/api/v1/servers/localhost
+   
+   # Check DNS resolution
+   dig @localhost -p 53 managed.prism.local SOA
+   ```
+
+2. **Verify Database Connection**
+   ```bash
+   # Check PostgreSQL
+   docker compose -f docker-compose.powerdns.yml exec powerdns-db \
+     psql -U powerdns -c "\dt"
+   ```
+
+### Phase 4: Gradual Feature Rollout
+
+1. **Enable PowerDNS for Testing (0% users)**
+   ```bash
+   # Update environment
+   POWERDNS_ENABLED=true
+   POWERDNS_FEATURE_FLAG_PERCENTAGE=0
+   
+   # Restart application
+   docker compose -f docker-compose.production.yml restart
+   ```
+
+2. **Test API Endpoints**
+   ```bash
+   # Test DNS config endpoint
+   curl http://localhost:8081/api/dns/config
+   
+   # Test zone operations (authenticated)
+   curl -H "Authorization: Bearer $TOKEN" \
+        http://localhost:8081/api/dns/zones
+   ```
+
+3. **Gradual Rollout**
+   ```bash
+   # 5% rollout
+   POWERDNS_FEATURE_FLAG_PERCENTAGE=5
+   docker compose -f docker-compose.production.yml restart
+   
+   # Monitor for 24 hours, then increase
+   # 25% -> 50% -> 75% -> 100%
+   ```
+
+### Phase 5: Data Migration
+
+1. **Migrate Existing DNS Data**
+   ```bash
+   # Run migration script
+   python3 scripts/migrate-dns-data.py \
+     --powerdns-url "http://localhost:8053/api/v1" \
+     --api-key "your-api-key" \
+     --data-source "default" \
+     --mode "merge" \
+     --dry-run  # Preview first
+   
+   # Run actual migration
+   python3 scripts/migrate-dns-data.py \
+     --powerdns-url "http://localhost:8053/api/v1" \
+     --api-key "your-api-key" \
+     --data-source "default" \
+     --mode "merge"
+   ```
+
+## Monitoring and Validation
+
+### Health Checks
+
+1. **Application Health**
+   ```bash
+   curl https://prism.thepaynes.ca/api/health
+   ```
+
+2. **PowerDNS Health**
+   ```bash
+   curl -H "X-API-Key: your-api-key" \
+        http://localhost:8053/api/v1/servers/localhost
+   ```
+
+3. **DNS Resolution**
+   ```bash
+   dig @35.170.180.10 managed.prism.local SOA
+   ```
+
+### Monitoring Dashboards
+
+- **Grafana**: Check PowerDNS dashboard for metrics
+- **Prometheus**: Verify PowerDNS targets are up
+- **Alerts**: Configure PowerDNS alerting rules
+
+### Key Metrics to Monitor
+
+- PowerDNS query latency
+- DNS error rates
+- Feature flag usage
+- Service adapter fallbacks
+- Database connection health
+
+## Rollback Procedures
+
+### Quick Rollback (Disable Integration)
+
+```bash
+# Use rollback script
+./scripts/rollback-dns-deployment.sh disable-only
+
+# Or manual rollback
+POWERDNS_ENABLED=false
+POWERDNS_FEATURE_FLAG_PERCENTAGE=0
+docker compose -f docker-compose.production.yml restart
+```
+
+### Full Rollback (Remove PowerDNS)
+
+```bash
+# Complete rollback with data preservation
+./scripts/rollback-dns-deployment.sh full-rollback
+
+# Complete rollback with data removal (DESTRUCTIVE)
+./scripts/rollback-dns-deployment.sh full-rollback --remove-volumes
+```
+
+### Rollback Verification
+
+```bash
+# Check rollback status
+./scripts/rollback-dns-deployment.sh status
+
+# Verify DNS config
+curl http://localhost:8081/api/dns/config
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **PowerDNS Container Won't Start**
+   ```bash
+   # Check logs
+   docker compose -f docker-compose.powerdns.yml logs powerdns
+   
+   # Common causes:
+   # - Database not ready
+   # - Port 53 already in use
+   # - Configuration errors
+   ```
+
+2. **DNS Queries Not Working**
+   ```bash
+   # Check port 53 binding
+   sudo lsof -i :53
+   
+   # Check PowerDNS logs
+   docker compose -f docker-compose.powerdns.yml logs powerdns
+   
+   # Test database connection
+   docker compose -f docker-compose.powerdns.yml exec powerdns-db \
+     psql -U powerdns -c "SELECT * FROM domains;"
+   ```
+
+3. **Feature Flags Not Working**
+   ```bash
+   # Check DNS config endpoint
+   curl http://localhost:8081/api/dns/config
+   
+   # Verify environment variables
+   docker compose -f docker-compose.production.yml exec prism-server env | grep POWERDNS
+   ```
+
+4. **High Error Rates**
+   ```bash
+   # Check Prometheus metrics
+   curl http://localhost:8081/metrics | grep dns
+   
+   # Check application logs
+   docker compose -f docker-compose.production.yml logs prism-server
+   ```
+
+### Emergency Contacts
+
+- **System Administrator**: Check on-call rotation
+- **DNS Team**: DNS operations team
+- **DevOps**: Infrastructure team
 
 ## AWS Security Group Requirements
 
@@ -61,175 +284,70 @@ aws ec2 authorize-security-group-ingress \
   --group-rule-description "PowerDNS API"
 ```
 
-## Environment Configuration
-
-### Production Settings
-
-Create `.env.powerdns` on the EC2 instance:
-
-```bash
-PDNS_API_KEY=your-secure-api-key-here
-PDNS_DB_PASSWORD=your-secure-database-password
-PDNS_DB_NAME=powerdns
-PDNS_DB_USER=powerdns
-PDNS_DEFAULT_ZONE=your-domain.com
-PDNS_API_ALLOW_FROM=10.0.0.0/8,172.16.0.0/12,YOUR_OFFICE_IP/32
-```
-
-### Setting Environment Variables
-
-SSH to your EC2 instance and update the environment file:
-
-```bash
-ssh -i citadel.pem ubuntu@35.170.180.10
-cd ~/prism-deployment
-nano .env.powerdns
-```
-
-## Deployment Process
-
-The CI/CD pipeline performs the following steps:
-
-1. **Build**: Creates PowerDNS Docker image
-2. **Package**: Saves images as compressed tarballs
-3. **Transfer**: Copies images and configuration to EC2
-4. **Deploy**: Loads images and starts containers
-5. **Verify**: Checks health of deployed services
-
-## Post-Deployment Steps
-
-### 1. Verify Deployment
-
-```bash
-# Check container status
-ssh -i citadel.pem ubuntu@35.170.180.10
-cd ~/prism-deployment
-docker compose -f docker-compose.powerdns.yml ps
-
-# Check logs
-docker compose -f docker-compose.powerdns.yml logs
-```
-
-### 2. Create Initial DNS Zone
-
-```bash
-# Create your primary zone
-curl -X POST -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "managed.your-domain.com.",
-    "kind": "Native",
-    "nameservers": ["ns1.your-domain.com.", "ns2.your-domain.com."]
-  }' \
-  http://35.170.180.10:8053/api/v1/servers/localhost/zones
-```
-
-### 3. Test DNS Resolution
-
-```bash
-# Add a test record
-curl -X PATCH -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "rrsets": [{
-      "name": "test.managed.your-domain.com.",
-      "type": "A",
-      "changetype": "REPLACE",
-      "records": [{
-        "content": "192.168.1.100",
-        "disabled": false
-      }]
-    }]
-  }' \
-  http://35.170.180.10:8053/api/v1/servers/localhost/zones/managed.your-domain.com.
-
-# Test resolution
-dig @35.170.180.10 test.managed.your-domain.com
-```
-
-## Health Monitoring
-
-### Manual Health Check
-
-Use the provided health check script:
-
-```bash
-# On the EC2 instance
-cd ~/prism-deployment
-./scripts/check-powerdns-health.sh
-```
-
-### Monitoring Endpoints
-
-- PowerDNS API: `http://YOUR_EC2_IP:8053/api/v1/servers/localhost`
-- Container status: `docker compose -f docker-compose.powerdns.yml ps`
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Port 53 Permission Denied**
-   - Ensure Docker has NET_BIND_SERVICE capability
-   - Check if systemd-resolved is using port 53
-
-2. **API Not Accessible**
-   - Verify API key is set correctly
-   - Check security group allows port 8053
-   - Ensure PDNS_API_ALLOW_FROM includes your IP
-
-3. **DNS Queries Not Working**
-   - Check if port 53 is open in security group
-   - Verify PowerDNS container is running
-   - Check zone configuration
-
-### Debug Commands
-
-```bash
-# Check PowerDNS logs
-docker logs powerdns-server
-
-# Check database connectivity
-docker exec powerdns-server pdns_control ping
-
-# List all zones
-curl -H "X-API-Key: YOUR_API_KEY" \
-  http://localhost:8053/api/v1/servers/localhost/zones
-
-# Check PowerDNS statistics
-curl -H "X-API-Key: YOUR_API_KEY" \
-  http://localhost:8053/api/v1/servers/localhost/statistics
-```
-
-## Rollback Procedure
-
-If deployment fails:
-
-```bash
-# Stop PowerDNS containers
-docker compose -f docker-compose.powerdns.yml down
-
-# Remove containers and volumes
-docker compose -f docker-compose.powerdns.yml down -v
-
-# Clean up images
-docker image prune -f
-```
-
-## Integration with Prism
-
-Once PowerDNS is deployed, the Prism server can be configured to automatically create DNS records for registered hosts. This integration is implemented in a separate task (SCRUM-49).
-
 ## Security Considerations
 
-1. **API Security**: Always use strong API keys
-2. **Network Security**: Restrict API access by IP
-3. **DNS Security**: Consider enabling DNSSEC
-4. **Monitoring**: Set up alerts for unusual query patterns
+1. **API Key Management**
+   - Use strong, randomly generated API keys
+   - Rotate keys regularly
+   - Never commit keys to version control
 
-## Next Steps
+2. **Network Security**
+   - Ensure PowerDNS API is not exposed externally
+   - Use firewall rules to restrict access
+   - Monitor for unauthorized access attempts
 
-1. Configure production environment variables
-2. Create DNS zones for your domains
-3. Update Prism server configuration to use PowerDNS API
-4. Set up monitoring and alerts
-5. Configure backup procedures
+3. **Database Security**
+   - Use strong database passwords
+   - Enable SSL for database connections
+   - Regular security updates
+
+## Performance Tuning
+
+### PowerDNS Configuration
+
+```conf
+# Optimize for production load
+receiver-threads=4
+distributor-threads=4
+signing-threads=4
+max-packet-cache-entries=1000000
+max-cache-entries=2000000
+```
+
+### Database Optimization
+
+```sql
+-- PostgreSQL tuning for PowerDNS
+shared_buffers = 256MB
+effective_cache_size = 1GB
+random_page_cost = 1.1
+```
+
+### Monitoring Thresholds
+
+- Query latency: < 50ms
+- Error rate: < 1%
+- Cache hit rate: > 90%
+- Database connections: < 80% of max
+
+## Maintenance
+
+### Regular Tasks
+
+1. **Weekly**: Check PowerDNS logs for errors
+2. **Monthly**: Review performance metrics
+3. **Quarterly**: Update PowerDNS version
+4. **Annually**: Rotate API keys and passwords
+
+### Backup Strategy
+
+1. **PostgreSQL**: Daily automated backups
+2. **Configuration**: Version controlled
+3. **Zone Data**: Export and backup weekly
+
+## Support and Documentation
+
+- **Internal Wiki**: Link to internal documentation
+- **PowerDNS Docs**: https://doc.powerdns.com/
+- **Troubleshooting**: See docs/troubleshooting/
+- **Monitoring**: See docs/monitoring/

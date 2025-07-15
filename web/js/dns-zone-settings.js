@@ -6,12 +6,14 @@
 class DNSZoneSettingsManager {
     constructor(zoneDetailManager) {
         this.zoneDetailManager = zoneDetailManager;
-        this.mockService = zoneDetailManager.mockService;
+        // Use service adapter from zone detail manager
+        this.dnsService = zoneDetailManager.dnsService || DNSServiceFactory.getAdapter();
         this.currentZone = null;
         this.originalSettings = null;
         this.currentSettings = null;
         this.hasChanges = false;
         this.changeListeners = new Set();
+        this.loadingStates = new Map(); // Track loading states for operations
     }
 
     /**
@@ -644,7 +646,7 @@ class DNSZoneSettingsManager {
             
             // Update zone via mock service
             if (updateData.rrsets.length > 0) {
-                await this.mockService.updateZone(this.currentZone.id, updateData);
+                await this.dnsService.updateZone(this.currentZone.id, updateData);
             }
             
             // Update original settings

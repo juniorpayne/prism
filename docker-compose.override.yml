@@ -16,6 +16,8 @@ services:
     environment:
       - DEBUG=1
       - LOG_LEVEL=DEBUG
+      - PRISM_POWERDNS_API_URL=http://172.17.0.1:8053/api/v1
+      - PRISM_POWERDNS_API_KEY=changeme
     # Mount source code for hot reloading
     volumes:
       - ./server:/app/server

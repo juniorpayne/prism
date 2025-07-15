@@ -624,18 +624,18 @@ class DNSImportModal {
      * Import a single zone
      */
     async importZone(zone, conflictResolution) {
-        const mockService = new DNSMockDataService();
+        const dnsService = DNSServiceFactory.getAdapter();
         
         // Check if zone exists
         try {
-            const existingZone = await mockService.getZone(zone.name);
+            const existingZone = await dnsService.getZone(zone.name);
             if (existingZone && conflictResolution === 'skip') {
                 throw new Error('Zone already exists (skipped)');
             }
             
             if (existingZone && conflictResolution === 'overwrite') {
                 // Delete existing zone first
-                await mockService.deleteZone(zone.name);
+                await dnsService.deleteZone(zone.name);
             }
             
             if (existingZone && conflictResolution === 'merge') {
@@ -649,7 +649,7 @@ class DNSImportModal {
         }
 
         // Create the zone
-        await mockService.createZone(zone);
+        await dnsService.createZone(zone);
         
         // Update zone with rrsets if needed
         if (zone.rrsets && zone.rrsets.length > 0) {
@@ -659,7 +659,7 @@ class DNSImportModal {
             );
             
             if (rrsetsToAdd.length > 0) {
-                await mockService.updateZone(zone.name, {
+                await dnsService.updateZone(zone.name, {
                     rrsets: rrsetsToAdd.map(rrset => ({
                         ...rrset,
                         changetype: 'REPLACE'

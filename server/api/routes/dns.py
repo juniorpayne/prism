@@ -5,6 +5,7 @@ PowerDNS API integration endpoints for DNS zone and record management.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -942,3 +943,41 @@ async def preview_import(
 
     # Reuse import_zones logic
     return await import_zones(request, import_data, current_user)
+
+
+@router.get("/config", response_model=Dict[str, Any])
+@limiter.limit("100/minute")
+async def get_dns_config(
+    request: Request,
+):
+    """
+    Get DNS service configuration for frontend adapter.
+
+    Returns feature flags and settings from environment variables
+    to control PowerDNS integration rollout.
+    """
+    try:
+        # Read configuration from environment variables
+        config = {
+            "powerdns_enabled": os.getenv("POWERDNS_ENABLED", "false").lower() == "true",
+            "feature_flag_percentage": int(os.getenv("POWERDNS_FEATURE_FLAG_PERCENTAGE", "0")),
+            "fallback_to_mock": os.getenv("POWERDNS_FALLBACK_TO_MOCK", "true").lower() == "true",
+            "api_url": os.getenv("POWERDNS_API_URL", "http://localhost:8053/api/v1"),
+            "default_zone": os.getenv("POWERDNS_DEFAULT_ZONE", "managed.prism.local."),
+        }
+
+        return config
+
+    except ValueError as e:
+        logger.error(f"Invalid configuration value: {e}")
+        # Return safe defaults if config is invalid
+        return {
+            "powerdns_enabled": False,
+            "feature_flag_percentage": 0,
+            "fallback_to_mock": True,
+            "api_url": "http://localhost:8053/api/v1",
+            "default_zone": "managed.prism.local.",
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error getting DNS config: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

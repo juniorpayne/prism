@@ -49,13 +49,17 @@ class DNSAdapterConfig {
             }
         };
         
-        this.loadConfig();
+        // Load config asynchronously
+        this.loadConfig().catch(error => {
+            console.warn('Failed to load DNS adapter config during initialization:', error);
+        });
     }
     
     /**
-     * Load configuration from localStorage
+     * Load configuration from localStorage and server
      */
-    loadConfig() {
+    async loadConfig() {
+        // First load from localStorage
         const stored = localStorage.getItem(this.storageKey);
         if (stored) {
             try {
@@ -67,6 +71,39 @@ class DNSAdapterConfig {
             }
         } else {
             this.config = { ...this.defaultConfig };
+        }
+        
+        // Then fetch server-side configuration (production settings)
+        await this.loadServerConfig();
+    }
+    
+    /**
+     * Load configuration from server (environment variables)
+     */
+    async loadServerConfig() {
+        try {
+            const response = await fetch('/api/dns/config');
+            if (response.ok) {
+                const serverConfig = await response.json();
+                
+                // Override local config with server settings for production
+                if (serverConfig.powerdns_enabled !== undefined) {
+                    this.config.useRealService = serverConfig.powerdns_enabled;
+                }
+                
+                if (serverConfig.feature_flag_percentage !== undefined) {
+                    this.config.abTesting.percentage = serverConfig.feature_flag_percentage;
+                    this.config.abTesting.enabled = serverConfig.feature_flag_percentage > 0;
+                }
+                
+                if (serverConfig.fallback_to_mock !== undefined) {
+                    this.config.fallbackToMock = serverConfig.fallback_to_mock;
+                }
+                
+                console.log('Loaded DNS config from server:', serverConfig);
+            }
+        } catch (error) {
+            console.warn('Failed to load server DNS config, using local config:', error);
         }
     }
     

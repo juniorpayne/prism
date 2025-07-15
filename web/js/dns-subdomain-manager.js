@@ -6,10 +6,12 @@
 class DNSSubdomainManager {
     constructor(zoneDetailManager) {
         this.zoneDetailManager = zoneDetailManager;
-        this.mockService = zoneDetailManager.mockService;
+        // Use service adapter from zone detail manager
+        this.dnsService = zoneDetailManager.dnsService || DNSServiceFactory.getAdapter();
         this.currentZone = null;
         this.childZones = [];
         this.isLoading = false;
+        this.loadingStates = new Map(); // Track loading states for operations
     }
 
     /**
@@ -45,7 +47,7 @@ class DNSSubdomainManager {
                 // Get additional details for each child zone
                 for (const childZone of this.childZones) {
                     try {
-                        const fullZone = await this.mockService.getZone(childZone.id);
+                        const fullZone = await this.dnsService.getZone(childZone.id);
                         if (fullZone) {
                             // Count records (excluding SOA and NS)
                             let recordCount = 0;
@@ -338,7 +340,7 @@ class DNSSubdomainManager {
             }
 
             // Delete the zone
-            await this.mockService.deleteZone(subdomainId);
+            await this.dnsService.deleteZone(subdomainId);
             
             // Show success notification
             if (window.dnsZonesManager && window.dnsZonesManager.showNotification) {

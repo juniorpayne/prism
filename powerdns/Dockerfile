@@ -17,8 +17,8 @@ RUN apk add --no-cache \
 RUN mkdir -p /etc/pdns/conf.d /var/run/pdns && \
     chown -R pdns:pdns /etc/pdns /var/run/pdns
 
-# Copy configuration and entrypoint
-COPY pdns.conf.template /etc/pdns/pdns.conf
+# Copy configuration template and entrypoint
+COPY pdns.conf.template /etc/pdns/pdns.conf.template
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

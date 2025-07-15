@@ -1,0 +1,122 @@
+groups:
+  - name: powerdns.rules
+    rules:
+      # PowerDNS Service Availability
+      - alert: PowerDNSDown
+        expr: up{job="powerdns"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "PowerDNS server is down"
+          description: "PowerDNS server has been down for more than 1 minute"
+
+      - alert: PowerDNSAPIDown
+        expr: up{job="powerdns-health"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "PowerDNS API is down"
+          description: "PowerDNS API has been unreachable for more than 1 minute"
+
+      # Query Performance
+      - alert: PowerDNSHighQueryLatency
+        expr: pdns_latency > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "PowerDNS high query latency"
+          description: "PowerDNS query latency is {{ $value }}ms (threshold: 50ms)"
+
+      - alert: PowerDNSHighQueryRate
+        expr: rate(pdns_queries_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "PowerDNS high query rate"
+          description: "PowerDNS receiving {{ $value }} queries/sec (threshold: 1000/sec)"
+
+      # Error Rates
+      - alert: PowerDNSHighErrorRate
+        expr: rate(pdns_servfail_answers_total[5m]) / rate(pdns_queries_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "PowerDNS high error rate"
+          description: "PowerDNS SERVFAIL rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # Cache Performance
+      - alert: PowerDNSLowCacheHitRate
+        expr: pdns_packetcache_hit_ratio < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "PowerDNS low cache hit rate"
+          description: "PowerDNS cache hit rate is {{ $value | humanizePercentage }} (threshold: 80%)"
+
+      # Database Connection
+      - alert: PowerDNSDatabaseConnectionFailed
+        expr: pdns_backend_queries_total{result="failed"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: powerdns
+        annotations:
+          summary: "PowerDNS database connection failed"
+          description: "PowerDNS has failed database queries"
+
+      # Zone Transfer Issues
+      - alert: PowerDNSZoneTransferFailed
+        expr: increase(pdns_zone_transfer_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: powerdns
+        annotations:
+          summary: "PowerDNS zone transfer failed"
+          description: "PowerDNS zone transfer failures detected"
+
+  - name: dns-integration.rules
+    rules:
+      # DNS Integration Health
+      - alert: DNSIntegrationFailure
+        expr: prism_dns_operations_total{status="error"} / prism_dns_operations_total > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "High DNS integration error rate"
+          description: "DNS integration error rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+      - alert: DNSServiceAdapterFailure
+        expr: prism_dns_service_adapter_fallbacks_total > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "DNS service adapter fallbacks detected"
+          description: "DNS service adapter has fallen back to mock service {{ $value }} times"
+
+      # Feature Flag Monitoring
+      - alert: DNSFeatureFlagHighFailure
+        expr: prism_dns_feature_flag_errors_total > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: prism-dns
+        annotations:
+          summary: "DNS feature flag errors"
+          description: "DNS feature flag system has {{ $value }} errors in the last 5 minutes"

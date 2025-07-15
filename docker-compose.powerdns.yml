@@ -26,7 +26,7 @@ services:
     build:
       context: ./powerdns
       dockerfile: Dockerfile
-    image: powerdns:local
+    image: powerdns:latest
     container_name: powerdns-server
     restart: unless-stopped
     network_mode: host
@@ -35,14 +35,21 @@ services:
       - NET_ADMIN
       - SYS_NICE
     environment:
-      PDNS_API_KEY: ${PDNS_API_KEY:-changeme}
+      PDNS_API_KEY: ${PDNS_API_KEY:-$(openssl rand -hex 32)}
       PDNS_DB_HOST: localhost
       PDNS_DB_PORT: 5433
       PDNS_DB_NAME: ${PDNS_DB_NAME:-powerdns}
       PDNS_DB_USER: ${PDNS_DB_USER:-powerdns}
-      PDNS_DB_PASSWORD: ${PDNS_DB_PASSWORD:-changeme}
+      PDNS_DB_PASSWORD: ${PDNS_DB_PASSWORD:-$(openssl rand -hex 16)}
       PDNS_API_ALLOW_FROM: ${PDNS_API_ALLOW_FROM:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       PDNS_DEFAULT_ZONE: ${PDNS_DEFAULT_ZONE:-managed.prism.local}
+      # Performance tuning for production
+      PDNS_RECEIVER_THREADS: ${PDNS_RECEIVER_THREADS:-4}
+      PDNS_DISTRIBUTOR_THREADS: ${PDNS_DISTRIBUTOR_THREADS:-4}
+      PDNS_CACHE_TTL: ${PDNS_CACHE_TTL:-60}
+      # Security settings
+      PDNS_DISABLE_AXFR: ${PDNS_DISABLE_AXFR:-yes}
+      PDNS_LOG_LEVEL: ${PDNS_LOG_LEVEL:-4}
     depends_on:
       powerdns-db:
         condition: service_healthy
@@ -51,6 +58,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
 volumes:
   powerdns-db-data:

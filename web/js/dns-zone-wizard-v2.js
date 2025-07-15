@@ -487,18 +487,28 @@ class DNSZoneWizardV2 {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
         
         try {
-            // Create zone using mock service
-            const mockService = new DNSMockDataService();
+            // Use DNS service adapter to support both mock and real PowerDNS
+            const dnsService = DNSServiceFactory.getAdapter();
             
             // Prepare zone data for PowerDNS format
+            // Ensure domain name ends with a dot for PowerDNS
+            const domainName = this.data.domainName.endsWith('.') 
+                ? this.data.domainName 
+                : this.data.domainName + '.';
+            
+            // Ensure nameservers end with dots
+            const nameservers = this.data.nameservers.map(ns => 
+                ns.endsWith('.') ? ns : ns + '.'
+            );
+                
             const zoneData = {
-                name: this.data.domainName,
+                name: domainName,
                 kind: this.data.zoneType === 'master' ? 'Native' : 'Slave',
-                nameservers: this.data.nameservers,
-                email: this.data.adminEmail || `hostmaster.${this.data.domainName}`
+                nameservers: nameservers,
+                email: this.data.adminEmail || `hostmaster.${domainName}`
             };
             
-            await mockService.createZone(zoneData);
+            await dnsService.createZone(zoneData);
             
             // Show success
             alert(`Zone ${this.data.domainName} created successfully!`);
