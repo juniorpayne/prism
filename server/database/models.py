@@ -7,9 +7,9 @@ SQLAlchemy models for host registration data.
 import ipaddress
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, create_engine, event
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, UniqueConstraint, create_engine, event
 from sqlalchemy.orm import declarative_base, validates
 
 # Create the declarative base
@@ -25,12 +25,17 @@ class Host(Base):
     """
 
     __tablename__ = "hosts"
+    
+    # Composite unique constraint for user-scoped hostnames (SCRUM-128)
+    __table_args__ = (
+        UniqueConstraint('hostname', 'created_by', name='uq_hostname_per_user'),
+    )
 
     # Primary key
     id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Host identification
-    hostname = Column(String(255), nullable=False, unique=True, index=True)
+    hostname = Column(String(255), nullable=False, index=True)  # Removed unique=True for user-scoped hostnames
     current_ip = Column(String(45), nullable=False)  # IPv4/IPv6 support
 
     # Timestamps
@@ -59,7 +64,7 @@ class Host(Base):
     # Multi-tenancy fields (SCRUM-52)
     org_id = Column(String(36), nullable=True)  # UUID as string for now, will migrate to UUID type
     zone_id = Column(String(36), nullable=True)  # UUID as string for now
-    created_by = Column(String(36), nullable=True)  # UUID as string for now
+    created_by = Column(String(36), nullable=False, index=True)  # User UUID required for isolation (SCRUM-127)
 
     # Audit timestamps
     created_at = Column(
@@ -72,18 +77,27 @@ class Host(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    def __init__(self, hostname: str, current_ip: str, **kwargs):
+    def __init__(self, hostname: str, current_ip: str, created_by: str = None, **kwargs):
         """
         Initialize Host instance with validation.
 
         Args:
             hostname: Client hostname
             current_ip: Client IP address
+            created_by: User ID who created this host (required)
             **kwargs: Additional fields
         """
         # Validate inputs
         self.validate_hostname(hostname)
         self.validate_ip(current_ip)
+        
+        # Validate created_by is provided (SCRUM-127)
+        if created_by is None and "created_by" not in kwargs:
+            raise ValueError("created_by is required for host creation")
+        
+        # Use provided created_by or from kwargs
+        if created_by is not None:
+            kwargs["created_by"] = created_by
 
         # Ensure default status if not provided
         if "status" not in kwargs:
@@ -233,6 +247,51 @@ Index("idx_hostname_status", Host.hostname, Host.status)
 Index("idx_last_seen_status", Host.last_seen, Host.status)
 
 
+class DNSZoneOwnership(Base):
+    """
+    DNS Zone ownership model for tracking which zones belong to which users.
+    
+    This provides a simple way to associate PowerDNS zones with users
+    without modifying PowerDNS itself (SCRUM-129).
+    """
+    
+    __tablename__ = "dns_zone_ownership"
+    
+    # Primary key
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # Zone identification
+    zone_name = Column(String(255), nullable=False, unique=True, index=True)
+    
+    # User ownership
+    created_by = Column(String(36), nullable=False, index=True)  # User UUID
+    
+    # Timestamps
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+    
+    def __repr__(self):
+        """String representation of DNSZoneOwnership."""
+        return f"<DNSZoneOwnership(zone_name='{self.zone_name}', created_by='{self.created_by}')>"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert zone to dictionary."""
+        return {
+            "id": self.id,
+            "zone_name": self.zone_name,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # Event listeners for automatic timestamp updates
 @event.listens_for(Host, "before_update")
 def update_timestamps(mapper, connection, target):
@@ -240,5 +299,11 @@ def update_timestamps(mapper, connection, target):
     target.updated_at = datetime.now(timezone.utc)
 
 
+@event.listens_for(DNSZoneOwnership, "before_update")
+def update_dns_zone_ownership_timestamps(mapper, connection, target):
+    """Update DNS zone ownership timestamps before update operations."""
+    target.updated_at = datetime.now(timezone.utc)
+
+
 # Database schema version for migrations
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 7  # Version 7: Add is_admin field to users table (SCRUM-133)

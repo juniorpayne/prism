@@ -236,8 +236,11 @@ class ConnectionHandler:
             # Use registration processor if available
             if self.registration_processor:
                 # Process registration through the advanced processor
+                # TODO: Implement TCP authentication (SCRUM-135)
+                # For now, use system user for backward compatibility
+                system_user_id = "00000000-0000-0000-0000-000000000000"
                 result = await self.registration_processor.process_registration(
-                    hostname, self.client_ip, timestamp
+                    hostname, self.client_ip, timestamp, system_user_id
                 )
 
                 if result.success:
@@ -329,9 +332,12 @@ class ConnectionHandler:
         Returns:
             Tuple of (success, message)
         """
+        # TODO: Implement TCP authentication (SCRUM-135)
+        # For now, use system user for backward compatibility
+        system_user_id = "00000000-0000-0000-0000-000000000000"
         try:
-            # Check if host already exists
-            existing_host = self.host_ops.get_host_by_hostname(hostname)
+            # Check if host already exists for this user
+            existing_host = self.host_ops.get_host_by_hostname(hostname, system_user_id)
 
             if existing_host:
                 # Update existing host
@@ -355,7 +361,7 @@ class ConnectionHandler:
                         return False, "Failed to update host timestamp"
             else:
                 # Create new host
-                new_host = self.host_ops.create_host(hostname, ip_address)
+                new_host = self.host_ops.create_host(hostname, ip_address, system_user_id)
                 if new_host:
                     return True, f"New host registered with IP {ip_address}"
                 else:

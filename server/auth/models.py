@@ -93,6 +93,7 @@ class User(Base):
 
     # Account status
     is_active = Column(Boolean, default=True, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(255), nullable=True)
 
@@ -162,6 +163,10 @@ class User(Base):
             f"email='{self.email}', verified={self.email_verified})"
         )
 
+    def has_admin_privileges(self) -> bool:
+        """Check if user has admin privileges."""
+        return self.is_admin and self.is_active
+
     def to_dict(self) -> dict:
         """Convert User instance to dictionary."""
         import json
@@ -175,6 +180,7 @@ class User(Base):
                 self.email_verified_at.isoformat() if self.email_verified_at else None
             ),
             "is_active": self.is_active,
+            "is_admin": self.is_admin,
             "mfa_enabled": self.mfa_enabled,
             "full_name": self.full_name,
             "bio": self.bio,

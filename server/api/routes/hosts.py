@@ -18,7 +18,15 @@ from server.api.models import (
     PaginationParams,
     create_error_response,
 )
-from server.auth.dependencies import get_current_verified_user
+from pydantic import BaseModel
+
+
+class HostStatsResponse(BaseModel):
+    """Response model for host statistics."""
+    total_hosts: int
+    online_hosts: int
+    offline_hosts: int
+from server.auth.dependencies import get_admin_override, get_current_verified_user
 from server.auth.models import User
 from server.database.models import Host
 from server.database.operations import HostOperations
@@ -36,6 +44,7 @@ router = APIRouter(prefix="/api", tags=["hosts"])
 )
 async def get_hosts(
     current_user: User = Depends(get_current_verified_user),
+    admin_override: bool = Depends(get_admin_override),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by host status"),
@@ -78,11 +87,21 @@ async def get_hosts(
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Get filtered hosts
-        if status:
-            hosts = host_ops.get_hosts_by_status(status)
+        # Get filtered hosts - filter by current user unless admin override
+        if admin_override:
+            logger.info(f"Admin {current_user.username} viewing all hosts")
+            # Admin sees all hosts
+            if status:
+                hosts = host_ops.get_hosts_by_status(status, user_id=None)
+            else:
+                hosts = host_ops.get_all_hosts(user_id=None)
         else:
-            hosts = host_ops.get_all_hosts()
+            # Normal user - filter by user_id
+            user_id = str(current_user.id)
+            if status:
+                hosts = host_ops.get_hosts_by_status(status, user_id=user_id)
+            else:
+                hosts = host_ops.get_all_hosts(user_id=user_id)
 
         # Apply search filter if provided
         if search:
@@ -152,7 +171,9 @@ async def get_host(
         HostResponse with host details
     """
     try:
-        host = host_ops.get_host_by_hostname(hostname)
+        # Get host only if owned by current user
+        user_id = str(current_user.id)
+        host = host_ops.get_host_by_hostname(hostname, user_id=user_id)
 
         if not host:
             raise HTTPException(
@@ -229,8 +250,9 @@ async def get_hosts_by_status(
                 detail="Items per page must be between 1 and 1000",
             )
 
-        # Get hosts by status
-        hosts = host_ops.get_hosts_by_status(host_status)
+        # Get hosts by status - filter by current user
+        user_id = str(current_user.id)
+        hosts = host_ops.get_hosts_by_status(host_status, user_id=user_id)
         total_hosts = len(hosts)
 
         # Apply pagination
@@ -270,6 +292,58 @@ async def get_hosts_by_status(
         )
     except Exception as e:
         logger.error(f"Unexpected error retrieving {host_status} hosts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+        )
+
+
+@router.get(
+    "/hosts/stats",
+    response_model=HostStatsResponse,
+    summary="Get host statistics",
+    description="Get statistics for user's hosts",
+)
+async def get_host_stats(
+    current_user: User = Depends(get_current_verified_user),
+    admin_override: bool = Depends(get_admin_override),
+    host_ops: HostOperations = Depends(get_host_operations),
+) -> HostStatsResponse:
+    """
+    Get statistics for user's hosts only.
+    
+    Returns:
+        HostStatsResponse with counts for total, online, and offline hosts
+    """
+    try:
+        if admin_override:
+            logger.info(f"Admin {current_user.username} viewing all host stats")
+            # Admin sees all host stats
+            total_hosts = host_ops.get_host_count(user_id=None)
+            online_hosts = host_ops.get_host_count_by_status("online", user_id=None)
+            offline_hosts = host_ops.get_host_count_by_status("offline", user_id=None)
+        else:
+            # Normal user - filter by user_id
+            user_id = str(current_user.id)
+            total_hosts = host_ops.get_host_count(user_id=user_id)
+            online_hosts = host_ops.get_host_count_by_status("online", user_id=user_id)
+            offline_hosts = host_ops.get_host_count_by_status("offline", user_id=user_id)
+        
+        logger.info(f"Retrieved host stats for {current_user.username}: total={total_hosts}, online={online_hosts}, offline={offline_hosts}")
+        
+        return HostStatsResponse(
+            total_hosts=total_hosts,
+            online_hosts=online_hosts,
+            offline_hosts=offline_hosts
+        )
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error retrieving host stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error retrieving host statistics",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving host stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
         )

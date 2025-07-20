@@ -147,41 +147,56 @@ class EmailService:
             ip_address: Request IP address
             user_agent: Request user agent
         """
-        settings = get_settings()
-        frontend_url = settings.get("frontend_url", "http://localhost:8090")
-        reset_url = f"{frontend_url}/reset-password?token={token}"
+        logger.info(f"[DEBUG] send_password_reset_email called for user: {username}, email: {email}")
+        
+        try:
+            settings = get_settings()
+            frontend_url = settings.get("frontend_url", "http://localhost:8090")
+            reset_url = f"{frontend_url}/reset-password?token={token}"
+            logger.info(f"[DEBUG] Reset URL: {reset_url}")
 
-        # Render email template
-        html_body, text_body = await self.template_service.render_email(
-            "password_reset/reset_request",
-            {
-                "username": username,
-                "reset_url": reset_url,
-                "expiry_hours": 1,
-                "request_ip": ip_address or "Unknown",
-            },
-        )
+            # Render email template
+            logger.info(f"[DEBUG] Rendering email template...")
+            html_body, text_body = await self.template_service.render_email(
+                "password_reset/reset_request",
+                {
+                    "username": username,
+                    "reset_url": reset_url,
+                    "expiry_hours": 1,
+                    "request_ip": ip_address or "Unknown",
+                },
+            )
+            logger.info(f"[DEBUG] Email template rendered successfully")
 
-        # Create email message
-        message = EmailMessage(
-            to=[email],
-            subject="Reset your Prism DNS password",
-            html_body=html_body,
-            text_body=text_body,
-            from_email=self.email_config.from_email,
-            from_name=self.email_config.from_name,
-            reply_to=self.email_config.reply_to,
-            metadata={
-                "ip_address": ip_address,
-                "user_agent": user_agent,
-            },
-        )
+            # Create email message
+            logger.info(f"[DEBUG] Creating email message...")
+            message = EmailMessage(
+                to=[email],
+                subject="Reset your Prism DNS password",
+                html_body=html_body,
+                text_body=text_body,
+                from_email=self.email_config.from_email,
+                from_name=self.email_config.from_name,
+                reply_to=self.email_config.reply_to,
+                metadata={
+                    "ip_address": ip_address,
+                    "user_agent": user_agent,
+                },
+            )
+            logger.info(f"[DEBUG] Email message created")
 
-        # Send email
-        result = await self.provider.send_email(message)
+            # Send email
+            logger.info(f"[DEBUG] Sending email via provider: {self.provider.provider_name}")
+            result = await self.provider.send_email(message)
+            logger.info(f"[DEBUG] Email send result: success={result.success}, error={result.error}")
 
-        if not result.success:
-            logger.error(f"Failed to send password reset email: {result.error}")
+            if not result.success:
+                logger.error(f"Failed to send password reset email: {result.error}")
+            else:
+                logger.info(f"[DEBUG] Password reset email sent successfully to {email}")
+                
+        except Exception as e:
+            logger.error(f"[DEBUG] Exception in send_password_reset_email: {e}", exc_info=True)
 
     async def send_password_changed_email(
         self,

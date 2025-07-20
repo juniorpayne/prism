@@ -32,4 +32,26 @@ The server's `config.py` is the single source of truth for configuration.
 
 - Always run tests and execute code in our docker dev container environments.
 
+## Production Deployment Guidelines
+
+### Development/Production Parity
+- **CRITICAL**: Local development environment must match production configuration exactly
+- Use the same Docker networking mode in both environments (bridge networks, not host mode)
+- Container names must be consistent between environments for service discovery
+- Always test service connectivity between containers before assuming code issues
+
+### Deployment Verification
+- **Verify assumptions before making code changes** - issues are often configuration, not code
+- When services can't connect, check:
+  1. Are containers on the same Docker network?
+  2. Are environment variables correctly set and loaded?
+  3. Are services using container names (not localhost) for internal communication?
+- Container restarts are required to pick up environment variable changes
+- Use `docker logs` and `docker inspect` to debug networking issues
+
+### PowerDNS Specific
+- PowerDNS must be on the same network as Prism server
+- Use `powerdns-server` as the hostname in configurations, not `localhost`
+- API URL for internal communication: `http://powerdns-server:8053/api/v1`
+
 [... rest of the existing content remains unchanged ...]
