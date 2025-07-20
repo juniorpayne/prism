@@ -367,10 +367,18 @@ class DatabaseMigrations:
                         )
                     """))
                     
-                    # Copy data from old table
+                    # Copy data from old table with explicit column mapping
                     session.execute(text("""
-                        INSERT INTO hosts_new 
-                        SELECT * FROM hosts
+                        INSERT INTO hosts_new (
+                            id, hostname, current_ip, first_seen, last_seen, status,
+                            dns_zone, dns_record_id, dns_ttl, dns_sync_status, dns_last_sync,
+                            org_id, zone_id, created_by, created_at, updated_at
+                        )
+                        SELECT 
+                            id, hostname, current_ip, first_seen, last_seen, status,
+                            dns_zone, dns_record_id, dns_ttl, dns_sync_status, dns_last_sync,
+                            org_id, zone_id, created_by, created_at, updated_at
+                        FROM hosts
                     """))
                     
                     # Drop old table and rename new table
@@ -437,10 +445,18 @@ class DatabaseMigrations:
                     )
                 """))
                 
-                # Copy data from old table
+                # Copy data from old table with explicit column mapping
                 session.execute(text("""
-                    INSERT INTO hosts_new 
-                    SELECT * FROM hosts
+                    INSERT INTO hosts_new (
+                        id, hostname, current_ip, first_seen, last_seen, status,
+                        dns_zone, dns_record_id, dns_ttl, dns_sync_status, dns_last_sync,
+                        org_id, zone_id, created_by, created_at, updated_at
+                    )
+                    SELECT 
+                        id, hostname, current_ip, first_seen, last_seen, status,
+                        dns_zone, dns_record_id, dns_ttl, dns_sync_status, dns_last_sync,
+                        org_id, zone_id, created_by, created_at, updated_at
+                    FROM hosts
                 """))
                 
                 # Drop old table and rename new table
