@@ -481,6 +481,8 @@ async def forgot_password(
     This endpoint always returns the same message to prevent user enumeration.
     If the email/username exists and is verified, a reset email will be sent.
     """
+    logger.info(f"[DEBUG] Forgot password endpoint called for: {forgot_data.email}")
+    
     # Always return same message to prevent enumeration
     response_message = "If the email exists, a password reset link has been sent."
 
@@ -488,6 +490,7 @@ async def forgot_password(
         # Find user by email or username
         from sqlalchemy import or_
 
+        logger.info(f"[DEBUG] Looking up user with email/username: {forgot_data.email.lower()}")
         result = await db.execute(
             select(User).where(
                 or_(
@@ -498,12 +501,18 @@ async def forgot_password(
         )
         user = result.scalar_one_or_none()
 
+        if user:
+            logger.info(f"[DEBUG] User found: {user.username}, email_verified={user.email_verified}, is_active={user.is_active}")
+        else:
+            logger.info(f"[DEBUG] No user found for: {forgot_data.email}")
+
         if user and user.email_verified and user.is_active:
             # Generate reset token
             import secrets
 
             token = secrets.token_urlsafe(32)
             token_hash = hash_token(token)
+            logger.info(f"[DEBUG] Generated reset token for user: {user.username}")
 
             # Store token
             reset_token = PasswordResetToken(
@@ -515,9 +524,13 @@ async def forgot_password(
             )
             db.add(reset_token)
             await db.commit()
+            logger.info(f"[DEBUG] Reset token saved to database")
 
             # Send email in background
             email_service = get_email_service()
+            logger.info(f"[DEBUG] Email service type: {type(email_service)}")
+            logger.info(f"[DEBUG] Adding send_password_reset_email to background tasks")
+            
             background_tasks.add_task(
                 email_service.send_password_reset_email,
                 email=user.email,
@@ -526,13 +539,15 @@ async def forgot_password(
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("User-Agent"),
             )
-
+            
+            logger.info(f"[DEBUG] Background task added successfully")
             logger.info(f"Password reset requested for user: {user.username}")
 
     except Exception as e:
-        logger.error(f"Password reset error: {e}")
+        logger.error(f"[DEBUG] Password reset error: {e}", exc_info=True)
         # Don't reveal error to user
 
+    logger.info(f"[DEBUG] Returning response: {response_message}")
     return {"message": response_message}
 
 

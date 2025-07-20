@@ -132,7 +132,7 @@ class RegistrationProcessor:
         logger.info("RegistrationProcessor initialized")
 
     async def process_registration(
-        self, hostname: str, client_ip: str, message_timestamp: str
+        self, hostname: str, client_ip: str, message_timestamp: str, user_id: str = None
     ) -> RegistrationResult:
         """
         Process a host registration request.
@@ -141,10 +141,21 @@ class RegistrationProcessor:
             hostname: Hostname to register
             client_ip: Client IP address
             message_timestamp: Timestamp from registration message
+            user_id: User ID who owns this host registration (required)
 
         Returns:
             RegistrationResult with operation details
         """
+        # Validate user_id is provided
+        if not user_id:
+            raise ValueError("user_id is required for host registration")
+        
+        # Basic user ID format validation - allow UUIDs and test IDs
+        import re
+        # Match UUID format or test user IDs like "user-123" or "test-user-123"
+        user_id_pattern = re.compile(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$|^[a-zA-Z0-9\-]+$')
+        if not user_id_pattern.match(user_id):
+            raise ValueError("Invalid user_id format")
         start_time = time.time()
 
         try:
@@ -171,7 +182,7 @@ class RegistrationProcessor:
                 return duplicate_result
 
             # Process the registration based on host state
-            result = await self._process_host_registration(hostname, client_ip, message_timestamp)
+            result = await self._process_host_registration(hostname, client_ip, message_timestamp, user_id)
 
             # Record the registration for duplicate detection
             await self._record_registration(hostname, client_ip)
@@ -332,7 +343,7 @@ class RegistrationProcessor:
         self._recent_registrations[registration_key] = time.time()
 
     async def _process_host_registration(
-        self, hostname: str, client_ip: str, message_timestamp: str
+        self, hostname: str, client_ip: str, message_timestamp: str, user_id: str
     ) -> RegistrationResult:
         """
         Process host registration based on current host state.
@@ -341,24 +352,25 @@ class RegistrationProcessor:
             hostname: Hostname to register
             client_ip: Client IP address
             message_timestamp: Registration timestamp
+            user_id: User ID who owns this host
 
         Returns:
             RegistrationResult with operation details
         """
-        # Check if host exists
-        existing_host = self.host_ops.get_host_by_hostname(hostname)
+        # Check if host exists for this user (user-scoped hostname namespace)
+        existing_host = self.host_ops.get_host_by_hostname(hostname, user_id)
 
         if existing_host is None:
             # New host registration
-            return await self._process_new_host_registration(hostname, client_ip)
+            return await self._process_new_host_registration(hostname, client_ip, user_id)
         else:
             # Existing host - check what type of update this is
             return await self._process_existing_host_registration(
-                existing_host, hostname, client_ip, message_timestamp
+                existing_host, hostname, client_ip, message_timestamp, user_id
             )
 
     async def _process_new_host_registration(
-        self, hostname: str, client_ip: str
+        self, hostname: str, client_ip: str, user_id: str
     ) -> RegistrationResult:
         """
         Process new host registration.
@@ -366,13 +378,14 @@ class RegistrationProcessor:
         Args:
             hostname: Hostname to register
             client_ip: Client IP address
+            user_id: User ID who owns this host
 
         Returns:
             RegistrationResult with operation details
         """
         try:
             # Create new host record
-            new_host = self.host_ops.create_host(hostname, client_ip)
+            new_host = self.host_ops.create_host(hostname, client_ip, user_id)
 
             if new_host:
                 self._stats["new_registrations"] += 1
@@ -406,7 +419,7 @@ class RegistrationProcessor:
             )
 
     async def _process_existing_host_registration(
-        self, existing_host, hostname: str, client_ip: str, message_timestamp: str
+        self, existing_host, hostname: str, client_ip: str, message_timestamp: str, user_id: str
     ) -> RegistrationResult:
         """
         Process registration for existing host.
@@ -416,10 +429,20 @@ class RegistrationProcessor:
             hostname: Hostname to register
             client_ip: Client IP address
             message_timestamp: Registration timestamp
+            user_id: User ID making the registration
 
         Returns:
             RegistrationResult with operation details
         """
+        # Verify the user owns this host
+        if existing_host.created_by != user_id:
+            return RegistrationResult(
+                success=False,
+                result_type="authorization_error",
+                message="You are not authorized to update this host",
+                hostname=hostname,
+                ip_address=client_ip,
+            )
         try:
             previous_ip = existing_host.current_ip
             previous_status = existing_host.status
@@ -550,6 +573,53 @@ class RegistrationProcessor:
             Dictionary with statistics
         """
         return self._stats.copy()
+
+    async def process_registration_with_token(
+        self, hostname: str, client_ip: str, message_timestamp: str, auth_token: str
+    ) -> RegistrationResult:
+        """
+        Process a host registration request using auth token.
+
+        Args:
+            hostname: Hostname to register
+            client_ip: Client IP address
+            message_timestamp: Timestamp from registration message
+            auth_token: Authentication token to validate user
+
+        Returns:
+            RegistrationResult with operation details
+        """
+        # Import here to avoid circular imports
+        from ..auth.dependencies import validate_token
+        
+        try:
+            # Validate token and get user
+            user = validate_token(auth_token)
+            if not user:
+                return RegistrationResult(
+                    success=False,
+                    result_type="authentication_error",
+                    message="Invalid authentication token",
+                    hostname=hostname,
+                    ip_address=client_ip,
+                )
+            
+            # Process registration with user ID
+            return await self.process_registration(
+                hostname=hostname,
+                client_ip=client_ip,
+                message_timestamp=message_timestamp,
+                user_id=str(user.id)
+            )
+        except Exception as e:
+            logger.error(f"Error validating token for registration: {e}")
+            return RegistrationResult(
+                success=False,
+                result_type="authentication_error",
+                message=f"Authentication failed: {str(e)}",
+                hostname=hostname,
+                ip_address=client_ip,
+            )
 
     def reset_statistics(self) -> None:
         """Reset all statistics counters."""

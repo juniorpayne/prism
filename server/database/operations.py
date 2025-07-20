@@ -35,13 +35,14 @@ class HostOperations:
         """
         self.db_manager = database_manager
 
-    def create_host(self, hostname: str, ip_address: str) -> Optional[Host]:
+    def create_host(self, hostname: str, ip_address: str, created_by: str) -> Optional[Host]:
         """
         Create a new host record.
 
         Args:
             hostname: Client hostname
             ip_address: Client IP address
+            created_by: User ID who owns this host
 
         Returns:
             Created Host instance or None if creation failed
@@ -53,7 +54,7 @@ class HostOperations:
         try:
             with self.db_manager.get_session() as session:
                 # Create new host instance
-                host = Host(hostname=hostname, current_ip=ip_address, status="online")
+                host = Host(hostname=hostname, current_ip=ip_address, status="online", created_by=created_by)
 
                 session.add(host)
                 session.flush()  # Get the ID without committing
@@ -71,19 +72,23 @@ class HostOperations:
             logger.error(f"Database error creating host {hostname}: {e}")
             return None
 
-    def get_host_by_hostname(self, hostname: str) -> Optional[Host]:
+    def get_host_by_hostname(self, hostname: str, user_id: str = None) -> Optional[Host]:
         """
         Retrieve host by hostname.
 
         Args:
             hostname: Hostname to search for
+            user_id: Optional user ID to filter by (for user isolation)
 
         Returns:
             Host instance or None if not found
         """
         try:
             with self.db_manager.get_session() as session:
-                host = session.query(Host).filter(Host.hostname == hostname).first()
+                query = session.query(Host).filter(Host.hostname == hostname)
+                if user_id:
+                    query = query.filter(Host.created_by == user_id)
+                host = query.first()
                 return host
 
         except SQLAlchemyError as e:
@@ -170,13 +175,14 @@ class HostOperations:
             logger.error(f"Database error updating last_seen for {hostname}: {e}")
             return False
 
-    def get_all_hosts(self, limit: Optional[int] = None, offset: int = 0) -> List[Host]:
+    def get_all_hosts(self, limit: Optional[int] = None, offset: int = 0, user_id: str = None) -> List[Host]:
         """
-        Retrieve all hosts with optional pagination.
+        Retrieve all hosts with optional pagination and user filtering.
 
         Args:
             limit: Maximum number of hosts to return
             offset: Number of hosts to skip
+            user_id: Optional user ID to filter by (for user isolation)
 
         Returns:
             List of Host instances
@@ -184,6 +190,10 @@ class HostOperations:
         try:
             with self.db_manager.get_session() as session:
                 query = session.query(Host).order_by(desc(Host.last_seen))
+                
+                # Filter by user if specified
+                if user_id:
+                    query = query.filter(Host.created_by == user_id)
 
                 if offset > 0:
                     query = query.offset(offset)
@@ -198,13 +208,14 @@ class HostOperations:
             logger.error(f"Database error retrieving all hosts: {e}")
             return []
 
-    def get_hosts_by_status(self, status: str, limit: Optional[int] = None) -> List[Host]:
+    def get_hosts_by_status(self, status: str, limit: Optional[int] = None, user_id: str = None) -> List[Host]:
         """
-        Retrieve hosts by status.
+        Retrieve hosts by status with optional user filtering.
 
         Args:
             status: Host status ('online' or 'offline')
             limit: Maximum number of hosts to return
+            user_id: Optional user ID to filter by (for user isolation)
 
         Returns:
             List of Host instances
@@ -214,6 +225,10 @@ class HostOperations:
                 query = (
                     session.query(Host).filter(Host.status == status).order_by(desc(Host.last_seen))
                 )
+                
+                # Filter by user if specified
+                if user_id:
+                    query = query.filter(Host.created_by == user_id)
 
                 if limit:
                     query = query.limit(limit)
@@ -336,35 +351,51 @@ class HostOperations:
             logger.error(f"Database error checking host existence {hostname}: {e}")
             return False
 
-    def get_host_count(self) -> int:
+    def get_host_count(self, user_id: str = None) -> int:
         """
-        Get total number of hosts.
+        Get total number of hosts with optional user filtering.
+
+        Args:
+            user_id: Optional user ID to filter by (for user isolation)
 
         Returns:
             Total host count
         """
         try:
             with self.db_manager.get_session() as session:
-                count = session.query(func.count(Host.id)).scalar()
+                query = session.query(func.count(Host.id))
+                
+                # Filter by user if specified
+                if user_id:
+                    query = query.filter(Host.created_by == user_id)
+                
+                count = query.scalar()
                 return count or 0
 
         except SQLAlchemyError as e:
             logger.error(f"Database error getting host count: {e}")
             return 0
 
-    def get_host_count_by_status(self, status: str) -> int:
+    def get_host_count_by_status(self, status: str, user_id: str = None) -> int:
         """
-        Get number of hosts by status.
+        Get number of hosts by status with optional user filtering.
 
         Args:
             status: Host status to count
+            user_id: Optional user ID to filter by (for user isolation)
 
         Returns:
             Number of hosts with specified status
         """
         try:
             with self.db_manager.get_session() as session:
-                count = session.query(func.count(Host.id)).filter(Host.status == status).scalar()
+                query = session.query(func.count(Host.id)).filter(Host.status == status)
+                
+                # Filter by user if specified
+                if user_id:
+                    query = query.filter(Host.created_by == user_id)
+                
+                count = query.scalar()
                 return count or 0
 
         except SQLAlchemyError as e:

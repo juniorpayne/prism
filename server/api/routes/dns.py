@@ -6,6 +6,7 @@ PowerDNS API integration endpoints for DNS zone and record management.
 
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -14,8 +15,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 
 from server.api.dependencies import get_app_config
-from server.auth.dependencies import get_current_verified_user
+from server.auth.dependencies import get_admin_override, get_current_verified_user
 from server.auth.models import User
+from server.database.connection import DatabaseManager
+from server.database.dns_operations import DNSZoneOwnershipOperations
 from server.dns_manager import (
     PowerDNSAPIError,
     PowerDNSClient,
@@ -42,11 +45,48 @@ def get_powerdns_client() -> PowerDNSClient:
     return PowerDNSClient(config)
 
 
+def get_dns_zone_ops() -> DNSZoneOwnershipOperations:
+    """
+    Get DNS zone operations instance.
+    
+    Returns:
+        DNSZoneOwnershipOperations instance
+    """
+    config = get_app_config()
+    db_manager = DatabaseManager(config)
+    return DNSZoneOwnershipOperations(db_manager)
+
+
+def filter_zones_by_user(zones: List[Dict[str, Any]], user_zones: List[str]) -> List[Dict[str, Any]]:
+    """
+    Filter zones to only those owned by user.
+    
+    Args:
+        zones: All zones from PowerDNS
+        user_zones: Zone names owned by user
+        
+    Returns:
+        Filtered list of zones
+    """
+    # Convert user_zones to a set for O(1) lookup
+    user_zones_set = set(user_zones)
+    
+    # Filter zones
+    filtered = []
+    for zone in zones:
+        zone_name = zone.get("name", "")
+        if zone_name in user_zones_set:
+            filtered.append(zone)
+    
+    return filtered
+
+
 @router.get("/zones", response_model=Dict[str, Any])
 @limiter.limit("100/minute")
 async def list_zones(
     request: Request,
     current_user: User = Depends(get_current_verified_user),
+    admin_override: bool = Depends(get_admin_override),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for zone names"),
@@ -68,6 +108,16 @@ async def list_zones(
 
             # Simple filtering and pagination
             zones = zones_response if isinstance(zones_response, list) else []
+            
+            # Filter zones by user ownership unless admin override
+            if admin_override:
+                logger.info(f"Admin {current_user.username} viewing all {len(zones)} zones")
+                # Admin sees all zones - no filtering
+            else:
+                # Normal user - filter by ownership
+                dns_zone_ops = get_dns_zone_ops()
+                user_zones = dns_zone_ops.get_user_zones(str(current_user.id))
+                zones = filter_zones_by_user(zones, user_zones)
 
             # Search filter
             if search:
@@ -149,6 +199,11 @@ async def search_zones(
             results = await dns_client.search_zones(
                 query=q, zone_type=zone_type, hierarchy_level=hierarchy_level, limit=limit
             )
+            
+            # Filter search results by user ownership
+            dns_zone_ops = get_dns_zone_ops()
+            user_zones = dns_zone_ops.get_user_zones(str(current_user.id))
+            results = filter_zones_by_user(results, user_zones)
 
             metrics.record_dns_operation("search_zones", "success")
 
@@ -203,6 +258,11 @@ async def filter_zones(
             results = await dns_client.filter_zones(
                 filters=filters, sort_by=sort_by, sort_order=sort_order
             )
+            
+            # Filter results by user ownership
+            dns_zone_ops = get_dns_zone_ops()
+            user_zones = dns_zone_ops.get_user_zones(str(current_user.id))
+            results = filter_zones_by_user(results, user_zones)
 
             metrics.record_dns_operation("filter_zones", "success")
 
@@ -238,6 +298,11 @@ async def get_zone(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+        
         async with get_powerdns_client() as dns_client:
             # Get zone from PowerDNS
             zone_response = await dns_client.get_zone_details(zone_id)
@@ -332,6 +397,10 @@ async def create_zone(
                 account=zone_data.get("account", ""),
                 dnssec=zone_data.get("dnssec", False),
             )
+            
+            # Create ownership record for the new zone
+            dns_zone_ops = get_dns_zone_ops()
+            dns_zone_ops.create_zone_ownership(zone_name, str(current_user.id))
 
             metrics.record_dns_operation("create_zone", "success")
             return result
@@ -369,6 +438,11 @@ async def update_zone(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Check if zone exists
             existing_zone = await dns_client.get_zone_details(zone_id)
@@ -413,6 +487,11 @@ async def delete_zone(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Check if zone exists
             existing_zone = await dns_client.get_zone_details(zone_id)
@@ -421,6 +500,9 @@ async def delete_zone(
 
             # Delete the zone
             result = await dns_client.delete_zone(zone_id)
+            
+            # Delete the ownership record
+            dns_zone_ops.delete_zone_ownership(zone_id)
 
             metrics.record_dns_operation("delete_zone", "success")
             return result
@@ -462,6 +544,11 @@ async def list_zone_records(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Get all records from zone
             records = await dns_client.list_records(zone_id)
@@ -581,6 +668,11 @@ async def create_record(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Extract fields
             name = record_data.get("name", "")
@@ -646,6 +738,11 @@ async def update_record(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Extract fields
             records = record_data.get("records", [])
@@ -706,6 +803,11 @@ async def delete_record(
     metrics = get_metrics_collector()
 
     try:
+        # Check if user owns this zone
+        dns_zone_ops = get_dns_zone_ops()
+        if not dns_zone_ops.check_zone_ownership(zone_id, str(current_user.id)):
+            raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found")
+            
         async with get_powerdns_client() as dns_client:
             # Ensure name is FQDN
             if not name.endswith("."):
@@ -747,32 +849,88 @@ async def search_records(
     limit: int = Query(100, ge=1, le=500, description="Maximum results"),
 ):
     """
-    Search for DNS records across zones.
+    Search for DNS records across user's zones only.
 
     Supports:
     - Search in record names or content
     - Filter by record type
     - Limit to specific zone
     - Returns records with zone information
+    - Only searches within zones owned by the current user
     """
     metrics = get_metrics_collector()
 
     try:
+        # Get user's zones first
+        dns_zone_ops = get_dns_zone_ops()
+        user_zones = dns_zone_ops.get_user_zones(str(current_user.id))
+        
+        # If searching in a specific zone, verify ownership
+        if zone:
+            if zone not in user_zones and not zone.endswith("."):
+                # Try with trailing dot
+                zone_fqdn = f"{zone}."
+                if zone_fqdn not in user_zones:
+                    raise HTTPException(status_code=404, detail=f"Zone '{zone}' not found")
+        
         async with get_powerdns_client() as dns_client:
-            results = await dns_client.search_records(
-                query=q,
-                record_type=record_type,
-                zone_name=zone,
-                content_search=content,
-                limit=limit,
-            )
+            # Get all zones to search
+            all_zones = await dns_client.list_zones()
+            filtered_zones = filter_zones_by_user(all_zones, user_zones)
+            
+            # Search records only in user's zones
+            all_records = []
+            zones_searched = 0
+            
+            for zone_info in filtered_zones:
+                zone_name = zone_info["name"]
+                
+                # Skip if searching specific zone and this isn't it
+                if zone and zone_name != zone and zone_name != f"{zone}.":
+                    continue
+                    
+                try:
+                    # Get records from this zone
+                    zone_records = await dns_client.list_records(zone_name)
+                    
+                    # Filter by search query
+                    for record in zone_records:
+                        if content:
+                            # Search in content
+                            if q.lower() in record.get("content", "").lower():
+                                if not record_type or record.get("type") == record_type.upper():
+                                    all_records.append({
+                                        **record,
+                                        "zone": zone_name
+                                    })
+                        else:
+                            # Search in name
+                            if q.lower() in record.get("name", "").lower():
+                                if not record_type or record.get("type") == record_type.upper():
+                                    all_records.append({
+                                        **record,
+                                        "zone": zone_name
+                                    })
+                    
+                    zones_searched += 1
+                    
+                    # Stop if we've hit the limit
+                    if len(all_records) >= limit:
+                        break
+                        
+                except Exception as e:
+                    logger.warning(f"Error searching zone {zone_name}: {e}")
 
+            # Limit results
+            all_records = all_records[:limit]
+            
             metrics.record_dns_operation("search_records", "success")
 
             return {
                 "query": q,
-                "total": len(results),
-                "records": results,
+                "total": len(all_records),
+                "records": all_records,
+                "zones_searched": zones_searched,
                 "filters": {"record_type": record_type, "zone": zone, "content_search": content},
             }
 
@@ -783,6 +941,122 @@ async def search_records(
     except Exception as e:
         logger.error(f"Unexpected error searching records: {e}")
         metrics.record_dns_operation("search_records", "error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/records/export", response_model=Dict[str, Any])
+@limiter.limit("30/minute")
+async def export_records(
+    request: Request,
+    current_user: User = Depends(get_current_verified_user),
+    format: str = Query("json", regex="^(json|csv|bind)$", description="Export format"),
+):
+    """
+    Export records from user's zones only.
+    
+    Supports export formats:
+    - json: Structured JSON format
+    - csv: Comma-separated values
+    - bind: BIND zone file format
+    """
+    metrics = get_metrics_collector()
+    
+    try:
+        # Get user's zones
+        dns_zone_ops = get_dns_zone_ops()
+        user_zones = dns_zone_ops.get_user_zones(str(current_user.id))
+        
+        async with get_powerdns_client() as dns_client:
+            # Get all zones and filter by user
+            all_zones = await dns_client.list_zones()
+            filtered_zones = filter_zones_by_user(all_zones, user_zones)
+            
+            # Collect all records from user's zones
+            export_data = {
+                "zones": [],
+                "exported_at": datetime.utcnow().isoformat(),
+                "user": current_user.username
+            }
+            
+            for zone_info in filtered_zones:
+                zone_name = zone_info["name"]
+                try:
+                    records = await dns_client.list_records(zone_name)
+                    export_data["zones"].append({
+                        "name": zone_name,
+                        "records": records
+                    })
+                except Exception as e:
+                    logger.warning(f"Error exporting zone {zone_name}: {e}")
+            
+            metrics.record_dns_operation("export_records", "success")
+            
+            # Format output based on requested format
+            if format == "json":
+                return export_data
+            elif format == "csv":
+                # Convert to CSV format
+                import csv
+                import io
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(["Zone", "Name", "Type", "TTL", "Content", "Priority"])
+                
+                for zone_data in export_data["zones"]:
+                    zone_name = zone_data["name"]
+                    for record in zone_data["records"]:
+                        writer.writerow([
+                            zone_name,
+                            record.get("name", ""),
+                            record.get("type", ""),
+                            record.get("ttl", ""),
+                            record.get("content", ""),
+                            record.get("priority", "")
+                        ])
+                
+                from fastapi.responses import Response
+                return Response(
+                    content=output.getvalue(),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=dns-records.csv"}
+                )
+            elif format == "bind":
+                # Convert to BIND zone file format
+                output_lines = []
+                output_lines.append(f"; DNS Records Export - {export_data['exported_at']}")
+                output_lines.append(f"; User: {export_data['user']}")
+                output_lines.append("")
+                
+                for zone_data in export_data["zones"]:
+                    zone_name = zone_data["name"]
+                    output_lines.append(f"; Zone: {zone_name}")
+                    
+                    for record in zone_data["records"]:
+                        name = record.get("name", "@")
+                        ttl = record.get("ttl", 3600)
+                        rtype = record.get("type", "A")
+                        content = record.get("content", "")
+                        
+                        # Format BIND record line
+                        if rtype == "MX":
+                            priority = record.get("priority", 10)
+                            output_lines.append(f"{name} {ttl} IN {rtype} {priority} {content}")
+                        else:
+                            output_lines.append(f"{name} {ttl} IN {rtype} {content}")
+                    
+                    output_lines.append("")
+                
+                from fastapi.responses import Response
+                return Response(
+                    content="\n".join(output_lines),
+                    media_type="text/plain",
+                    headers={"Content-Disposition": "attachment; filename=dns-records.zone"}
+                )
+                
+    except Exception as e:
+        logger.error(f"Error exporting records: {e}")
+        metrics.record_dns_operation("export_records", "error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

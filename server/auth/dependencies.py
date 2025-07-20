@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -180,3 +180,43 @@ def require_role(allowed_roles: list[str]):
 # Common role dependencies
 require_admin = require_role(["admin", "owner"])
 require_owner = require_role(["owner"])
+
+
+async def get_admin_override(
+    view_all: bool = False,
+    current_user: User = Depends(get_current_verified_user),
+) -> bool:
+    """
+    Check if admin override is requested and authorized.
+    Returns True if admin wants to see all data.
+    
+    Args:
+        view_all: Query parameter to request viewing all users' data
+        current_user: Current authenticated user
+        
+    Returns:
+        True if admin override is active, False otherwise
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if not view_all:
+        return False
+    
+    if not current_user.has_admin_privileges():
+        logger.warning(
+            f"Non-admin user {current_user.username} attempted to use view_all"
+        )
+        return False
+    
+    # Log admin access
+    logger.info(
+        f"Admin {current_user.username} accessing all data with view_all=true",
+        extra={
+            "user_id": str(current_user.id),
+            "admin_action": "view_all",
+            "username": current_user.username
+        }
+    )
+    
+    return True

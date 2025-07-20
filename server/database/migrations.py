@@ -49,6 +49,14 @@ class DatabaseMigrations:
         self._migrations[2] = self._migrate_to_v2
         # Migration from version 2 to version 3 (Multi-tenancy fields)
         self._migrations[3] = self._migrate_to_v3
+        # Migration from version 3 to version 4 (User isolation - enforce created_by)
+        self._migrations[4] = self._migrate_to_v4
+        # Migration from version 4 to version 5 (User-scoped hostnames)
+        self._migrations[5] = self._migrate_to_v5
+        # Migration from version 5 to version 6 (DNS zone ownership tracking)
+        self._migrations[6] = self._migrate_to_v6
+        # Migration from version 6 to version 7 (Add is_admin field to users)
+        self._migrations[7] = self._migrate_to_v7
 
     def get_current_schema_version(self) -> int:
         """
@@ -299,6 +307,237 @@ class DatabaseMigrations:
         except SQLAlchemyError as e:
             logger.error(f"Multi-tenancy migration failed: {e}")
             raise
+
+    def _migrate_to_v4(self) -> None:
+        """
+        Migration to version 4: Enforce user isolation with created_by field.
+        
+        This migration:
+        1. Updates any NULL created_by values to system user
+        2. Makes created_by field NOT NULL
+        3. Adds index on created_by for performance
+        """
+        logger.info("Applying migration to version 4: User isolation enforcement")
+        
+        system_user_id = "00000000-0000-0000-0000-000000000000"
+        
+        try:
+            with self.db_manager.get_session() as session:
+                # First, update any NULL created_by values to system user
+                logger.info("Updating NULL created_by values to system user")
+                update_result = session.execute(
+                    text(
+                        "UPDATE hosts SET created_by = :system_user_id WHERE created_by IS NULL"
+                    ),
+                    {"system_user_id": system_user_id}
+                )
+                updated_count = update_result.rowcount
+                logger.info(f"Updated {updated_count} hosts with system user")
+                
+                # SQLite doesn't support ALTER COLUMN to add NOT NULL constraint directly
+                # We need to recreate the table with the constraint
+                
+                # Check if we've already done this migration (idempotency)
+                result = session.execute(text("PRAGMA table_info(hosts)"))
+                columns = result.fetchall()
+                created_by_col = next((col for col in columns if col[1] == 'created_by'), None)
+                
+                if created_by_col and created_by_col[3] == 0:  # notnull is 0 (nullable)
+                    logger.info("Recreating hosts table with NOT NULL constraint on created_by")
+                    
+                    # Create temporary table with new schema
+                    session.execute(text("""
+                        CREATE TABLE hosts_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            hostname VARCHAR(255) NOT NULL UNIQUE,
+                            current_ip VARCHAR(45) NOT NULL,
+                            first_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            status VARCHAR(20) NOT NULL DEFAULT 'online',
+                            dns_zone VARCHAR(255),
+                            dns_record_id VARCHAR(255),
+                            dns_ttl INTEGER,
+                            dns_sync_status VARCHAR(20) DEFAULT 'pending',
+                            dns_last_sync TIMESTAMP,
+                            org_id VARCHAR(36),
+                            zone_id VARCHAR(36),
+                            created_by VARCHAR(36) NOT NULL,
+                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    
+                    # Copy data from old table
+                    session.execute(text("""
+                        INSERT INTO hosts_new 
+                        SELECT * FROM hosts
+                    """))
+                    
+                    # Drop old table and rename new table
+                    session.execute(text("DROP TABLE hosts"))
+                    session.execute(text("ALTER TABLE hosts_new RENAME TO hosts"))
+                    
+                    # Recreate indexes
+                    session.execute(text("CREATE UNIQUE INDEX idx_hostname ON hosts(hostname)"))
+                    session.execute(text("CREATE INDEX idx_hostname_status ON hosts(hostname, status)"))
+                    session.execute(text("CREATE INDEX idx_last_seen_status ON hosts(last_seen, status)"))
+                    session.execute(text("CREATE INDEX idx_hosts_org_id ON hosts(org_id)"))
+                    session.execute(text("CREATE INDEX idx_hosts_zone_id ON hosts(zone_id)"))
+                else:
+                    logger.info("created_by field already has NOT NULL constraint")
+                
+                # Create index on created_by if it doesn't exist
+                session.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_hosts_created_by 
+                    ON hosts(created_by)
+                """))
+                
+                logger.info("User isolation enforcement migration completed")
+                
+        except SQLAlchemyError as e:
+            logger.error(f"User isolation enforcement migration failed: {e}")
+            raise MigrationError(f"Migration to version 4 failed: {e}")
+    
+    def _migrate_to_v5(self) -> None:
+        """
+        Migration to version 5: Enable user-scoped hostnames.
+        
+        This migration:
+        1. Removes unique constraint on hostname
+        2. Adds composite unique constraint on (hostname, created_by)
+        3. Allows different users to have hosts with the same hostname
+        """
+        logger.info("Applying migration to version 5: User-scoped hostnames")
+        
+        try:
+            with self.db_manager.get_session() as session:
+                # SQLite doesn't support dropping constraints, so we need to recreate the table
+                logger.info("Recreating hosts table with user-scoped hostname constraint")
+                
+                # Create new table with updated constraints
+                session.execute(text("""
+                    CREATE TABLE hosts_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        hostname VARCHAR(255) NOT NULL,
+                        current_ip VARCHAR(45) NOT NULL,
+                        first_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        status VARCHAR(20) NOT NULL DEFAULT 'online',
+                        dns_zone VARCHAR(255),
+                        dns_record_id VARCHAR(255),
+                        dns_ttl INTEGER,
+                        dns_sync_status VARCHAR(20) DEFAULT 'pending',
+                        dns_last_sync TIMESTAMP,
+                        org_id VARCHAR(36),
+                        zone_id VARCHAR(36),
+                        created_by VARCHAR(36) NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(hostname, created_by)
+                    )
+                """))
+                
+                # Copy data from old table
+                session.execute(text("""
+                    INSERT INTO hosts_new 
+                    SELECT * FROM hosts
+                """))
+                
+                # Drop old table and rename new table
+                session.execute(text("DROP TABLE hosts"))
+                session.execute(text("ALTER TABLE hosts_new RENAME TO hosts"))
+                
+                # Recreate indexes
+                session.execute(text("CREATE INDEX idx_hostname ON hosts(hostname)"))
+                session.execute(text("CREATE INDEX idx_hostname_status ON hosts(hostname, status)"))
+                session.execute(text("CREATE INDEX idx_last_seen_status ON hosts(last_seen, status)"))
+                session.execute(text("CREATE INDEX idx_hosts_created_by ON hosts(created_by)"))
+                session.execute(text("CREATE INDEX idx_hosts_org_id ON hosts(org_id)"))
+                session.execute(text("CREATE INDEX idx_hosts_zone_id ON hosts(zone_id)"))
+                
+                logger.info("User-scoped hostnames migration completed")
+                
+        except SQLAlchemyError as e:
+            logger.error(f"User-scoped hostnames migration failed: {e}")
+            raise MigrationError(f"Migration to version 5 failed: {e}")
+    
+    def _migrate_to_v6(self) -> None:
+        """
+        Migration to version 6: Add DNS zone ownership tracking.
+        
+        Creates dns_zones table to track which users own which DNS zones.
+        This enables filtering zones by user without modifying PowerDNS.
+        """
+        logger.info("Running migration to version 6: DNS zone ownership tracking")
+        
+        try:
+            with self.db_manager.get_session() as session:
+                # Create dns_zone_ownership table
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS dns_zone_ownership (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        zone_name VARCHAR(255) NOT NULL UNIQUE,
+                        created_by VARCHAR(36) NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+                
+                # Create indexes
+                session.execute(text("CREATE INDEX IF NOT EXISTS idx_dns_zone_ownership_zone_name ON dns_zone_ownership(zone_name)"))
+                session.execute(text("CREATE INDEX IF NOT EXISTS idx_dns_zone_ownership_created_by ON dns_zone_ownership(created_by)"))
+                
+                # Add trigger for updated_at
+                session.execute(text("""
+                    CREATE TRIGGER IF NOT EXISTS update_dns_zone_ownership_updated_at
+                    AFTER UPDATE ON dns_zone_ownership
+                    BEGIN
+                        UPDATE dns_zone_ownership SET updated_at = CURRENT_TIMESTAMP
+                        WHERE id = NEW.id;
+                    END
+                """))
+                
+                logger.info("DNS zone ownership tracking migration completed")
+                
+        except SQLAlchemyError as e:
+            logger.error(f"DNS zone ownership tracking migration failed: {e}")
+            raise MigrationError(f"Migration to version 6 failed: {e}")
+
+    def _migrate_to_v7(self) -> None:
+        """
+        Migration to version 7: Add is_admin field to users table.
+        
+        Adds is_admin boolean field to support admin override functionality.
+        This enables admins to optionally view all users' data for support.
+        """
+        logger.info("Running migration to version 7: Add is_admin field to users")
+        
+        try:
+            with self.db_manager.get_session() as session:
+                # Check if users table exists
+                result = session.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+                if not result.fetchone():
+                    logger.info("Users table does not exist, skipping is_admin migration")
+                    return
+                
+                # Check if is_admin column already exists
+                result = session.execute(text("PRAGMA table_info(users)"))
+                existing_columns = {row[1] for row in result.fetchall()}
+                
+                if "is_admin" not in existing_columns:
+                    # Add is_admin column with default false
+                    session.execute(text("""
+                        ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0
+                    """))
+                    logger.info("Added is_admin column to users table")
+                else:
+                    logger.info("is_admin column already exists in users table")
+                
+                logger.info("Admin field migration completed")
+                
+        except SQLAlchemyError as e:
+            logger.error(f"Admin field migration failed: {e}")
+            raise MigrationError(f"Migration to version 7 failed: {e}")
 
     def get_migration_history(self) -> List[Dict[str, Any]]:
         """
