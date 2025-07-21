@@ -1,207 +1,118 @@
-# Production Docker Compose for Prism DNS Server
-# Optimized for production deployment with security and performance
-
 services:
-  # Nginx web server and reverse proxy
-  nginx:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-      target: production
-    container_name: prism-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # SSL certificates (mount from host or use external volume)
-      - ssl_certs:/etc/nginx/ssl:ro
-      # Logs
-      - nginx_logs:/var/log/nginx
-    depends_on:
-      - prism-server
-    restart: unless-stopped
-    networks:
-      - prism-frontend
-      - prism-backend
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  # Main Prism DNS server
+  # Prism Server
   prism-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.production
-      target: production
+    image: prism-server:latest
     container_name: prism-server
-    ports:
-      # TCP server must be exposed for external clients
-      - "8080:8080"  # TCP server (external for client connections)
-      # REST API internal only - nginx will proxy
-      # - "8081:8081"  # REST API (internal only)
-    volumes:
-      # Persistent data
-      - server_data:/app/data
-      - server_logs:/app/logs
-      # Configuration
-      - ./config:/app/config:ro
-    environment:
-      - PRISM_ENV=production
-      - PRISM_LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - PRISM_DATABASE_PATH=/app/data/prism.db
-      - PRISM_CONFIG_PATH=/app/config/server.yaml
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-    depends_on:
-      - database
     restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      - PRISM_SERVER_HOST=0.0.0.0
+      - PRISM_SERVER_TCP_PORT=8080
+      - PRISM_SERVER_API_PORT=8081
+      - PRISM_LOGGING_LEVEL=INFO
+      - PRISM_DATABASE_PATH=/data/prism.db
+    volumes:
+      - ./data:/data
+      - ./config:/app/config
+    ports:
+      - "8080:8080"  # TCP server for client connections
+      - "8081:8081"  # REST API for health checks
     networks:
-      - prism-backend
-      - prism-frontend  # Need frontend access for TCP client connections
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.2'
-          memory: 256M
+      - prism-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
+      start_period: 40s
 
-  # Database service (PostgreSQL for production)
-  database:
-    image: postgres:15-alpine
-    container_name: prism-database
-    environment:
-      - POSTGRES_DB=${DB_NAME:-prism}
-      - POSTGRES_USER=${DB_USER:-prism}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--auth-host=md5
-    volumes:
-      - database_data:/var/lib/postgresql/data
-      - database_logs:/var/log/postgresql
-      # Database initialization scripts
-      - ./server/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  # Nginx Web Server
+  nginx:
+    image: prism-web:latest
+    container_name: prism-nginx
     restart: unless-stopped
+    ports:
+      - "8090:80"
+    depends_on:
+      - prism-server
+    environment:
+      - API_URL=http://prism-server:8081
     networks:
-      - prism-backend
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-prism}"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    security_opt:
-      - no-new-privileges:true
+      - prism-network
 
-  # Monitoring and logging (optional)
-  # Uncomment if you want to include monitoring
-  # prometheus:
-  #   image: prom/prometheus:latest
-  #   container_name: prism-prometheus
-  #   ports:
-  #     - "9090:9090"
-  #   volumes:
-  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #     - prometheus_data:/prometheus
-  #   networks:
-  #     - prism-monitoring
-  #   restart: unless-stopped
+  # PowerDNS Database (PostgreSQL)
+  powerdns-database:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_DB: ${PDNS_DB_NAME:-powerdns}
+      POSTGRES_USER: ${PDNS_DB_USER:-powerdns}
+      POSTGRES_PASSWORD: ${PDNS_DB_PASSWORD}
+    volumes:
+      - powerdns-db-data:/var/lib/postgresql/data
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PDNS_DB_USER:-powerdns}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PowerDNS Server
+  powerdns-server:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    image: powerdns:local
+    container_name: powerdns-server
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8053:8053"
+    environment:
+      PDNS_API_KEY: ${PDNS_API_KEY}
+      PDNS_DB_HOST: powerdns-database
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: ${PDNS_DB_NAME:-powerdns}
+      PDNS_DB_USER: ${PDNS_DB_USER:-powerdns}
+      PDNS_DB_PASSWORD: ${PDNS_DB_PASSWORD}
+      PDNS_API_ALLOW_FROM: ${PDNS_API_ALLOW_FROM:-0.0.0.0/0,::/0}
+      PDNS_DEFAULT_ZONE: ${PDNS_DEFAULT_ZONE:-managed.prism.local}
+      # Performance tuning for production
+      PDNS_RECEIVER_THREADS: ${PDNS_RECEIVER_THREADS:-4}
+      PDNS_DISTRIBUTOR_THREADS: ${PDNS_DISTRIBUTOR_THREADS:-4}
+      PDNS_CACHE_TTL: ${PDNS_CACHE_TTL:-60}
+      # Security settings
+      PDNS_DISABLE_AXFR: ${PDNS_DISABLE_AXFR:-yes}
+      PDNS_LOG_LEVEL: ${PDNS_LOG_LEVEL:-4}
+    depends_on:
+      powerdns-database:
+        condition: service_healthy
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
-  # Database persistent storage
-  database_data:
+  powerdns-db-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/data/database
-
-  # Server data storage
-  server_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/data/server
-
-  # Log storage
-  server_logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/logs/server
-
-  nginx_logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/logs/nginx
-
-  database_logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/logs/database
-
-  # SSL certificates
-  ssl_certs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/prism-dns/config/ssl
-
-  # # Monitoring data (if enabled)
-  # prometheus_data:
-  #   driver: local
 
 networks:
-  # Frontend network (nginx to external)
-  prism-frontend:
+  # Single unified network for all services
+  prism-network:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: prism-frontend
-
-  # Backend network (internal services)
-  prism-backend:
-    driver: bridge
-    internal: true
-    driver_opts:
-      com.docker.network.bridge.name: prism-backend
-
-  # # Monitoring network (if enabled)
-  # prism-monitoring:
-  #   driver: bridge
+    name: prism-network

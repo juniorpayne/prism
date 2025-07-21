@@ -1,6 +1,4 @@
-# Docker Compose for Prism DNS Server Development (SCRUM-12)
-version: '3.8'
-
+# Docker Compose for Prism DNS Server Development
 services:
   # Main server service
   server:
@@ -24,6 +22,13 @@ services:
       - APP_URL=http://localhost:8090
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      # PowerDNS configuration for development
+      - POWERDNS_ENABLED=true
+      - POWERDNS_API_URL=http://powerdns-server:8053/api/v1
+      - POWERDNS_API_KEY=development-api-key
+      - POWERDNS_DEFAULT_ZONE=dev.prism.local.
+      - POWERDNS_FALLBACK_TO_MOCK=true
+      - POWERDNS_FEATURE_FLAG_PERCENTAGE=100
     command: >
       sh -c "python -m server.main --config /app/config/server.yaml"
     depends_on:
@@ -60,6 +65,64 @@ services:
       sh -c "mkdir -p /data && tail -f /dev/null"
     networks:
       - prism-network
+
+  # PowerDNS Database (PostgreSQL)
+  powerdns-database:
+    image: postgres:15-alpine
+    container_name: powerdns-database
+    environment:
+      POSTGRES_DB: powerdns
+      POSTGRES_USER: powerdns
+      POSTGRES_PASSWORD: development-db-password
+    volumes:
+      - powerdns-db-data:/var/lib/postgresql/data
+      - ./powerdns/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powerdns"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - with-powerdns
+
+  # PowerDNS Server
+  powerdns-server:
+    build:
+      context: ./powerdns
+      dockerfile: Dockerfile
+    image: powerdns:local
+    container_name: powerdns-server
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8053:8053"
+    environment:
+      PDNS_API_KEY: development-api-key
+      PDNS_DB_HOST: powerdns-database
+      PDNS_DB_PORT: 5432
+      PDNS_DB_NAME: powerdns
+      PDNS_DB_USER: powerdns
+      PDNS_DB_PASSWORD: development-db-password
+      PDNS_API_ALLOW_FROM: 0.0.0.0/0,::/0
+      PDNS_DEFAULT_ZONE: dev.prism.local
+      PDNS_LOG_LEVEL: 5
+    depends_on:
+      powerdns-database:
+        condition: service_healthy
+    networks:
+      - prism-network
+    healthcheck:
+      test: ["CMD", "pdns_control", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - with-powerdns
 
   # Test runner service
   tests:
@@ -123,6 +186,10 @@ volumes:
   
   # Test coverage reports
   test_coverage:
+    driver: local
+  
+  # PowerDNS database volume
+  powerdns-db-data:
     driver: local
 
 networks:

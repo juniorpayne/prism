@@ -4,6 +4,44 @@ This document describes the automated deployment process for the Prism DNS proje
 
 > **PowerDNS Deployment**: For instructions on deploying the PowerDNS DNS server component, see [POWERDNS_DEPLOYMENT.md](./POWERDNS_DEPLOYMENT.md)
 
+## Quick Start - Production Deployment
+
+### Prerequisites
+- SSH access to production server
+- `.env.production` file configured (see `.env.production.example`)
+- Docker and Docker Compose installed on server
+
+### Deployment Steps
+```bash
+# Connect to production server
+ssh -i citadel.pem ubuntu@35.170.180.10
+
+# Navigate to deployment directory
+cd /home/ubuntu/prism-deployment
+
+# Deploy using the unified compose file
+docker compose -f docker-compose.production.yml up -d
+
+# Verify deployment
+docker compose -f docker-compose.production.yml ps
+curl http://localhost:8081/api/health
+curl http://localhost:8081/api/dns/health
+```
+
+## Docker Compose Structure
+
+### Simplified Structure (As of July 2025)
+- **docker-compose.yml** - Development environment
+- **docker-compose.production.yml** - Production environment (includes all services)
+- **docker-compose.test.yml** - Test environment
+
+### Service Configuration
+All services run on a single `prism-network` bridge network to ensure proper communication:
+- prism-server (main application)
+- prism-nginx (web interface)
+- powerdns-server (DNS server)
+- powerdns-database (PostgreSQL for PowerDNS)
+
 ## Overview
 
 The deployment system provides automated, reliable deployments to multiple environments with health checks, rollback capabilities, and comprehensive monitoring.
