@@ -231,6 +231,18 @@ jobs:
             prism-web.tar.gz prism-web.tar.gz.sha256 \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
           
+          # Transfer docker-compose.production.yml and env example
+          echo "📋 Transferring docker-compose.production.yml and .env.production.example..."
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            docker-compose.production.yml .env.production.example \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+          
+          # Transfer PowerDNS directory (needed for schema.sql)
+          echo "📋 Transferring PowerDNS configuration directory..."
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
+            powerdns \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:~/deployment-tmp/
+          
           # Verify checksums on remote
           echo "🔍 Verifying file integrity on remote..."
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
@@ -396,62 +408,37 @@ jobs:
             cp .env.production .env.production.backup
           fi
           
-          cat > docker-compose.production.yml <<'COMPOSE'
+          # Copy docker-compose.production.yml from deployment package
+          echo "📋 Copying docker-compose.production.yml from deployment package..."
+          if [ -f ~/deployment-tmp/docker-compose.production.yml ]; then
+            cp ~/deployment-tmp/docker-compose.production.yml docker-compose.production.yml
+            echo "✅ Copied docker-compose.production.yml successfully"
+          else
+            echo "❌ ERROR: docker-compose.production.yml not found in deployment package!"
+            echo "Available files in deployment package:"
+            ls -la ~/deployment-tmp/
+            exit 1
+          fi
           
-          services:
-            prism-server:
-              image: prism-server:latest
-              container_name: prism-server
-              restart: unless-stopped
-              env_file:
-                - .env.production
-              environment:
-                - PRISM_SERVER_HOST=0.0.0.0
-                - PRISM_SERVER_TCP_PORT=8080
-                - PRISM_SERVER_API_PORT=8081
-                - PRISM_LOGGING_LEVEL=INFO
-                - PRISM_DATABASE_PATH=/data/prism.db
-                # Email configuration
-                - EMAIL_PROVIDER=aws_ses
-                - EMAIL_FROM_ADDRESS=noreply@prism.thepaynes.ca
-                - EMAIL_FROM_NAME=Prism DNS
-                - EMAIL_ENABLED=true
-                - EMAIL_DEBUG=false
-                - AWS_REGION=us-east-1
-                - SES_USE_IAM_ROLE=false
-                - SES_CONFIGURATION_SET=prism-email-events
-                - FRONTEND_URL=https://prism.thepaynes.ca
-              volumes:
-                - ./data:/data
-                - ./config:/app/config
-              ports:
-                - "8080:8080"  # TCP server for client connections
-                - "8081:8081"  # REST API for health checks
-              healthcheck:
-                test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
-                interval: 30s
-                timeout: 10s
-                retries: 3
-                start_period: 40s
-          
-            nginx:
-              image: prism-web:latest
-              container_name: prism-nginx
-              restart: unless-stopped
-              ports:
-                - "8090:80"
-              depends_on:
-                - prism-server
-              environment:
-                - API_URL=http://server:8081
-          COMPOSE
+          # Copy PowerDNS directory if it exists
+          if [ -d ~/deployment-tmp/powerdns ]; then
+            echo "📋 Copying PowerDNS configuration directory..."
+            cp -r ~/deployment-tmp/powerdns ./
+            echo "✅ Copied PowerDNS directory successfully"
+          fi
           
           # Restore .env.production if it was backed up
           if [ -f .env.production.backup ]; then
             echo "📋 Restoring .env.production file..."
             mv .env.production.backup .env.production
           else
-            echo "⚠️  No .env.production file found. AWS credentials will need to be configured."
+            echo "⚠️  No .env.production file found."
+            # Copy example file if available
+            if [ -f ~/deployment-tmp/.env.production.example ]; then
+              echo "📋 Copying .env.production.example as template..."
+              cp ~/deployment-tmp/.env.production.example .env.production.example
+              echo "⚠️  Please configure .env.production based on .env.production.example"
+            fi
             # Create empty .env.production to avoid docker-compose errors
             touch .env.production
           fi
