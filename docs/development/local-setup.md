@@ -404,13 +404,13 @@ pytest -v -s --pdb
 
 ```bash
 # Start test environment
-docker-compose -f docker-compose.test.yml up -d
+docker compose --profile with-powerdns up -d
 
 # Run integration tests
 pytest tests/integration/ -m integration
 
 # Cleanup
-docker-compose -f docker-compose.test.yml down -v
+docker compose --profile with-powerdns down -v
 ```
 
 ### 3. Load Testing

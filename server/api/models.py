@@ -17,6 +17,7 @@ class HostResponse(BaseModel):
         from_attributes=True, json_encoders={datetime: lambda v: v.isoformat() + "Z" if v else None}
     )
 
+    id: int = Field(..., description="Host ID")
     hostname: str = Field(..., description="Host identifier")
     current_ip: str = Field(..., description="Current IP address")
     status: str = Field(..., description="Host status (online/offline)")

@@ -1,0 +1,22 @@
+# This is how the client config looked BEFORE authentication was added
+service:
+  name: prism-client-old
+  description: "Legacy Prism Host Client (Pre-Authentication)"
+  pid_file: /tmp/prism-client-old.pid
+
+server:
+  host: localhost
+  port: 8080
+  timeout: 10
+  # No auth_token field - clients were anonymous
+
+heartbeat:
+  interval: 5
+
+network:
+  hostname: anonymous-host.example.com
+  
+logging:
+  level: INFO
+  file: /tmp/prism-client-old.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

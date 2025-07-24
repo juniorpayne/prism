@@ -57,7 +57,7 @@ class ProfilePage {
     
     async loadUserProfile() {
         try {
-            const response = await window.api.get('/api/users/me');
+            const response = await window.api.get('/users/me');
             this.userData = response;
             this.displayProfile(response);
         } catch (error) {
@@ -229,7 +229,7 @@ class ProfilePage {
                 bio: bio
             };
             
-            const response = await window.api.put('/api/users/me', updates);
+            const response = await window.api.put('/users/me', updates);
             
             // Update local data
             this.userData = { ...this.userData, ...response };

@@ -40,6 +40,7 @@ class RegistrationResult:
     previous_ip: Optional[str] = None
     previous_status: Optional[str] = None
     processing_time_ms: Optional[float] = None
+    auth_status: Optional[str] = None  # authenticated, anonymous, invalid_token
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -67,7 +68,7 @@ class RegistrationConfig:
         self.duplicate_registration_window = reg_config.get("duplicate_registration_window", 5)
         self.enable_rate_limiting = reg_config.get("enable_rate_limiting", True)
         self.enable_validation = reg_config.get("enable_validation", True)
-
+        
         # Validation
         if self.max_registrations_per_minute <= 0:
             raise RegistrationConfigError("max_registrations_per_minute must be positive")
@@ -120,6 +121,8 @@ class RegistrationProcessor:
             "validation_errors": 0,
             "database_errors": 0,
             "duplicate_registrations": 0,
+            "authenticated_registrations": 0,
+            "failed_auth_registrations": 0,
         }
 
         # Rate limiting tracking
@@ -128,11 +131,15 @@ class RegistrationProcessor:
 
         # Duplicate detection tracking
         self._recent_registrations = {}
+        
+        # Token caching
+        self._token_cache = {}  # Simple cache for token lookups
+        self._cache_ttl = 300  # 5 minutes
 
         logger.info("RegistrationProcessor initialized")
 
     async def process_registration(
-        self, hostname: str, client_ip: str, message_timestamp: str, user_id: str = None
+        self, hostname: str, client_ip: str, message_timestamp: str, user_id: str = None, auth_token: str = None
     ) -> RegistrationResult:
         """
         Process a host registration request.
@@ -141,14 +148,41 @@ class RegistrationProcessor:
             hostname: Hostname to register
             client_ip: Client IP address
             message_timestamp: Timestamp from registration message
-            user_id: User ID who owns this host registration (required)
+            user_id: User ID who owns this host registration (optional if auth_token provided)
+            auth_token: Authentication token for TCP client (optional)
 
         Returns:
             RegistrationResult with operation details
         """
-        # Validate user_id is provided
-        if not user_id:
-            raise ValueError("user_id is required for host registration")
+        # Authentication is always required
+        if not auth_token:
+            logger.warning(f"Rejecting unauthenticated registration from {hostname}")
+            self._stats["failed_auth_registrations"] += 1
+            return RegistrationResult(
+                success=False,
+                result_type="auth_required",
+                message="Authentication required. Please configure auth_token.",
+                hostname=hostname,
+                ip_address=client_ip
+            )
+        
+        # Validate auth token
+        validation_result = await self._validate_token(auth_token, client_ip)
+        if not validation_result['valid']:
+            logger.warning(f"Invalid token provided for {hostname}: {validation_result['reason']}")
+            self._stats["failed_auth_registrations"] += 1
+            return RegistrationResult(
+                success=False,
+                result_type="invalid_token",
+                message=f"Invalid authentication token: {validation_result['reason']}",
+                hostname=hostname,
+                ip_address=client_ip
+            )
+        
+        # Authentication successful
+        user_id = validation_result['user_id']
+        auth_status = "authenticated"
+        logger.info(f"Authenticated registration for user {user_id}")
         
         # Basic user ID format validation - allow UUIDs and test IDs
         import re
@@ -183,6 +217,12 @@ class RegistrationProcessor:
 
             # Process the registration based on host state
             result = await self._process_host_registration(hostname, client_ip, message_timestamp, user_id)
+
+            # Add auth status to result
+            result.auth_status = auth_status
+            
+            # Update metrics
+            self._stats[f"{auth_status}_registrations"] = self._stats.get(f"{auth_status}_registrations", 0) + 1
 
             # Record the registration for duplicate detection
             await self._record_registration(hostname, client_ip)
@@ -574,52 +614,68 @@ class RegistrationProcessor:
         """
         return self._stats.copy()
 
-    async def process_registration_with_token(
-        self, hostname: str, client_ip: str, message_timestamp: str, auth_token: str
-    ) -> RegistrationResult:
+    async def _validate_token(self, token: str, client_ip: str) -> Dict[str, Any]:
         """
-        Process a host registration request using auth token.
-
-        Args:
-            hostname: Hostname to register
-            client_ip: Client IP address
-            message_timestamp: Timestamp from registration message
-            auth_token: Authentication token to validate user
-
-        Returns:
-            RegistrationResult with operation details
-        """
-        # Import here to avoid circular imports
-        from ..auth.dependencies import validate_token
+        Validate API token and return user info.
         
-        try:
-            # Validate token and get user
-            user = validate_token(auth_token)
-            if not user:
-                return RegistrationResult(
-                    success=False,
-                    result_type="authentication_error",
-                    message="Invalid authentication token",
-                    hostname=hostname,
-                    ip_address=client_ip,
-                )
+        Args:
+            token: API token to validate
+            client_ip: Client IP address for tracking
             
-            # Process registration with user ID
-            return await self.process_registration(
-                hostname=hostname,
-                client_ip=client_ip,
-                message_timestamp=message_timestamp,
-                user_id=str(user.id)
-            )
-        except Exception as e:
-            logger.error(f"Error validating token for registration: {e}")
-            return RegistrationResult(
-                success=False,
-                result_type="authentication_error",
-                message=f"Authentication failed: {str(e)}",
-                hostname=hostname,
-                ip_address=client_ip,
-            )
+        Returns:
+            Dictionary with validation result
+        """
+        import hashlib
+        from datetime import datetime, timezone
+        from server.auth.models import APIToken
+        
+        # Check cache first
+        cache_key = hashlib.sha256(token.encode()).hexdigest()
+        if cache_key in self._token_cache:
+            cached = self._token_cache[cache_key]
+            if time.time() - cached['timestamp'] < self._cache_ttl:
+                return cached['result']
+        
+        # Database lookup
+        with self.db_manager.get_session() as db:
+            try:
+                # Find all active tokens (we need to check each one since we store hashes)
+                tokens = db.query(APIToken).filter(APIToken.is_active == True).all()
+                
+                for api_token in tokens:
+                    if api_token.verify_token(token):
+                        # Check if token is valid
+                        if not api_token.is_valid():
+                            return {
+                                'valid': False,
+                                'reason': 'token_expired' if api_token.expires_at else 'token_inactive'
+                            }
+                        
+                        # Update token usage
+                        api_token.last_used_at = datetime.now(timezone.utc)
+                        api_token.last_used_ip = client_ip
+                        db.commit()
+                        
+                        # Cache the result
+                        result = {
+                            'valid': True,
+                            'user_id': str(api_token.user_id),
+                            'token_id': str(api_token.id)
+                        }
+                        self._token_cache[cache_key] = {
+                            'result': result,
+                            'timestamp': time.time()
+                        }
+                        
+                        return result
+                
+                # Token not found
+                return {'valid': False, 'reason': 'token_not_found'}
+                
+            except Exception as e:
+                logger.error(f"Token validation error: {e}")
+                return {'valid': False, 'reason': 'validation_error'}
+
 
     def reset_statistics(self) -> None:
         """Reset all statistics counters."""

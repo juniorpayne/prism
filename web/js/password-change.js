@@ -269,7 +269,7 @@ class PasswordChangePage {
         this.spinner.classList.remove('d-none');
         
         try {
-            await window.api.put('/api/users/me/password', {
+            await window.api.put('/users/me/password', {
                 current_password: this.currentPassword.value,
                 new_password: this.newPassword.value
             });

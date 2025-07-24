@@ -1,0 +1,21 @@
+service:
+  name: prism-client-no-auth
+  description: "Demo Client without Authentication"
+  pid_file: /tmp/prism-client-no-auth.pid
+
+server:
+  host: localhost
+  port: 8080
+  timeout: 10
+  # auth_token is missing! This will fail
+
+heartbeat:
+  interval: 5
+
+network:
+  hostname: no-auth-host.example.com
+  
+logging:
+  level: INFO
+  file: /tmp/prism-client-no-auth.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

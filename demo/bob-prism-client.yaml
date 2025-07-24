@@ -1,0 +1,21 @@
+service:
+  name: prism-client-bob
+  description: "Bob's Prism Host Client - Demo"
+  pid_file: /tmp/prism-client-bob.pid
+
+server:
+  host: localhost
+  port: 8080
+  timeout: 10
+  auth_token: "REPLACE_WITH_BOB_TOKEN"  # Required field - get from web UI
+
+heartbeat:
+  interval: 5
+
+network:
+  hostname: bob-server.example.com
+  
+logging:
+  level: INFO
+  file: /tmp/prism-client-bob.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

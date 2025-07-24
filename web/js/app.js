@@ -48,6 +48,14 @@ class PrismApp {
             // Initialize session manager after token manager is ready
             this.initializeSessionManager();
             
+            // Initialize token management for API tokens
+            if (window.tokenManagement) {
+                console.log('[App] Initializing token management...');
+                window.tokenManagement.init();
+            } else {
+                console.error('[App] Token management module not found!');
+            }
+            
             // Handle navigation visibility based on auth state
             this.updateNavigationVisibility();
             
@@ -360,12 +368,12 @@ class PrismApp {
 
     // Public methods for other components to use
 
-    showHost(hostname) {
+    showHost(hostId) {
         this.router.navigate('/hosts');
         // Wait for view to load, then show host detail
         setTimeout(() => {
             if (window.hostManager) {
-                window.hostManager.showHostDetail(hostname);
+                window.hostManager.showHostDetail(hostId);
             }
         }, 100);
     }

@@ -8,10 +8,15 @@ service:
 
 # Server connection settings
 server:
-  #host: localhost #prism.thepaynes.ca
-  host: prism.thepaynes.ca
+  host: localhost #prism.thepaynes.ca
+  #host: prism.example.com
   port: 8080
+  auth_token: "uRl9oOOT8CWS3psVcMuzj2JaBFu3Jfig" 
+  #
+  #host: prism.thepaynes.ca
+  #port: 8080
   timeout: 10
+  #auth_token: "your-api-token-here"  # REQUIRED - Get from web interface Settings -> API Tokens
 
 # Heartbeat settings
 heartbeat:

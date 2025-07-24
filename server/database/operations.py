@@ -95,6 +95,19 @@ class HostOperations:
             logger.error(f"Database error retrieving host {hostname}: {e}")
             return None
 
+    def get_host_by_hostname_and_user(self, hostname: str, user_id: str) -> Optional[Host]:
+        """
+        Get host by hostname and user (user-scoped hostnames).
+        
+        Args:
+            hostname: Hostname to search for
+            user_id: User ID who owns the host
+            
+        Returns:
+            Host instance or None if not found
+        """
+        return self.get_host_by_hostname(hostname, user_id)
+
     def get_host_by_id(self, host_id: int) -> Optional[Host]:
         """
         Retrieve host by ID.

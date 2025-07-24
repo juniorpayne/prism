@@ -67,7 +67,7 @@ class SettingsPage {
     
     handleRouteChange() {
         const hash = window.location.hash;
-        const match = hash.match(/#settings\/(\w+)/);
+        const match = hash.match(/#settings\/([\w-]+)/);
         
         if (match) {
             this.showSection(match[1]);
@@ -89,7 +89,9 @@ class SettingsPage {
         // Show section
         this.sections.forEach(sec => {
             const secId = sec.id.replace('settings', '').toLowerCase();
-            if (secId === section) {
+            // Convert section name to match ID format (e.g., 'api-tokens' -> 'apitokens')
+            const sectionNormalized = section.replace(/-/g, '').toLowerCase();
+            if (secId === sectionNormalized) {
                 sec.style.display = 'block';
             } else {
                 sec.style.display = 'none';
@@ -97,6 +99,16 @@ class SettingsPage {
         });
         
         this.currentSection = section;
+        
+        // Load API tokens when navigating to that section
+        if (section === 'api-tokens' && window.tokenManagement) {
+            console.log('[Settings] Loading API tokens section...');
+            window.tokenManagement.loadTokens();
+            // Re-setup the generate button event listener after section is visible
+            setTimeout(() => {
+                window.tokenManagement.setupGenerateButton();
+            }, 100);
+        }
         
         // Load section-specific data
         if (section === 'security') {
@@ -107,7 +119,7 @@ class SettingsPage {
     async loadSettings() {
         try {
             // Load general settings
-            const settings = await window.api.get('/api/users/me/settings');
+            const settings = await window.api.get('/users/me/settings');
             this.settings = settings;
             
             // Apply general settings
@@ -123,7 +135,7 @@ class SettingsPage {
             
             // Load notification preferences separately (might not exist yet)
             try {
-                const notifications = await window.api.get('/api/users/me/settings');
+                const notifications = await window.api.get('/users/me/settings');
                 if (notifications.notifications) {
                     document.getElementById('notifyHostDown').checked = notifications.notifications.host_down !== false;
                     document.getElementById('notifyHostUp').checked = notifications.notifications.host_up !== false;
@@ -162,7 +174,7 @@ class SettingsPage {
                 date_format: document.getElementById('settingsDateFormat').value
             };
             
-            await window.api.put('/api/users/me/settings', settings);
+            await window.api.put('/users/me/settings', settings);
             this.settings = settings;
             this.showSuccess('General settings updated successfully!');
             
@@ -203,7 +215,7 @@ class SettingsPage {
                 notifications: notifications
             };
             
-            await window.api.put('/api/users/me/settings', settings);
+            await window.api.put('/users/me/settings', settings);
             this.settings = settings;
             this.showSuccess('Notification preferences updated!');
             

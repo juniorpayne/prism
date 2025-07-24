@@ -21,7 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from server.api.dependencies import set_app_config
 from server.api.models import ErrorResponse
-from server.api.routes import dns, health, hosts, metrics, users
+from server.api.routes import dns, health, hosts, metrics, tokens, users
 from server.auth.dependencies import get_current_verified_user
 from server.auth.routes import router as auth_router
 from server.database.connection import init_async_db
@@ -152,6 +152,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(dns.router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(users.router)
+    app.include_router(tokens.router, prefix="/api")
 
     # Include email-related routers
     from server.api.routes import email_metrics, ses_webhooks

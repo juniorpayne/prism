@@ -114,6 +114,37 @@ function escapeHtml(unsafe) {
 }
 
 /**
+ * Format bytes to human readable format
+ */
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+/**
+ * Show notification (alias for showToast)
+ */
+function showNotification(message, type = 'info', duration = 5000) {
+    // Map common notification types to Bootstrap toast types
+    const typeMap = {
+        'error': 'danger',
+        'warning': 'warning',
+        'success': 'success',
+        'info': 'info'
+    };
+    
+    const toastType = typeMap[type] || 'info';
+    showToast(message, toastType, duration);
+}
+
+/**
  * Show toast notification
  */
 function showToast(message, type = 'info', duration = 5000) {
@@ -469,3 +500,93 @@ const jwt = {
 
 // Export jwt utilities to window
 window.jwt = jwt;
+
+// Export utility functions to window.utils
+window.utils = {
+    formatTimestamp,
+    formatUptime,
+    formatBytes,
+    escapeHtml,
+    showNotification,
+    showError,
+    showLoading,
+    hideElement,
+    formatDateTime: formatTimestamp,
+    
+    /**
+     * Show a confirmation dialog
+     * @param {Object} options - Dialog options
+     * @returns {Promise<boolean>} Promise that resolves to true if confirmed, false if cancelled
+     */
+    showConfirmDialog: async (options = {}) => {
+        const {
+            title = 'Confirm',
+            message = 'Are you sure?',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            confirmClass = 'btn-primary',
+            requireTyping = false,
+            typingPrompt = ''
+        } = options;
+        
+        return new Promise((resolve) => {
+            // Create modal HTML
+            const modalId = 'confirmModal-' + Date.now();
+            const modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">${escapeHtml(title)}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${escapeHtml(message)}</p>
+                                ${requireTyping ? `
+                                    <div class="mt-3">
+                                        <label class="form-label">${escapeHtml(typingPrompt)}</label>
+                                        <input type="text" class="form-control" id="${modalId}-input" autocomplete="off">
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${escapeHtml(cancelText)}</button>
+                                <button type="button" class="btn ${confirmClass}" id="${modalId}-confirm">${escapeHtml(confirmText)}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modalEl = document.getElementById(modalId);
+            const modal = new bootstrap.Modal(modalEl);
+            
+            // Handle confirm button
+            const confirmBtn = document.getElementById(`${modalId}-confirm`);
+            const inputEl = document.getElementById(`${modalId}-input`);
+            
+            if (requireTyping && inputEl) {
+                confirmBtn.disabled = true;
+                inputEl.addEventListener('input', () => {
+                    confirmBtn.disabled = inputEl.value !== 'REVOKE ALL';
+                });
+            }
+            
+            confirmBtn.addEventListener('click', () => {
+                modal.hide();
+                resolve(true);
+            });
+            
+            // Handle modal close
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                modalEl.remove();
+                resolve(false);
+            });
+            
+            // Show modal
+            modal.show();
+        });
+    }
+};

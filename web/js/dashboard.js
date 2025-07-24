@@ -225,7 +225,7 @@ class Dashboard {
                         </div>
                     </div>
                     <div class="flex-shrink-0">
-                        <button class="btn btn-sm btn-outline-primary" onclick="app.showHost('${escapeHtml(host.hostname)}')" title="View Details">
+                        <button class="btn btn-sm btn-outline-primary" onclick="app.showHost(${host.id})" title="View Details">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>

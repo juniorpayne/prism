@@ -31,9 +31,9 @@ curl http://localhost:8081/api/dns/health
 ## Docker Compose Structure
 
 ### Simplified Structure (As of July 2025)
-- **docker-compose.yml** - Development environment
+- **docker-compose.yml** - Development environment (use with `--profile with-powerdns`)
 - **docker-compose.production.yml** - Production environment (includes all services)
-- **docker-compose.test.yml** - Test environment
+- **ARCHIVED: docker-compose.test.yml** - DO NOT USE (moved to archive/)
 
 ### Service Configuration
 All services run on a single `prism-network` bridge network to ensure proper communication:

@@ -51,7 +51,7 @@ class DeleteAccountPage {
     
     async loadUserData() {
         try {
-            const response = await window.api.get('/api/users/me');
+            const response = await window.api.get('/users/me');
             this.username = response.username || response.email || 'user';
             const usernameDisplay = document.getElementById('usernameToType');
             if (usernameDisplay) {
@@ -191,7 +191,7 @@ class DeleteAccountPage {
         
         try {
             // Verify password
-            await window.api.post('/api/auth/verify-password', {
+            await window.api.post('/auth/verify-password', {
                 password: this.passwordInput.value
             });
             
@@ -220,7 +220,7 @@ class DeleteAccountPage {
         
         try {
             // Delete account
-            await window.api.delete('/api/users/me', {
+            await window.api.delete('/users/me', {
                 password: this.passwordInput.value
             });
             

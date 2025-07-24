@@ -233,44 +233,31 @@ class ConnectionHandler:
 
             logger.info(f"Processing registration for hostname '{hostname}' from {self.client_ip}")
 
-            # Use registration processor if available
-            if self.registration_processor:
-                # Process registration through the advanced processor
-                # TODO: Implement TCP authentication (SCRUM-135)
-                # For now, use system user for backward compatibility
-                system_user_id = "00000000-0000-0000-0000-000000000000"
-                result = await self.registration_processor.process_registration(
-                    hostname, self.client_ip, timestamp, system_user_id
-                )
+            # Registration processor is required
+            if not self.registration_processor:
+                logger.error("Registration processor not available")
+                await self._send_error_response("Server configuration error")
+                return
 
-                if result.success:
-                    # Registration successful, now handle DNS if enabled
-                    if self.dns_client and result.result_type in ["new_registration", "ip_change"]:
-                        await self._handle_dns_registration(hostname, self.client_ip, result)
+            # Extract auth token (required)
+            auth_token = message.get("auth_token")
+            
+            # Process registration with auth token
+            result = await self.registration_processor.process_registration(
+                hostname=hostname,
+                client_ip=self.client_ip,
+                message_timestamp=timestamp,
+                auth_token=auth_token
+            )
 
-                    await self._send_success_response(result.message)
-                else:
-                    await self._send_error_response(result.message)
+            if result.success:
+                # Registration successful, now handle DNS if enabled
+                if self.dns_client and result.result_type in ["new_registration", "ip_change"]:
+                    await self._handle_dns_registration(hostname, self.client_ip, result)
+
+                await self._send_success_response(result.message)
             else:
-                # Fallback to simple registration
-                if not self.host_ops:
-                    logger.error("Database operations not available for registration")
-                    await self._send_error_response("Database unavailable")
-                    return
-
-                # Process the registration
-                success, response_message = await self._register_host(hostname, self.client_ip)
-
-                if success:
-                    logger.info(
-                        f"Successfully registered hostname '{hostname}' with IP {self.client_ip}"
-                    )
-                    await self._send_success_response(response_message)
-                else:
-                    logger.warning(
-                        f"Registration failed for hostname '{hostname}': {response_message}"
-                    )
-                    await self._send_error_response(response_message)
+                await self._send_error_response(result.message)
 
         except Exception as e:
             logger.error(f"Error handling registration from {self.client_ip}: {e}")
@@ -321,56 +308,6 @@ class ConnectionHandler:
             if self.host_ops:
                 self.host_ops.update_dns_info(hostname=hostname, dns_sync_status="failed")
 
-    async def _register_host(self, hostname: str, ip_address: str) -> Tuple[bool, str]:
-        """
-        Register or update host in database.
-
-        Args:
-            hostname: Hostname to register
-            ip_address: IP address to associate with hostname
-
-        Returns:
-            Tuple of (success, message)
-        """
-        # TODO: Implement TCP authentication (SCRUM-135)
-        # For now, use system user for backward compatibility
-        system_user_id = "00000000-0000-0000-0000-000000000000"
-        try:
-            # Check if host already exists for this user
-            existing_host = self.host_ops.get_host_by_hostname(hostname, system_user_id)
-
-            if existing_host:
-                # Update existing host
-                if existing_host.current_ip != ip_address:
-                    # IP changed
-                    success = self.host_ops.update_host_ip(hostname, ip_address)
-                    if success:
-                        self.host_ops.update_host_last_seen(hostname)
-                        return (
-                            True,
-                            f"Host IP updated from {existing_host.current_ip} to {ip_address}",
-                        )
-                    else:
-                        return False, "Failed to update host IP"
-                else:
-                    # Same IP, just update last seen
-                    success = self.host_ops.update_host_last_seen(hostname)
-                    if success:
-                        return True, "Host registration updated"
-                    else:
-                        return False, "Failed to update host timestamp"
-            else:
-                # Create new host
-                new_host = self.host_ops.create_host(hostname, ip_address, system_user_id)
-                if new_host:
-                    return True, f"New host registered with IP {ip_address}"
-                else:
-                    return False, "Failed to create host record"
-
-        except Exception as e:
-            logger.error(f"Database error during registration: {e}")
-            self.stats.error_occurred("database_error", str(e))
-            return False, "Database error during registration"
 
     async def _send_success_response(self, message: str) -> None:
         """

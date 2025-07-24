@@ -91,7 +91,7 @@ class ConfigManager:
 
         # Validate server section
         server_config = config["server"]
-        required_server_fields = ["host", "port", "timeout"]
+        required_server_fields = ["host", "port", "timeout", "auth_token"]
         for field in required_server_fields:
             if field not in server_config:
                 raise ConfigValidationError(f"Missing required field: server.{field}")
@@ -103,6 +103,17 @@ class ConfigManager:
             raise ConfigValidationError("Invalid type for server.port: must be integer")
         if not isinstance(server_config["timeout"], int):
             raise ConfigValidationError("Invalid type for server.timeout: must be integer")
+            
+        # Validate auth_token (required field)
+        token = server_config["auth_token"]
+        if not isinstance(token, str):
+            raise ConfigValidationError("auth_token must be a string")
+        if not token:
+            raise ConfigValidationError("auth_token cannot be empty")
+        if len(token) < 10:
+            raise ConfigValidationError("auth_token appears to be invalid (too short)")
+        if " " in token:
+            raise ConfigValidationError("auth_token cannot contain spaces")
 
         # Validate heartbeat section
         heartbeat_config = config["heartbeat"]

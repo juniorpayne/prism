@@ -6,6 +6,7 @@ REST endpoints for host data retrieval.
 
 import logging
 import math
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -26,6 +27,34 @@ class HostStatsResponse(BaseModel):
     total_hosts: int
     online_hosts: int
     offline_hosts: int
+    last_registration: Optional[datetime] = None
+    
+    
+class SystemStatsResponse(BaseModel):
+    """Response model for system-wide statistics (admin only)."""
+    total_hosts: int
+    users_with_hosts: int
+    anonymous_hosts: int
+    
+    
+class HostStatsWithSystemResponse(HostStatsResponse):
+    """Extended host stats response with system stats for admins."""
+    system_stats: Optional[SystemStatsResponse] = None
+
+
+class HostResponseWithOwner(HostResponse):
+    """Extended host response with owner information for admins."""
+    owner: Optional[str] = None  # Owner user ID
+    owner_username: Optional[str] = None  # Owner username (admin only)
+    
+
+class HostDetailResponse(HostResponse):
+    """Detailed host response with additional fields."""
+    id: int
+    dns_zone: Optional[str] = None
+    dns_sync_status: Optional[str] = None
+    owner_id: Optional[str] = None
+    owner_username: Optional[str] = None
 from server.auth.dependencies import get_admin_override, get_current_verified_user
 from server.auth.models import User
 from server.database.models import Host
@@ -44,7 +73,7 @@ router = APIRouter(prefix="/api", tags=["hosts"])
 )
 async def get_hosts(
     current_user: User = Depends(get_current_verified_user),
-    admin_override: bool = Depends(get_admin_override),
+    all: bool = Query(False, description="Show all hosts (admin only)"),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by host status"),
@@ -87,8 +116,8 @@ async def get_hosts(
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Get filtered hosts - filter by current user unless admin override
-        if admin_override:
+        # Get filtered hosts - filter by current user unless admin requesting all
+        if all and current_user.is_admin:
             logger.info(f"Admin {current_user.username} viewing all hosts")
             # Admin sees all hosts
             if status:
@@ -96,7 +125,7 @@ async def get_hosts(
             else:
                 hosts = host_ops.get_all_hosts(user_id=None)
         else:
-            # Normal user - filter by user_id
+            # Normal user or admin without all=true - filter by user_id
             user_id = str(current_user.id)
             if status:
                 hosts = host_ops.get_hosts_by_status(status, user_id=user_id)
@@ -114,16 +143,33 @@ async def get_hosts(
         paginated_hosts = hosts[offset : offset + per_page]
 
         # Convert to response models
-        host_responses = [
-            HostResponse(
-                hostname=host.hostname,
-                current_ip=host.current_ip,
-                status=host.status,
-                first_seen=host.first_seen,
-                last_seen=host.last_seen,
-            )
-            for host in paginated_hosts
-        ]
+        if all and current_user.is_admin:
+            # Include owner information for admin view
+            host_responses = []
+            for host in paginated_hosts:
+                response_data = {
+                    "id": host.id,
+                    "hostname": host.hostname,
+                    "current_ip": host.current_ip,
+                    "status": host.status,
+                    "first_seen": host.first_seen,
+                    "last_seen": host.last_seen,
+                    "owner": host.created_by  # Include owner ID
+                }
+                host_responses.append(HostResponseWithOwner(**response_data))
+        else:
+            # Regular response without owner info
+            host_responses = [
+                HostResponse(
+                    id=host.id,
+                    hostname=host.hostname,
+                    current_ip=host.current_ip,
+                    status=host.status,
+                    first_seen=host.first_seen,
+                    last_seen=host.last_seen,
+                )
+                for host in paginated_hosts
+            ]
 
         # Calculate total pages
         total_pages = math.ceil(total_hosts / per_page) if total_hosts > 0 else 1
@@ -150,44 +196,74 @@ async def get_hosts(
 
 
 @router.get(
-    "/hosts/{hostname}",
-    response_model=HostResponse,
-    summary="Get host by hostname",
+    "/hosts/{host_id}",
+    response_model=HostDetailResponse,
+    summary="Get host by ID",
     description="Get detailed information for a specific host",
 )
 async def get_host(
-    hostname: str,
+    host_id: int,
     current_user: User = Depends(get_current_verified_user),
     host_ops: HostOperations = Depends(get_host_operations),
-) -> HostResponse:
+    db_manager = Depends(get_database_manager),
+) -> HostDetailResponse:
     """
     Get detailed information for a specific host.
 
     Args:
-        hostname: Host identifier
+        host_id: Host identifier
+        current_user: Current authenticated user
         host_ops: Host operations dependency
 
     Returns:
-        HostResponse with host details
+        HostDetailResponse with host details
     """
     try:
-        # Get host only if owned by current user
-        user_id = str(current_user.id)
-        host = host_ops.get_host_by_hostname(hostname, user_id=user_id)
+        # Get host from database
+        with db_manager.get_session() as session:
+            from sqlalchemy import select
+            stmt = select(Host).where(Host.id == host_id)
+            result = session.execute(stmt)
+            host = result.scalar_one_or_none()
 
         if not host:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=f"Host '{hostname}' not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
             )
 
-        logger.info(f"Retrieved host details for: {hostname}")
+        # Check ownership unless admin
+        if not current_user.is_admin and host.created_by != str(current_user.id):
+            # Don't reveal that the host exists
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
+            )
 
-        return HostResponse(
+        logger.info(f"Retrieved host details for ID: {host_id}")
+        
+        # Get owner username if admin
+        owner_username = None
+        if current_user.is_admin and host.created_by:
+            # Look up username
+            with db_manager.get_session() as session:
+                from sqlalchemy import select
+                from server.auth.models import User
+                stmt = select(User).where(User.id == host.created_by)
+                result = session.execute(stmt)
+                owner = result.scalar_one_or_none()
+                if owner:
+                    owner_username = owner.username
+
+        return HostDetailResponse(
+            id=host.id,
             hostname=host.hostname,
             current_ip=host.current_ip,
             status=host.status,
             first_seen=host.first_seen,
             last_seen=host.last_seen,
+            dns_zone=getattr(host, 'dns_zone', None),
+            dns_sync_status=getattr(host, 'dns_sync_status', None),
+            owner_id=host.created_by,
+            owner_username=owner_username if current_user.is_admin else None
         )
 
     except HTTPException:
@@ -262,6 +338,7 @@ async def get_hosts_by_status(
         # Convert to response models
         host_responses = [
             HostResponse(
+                id=host.id,
                 hostname=host.hostname,
                 current_ip=host.current_ip,
                 status=host.status,
@@ -298,43 +375,68 @@ async def get_hosts_by_status(
 
 
 @router.get(
-    "/hosts/stats",
-    response_model=HostStatsResponse,
-    summary="Get host statistics",
-    description="Get statistics for user's hosts",
+    "/hosts/stats/summary",
+    response_model=HostStatsWithSystemResponse,
+    summary="Get host statistics summary",
+    description="Get statistics for user's hosts with optional system stats for admins",
 )
 async def get_host_stats(
     current_user: User = Depends(get_current_verified_user),
-    admin_override: bool = Depends(get_admin_override),
     host_ops: HostOperations = Depends(get_host_operations),
-) -> HostStatsResponse:
+    db_manager = Depends(get_database_manager),
+) -> HostStatsWithSystemResponse:
     """
-    Get statistics for user's hosts only.
+    Get statistics for user's hosts.
     
     Returns:
-        HostStatsResponse with counts for total, online, and offline hosts
+        HostStatsWithSystemResponse with user stats and system stats for admins
     """
     try:
-        if admin_override:
-            logger.info(f"Admin {current_user.username} viewing all host stats")
-            # Admin sees all host stats
-            total_hosts = host_ops.get_host_count(user_id=None)
-            online_hosts = host_ops.get_host_count_by_status("online", user_id=None)
-            offline_hosts = host_ops.get_host_count_by_status("offline", user_id=None)
-        else:
-            # Normal user - filter by user_id
-            user_id = str(current_user.id)
-            total_hosts = host_ops.get_host_count(user_id=user_id)
-            online_hosts = host_ops.get_host_count_by_status("online", user_id=user_id)
-            offline_hosts = host_ops.get_host_count_by_status("offline", user_id=user_id)
+        # Get user's hosts
+        user_id = str(current_user.id)
+        user_hosts = host_ops.get_all_hosts(user_id=user_id)
         
-        logger.info(f"Retrieved host stats for {current_user.username}: total={total_hosts}, online={online_hosts}, offline={offline_hosts}")
+        online_count = sum(1 for h in user_hosts if h.status == "online")
+        offline_count = sum(1 for h in user_hosts if h.status == "offline")
         
-        return HostStatsResponse(
-            total_hosts=total_hosts,
-            online_hosts=online_hosts,
-            offline_hosts=offline_hosts
+        # Get last registration time
+        last_registration = None
+        if user_hosts:
+            last_registration = max(h.last_seen for h in user_hosts)
+        
+        response = HostStatsWithSystemResponse(
+            total_hosts=len(user_hosts),
+            online_hosts=online_count,
+            offline_hosts=offline_count,
+            last_registration=last_registration
         )
+        
+        # Add system-wide stats for admins
+        if current_user.is_admin:
+            with db_manager.get_session() as session:
+                from sqlalchemy import select, func
+                
+                # Total system hosts
+                total_system_hosts = session.query(Host).count()
+                
+                # Users with hosts
+                users_with_hosts = session.query(Host.created_by).distinct().count()
+                
+                # Anonymous hosts (assuming system user ID is a specific value)
+                # For now, count hosts without created_by
+                anonymous_hosts = session.query(Host).filter(
+                    (Host.created_by == None) | (Host.created_by == "")
+                ).count()
+                
+                response.system_stats = SystemStatsResponse(
+                    total_hosts=total_system_hosts,
+                    users_with_hosts=users_with_hosts,
+                    anonymous_hosts=anonymous_hosts
+                )
+        
+        logger.info(f"Retrieved host stats for {current_user.username}")
+        
+        return response
         
     except SQLAlchemyError as e:
         logger.error(f"Database error retrieving host stats: {e}")

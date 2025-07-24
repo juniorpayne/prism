@@ -23,16 +23,18 @@ class PrismClient:
     Main Prism client application that coordinates all components.
     """
 
-    def __init__(self, config_file: str, daemon_mode: bool = False):
+    def __init__(self, config_file: str, daemon_mode: bool = False, auth_token: Optional[str] = None):
         """
         Initialize Prism client.
 
         Args:
             config_file: Path to configuration file
             daemon_mode: Whether to run in daemon/service mode
+            auth_token: Optional auth token that overrides config
         """
         self.config_file = config_file
         self.daemon_mode = daemon_mode
+        self.auth_token = auth_token
         self.service_manager: Optional[ServiceManager] = None
         self.log_manager: Optional[LogManager] = None
         self.error_handler: Optional[ErrorHandler] = None
@@ -45,6 +47,12 @@ class PrismClient:
             # Load configuration
             config_manager = ConfigManager()
             config = config_manager.load_config(self.config_file)
+            
+            # Override auth token from command line if provided
+            if self.auth_token:
+                if 'server' not in config:
+                    config['server'] = {}
+                config['server']['auth_token'] = self.auth_token
 
             # Setup logging
             self.log_manager = LogManager(config)
@@ -194,6 +202,7 @@ server:
   host: dns.example.com
   port: 8080
   timeout: 10
+  auth_token: "your-api-token-here"  # REQUIRED - Get from web interface Settings -> API Tokens
 
 # Heartbeat settings
 heartbeat:
@@ -254,6 +263,11 @@ Examples:
     parser.add_argument(
         "--create-config", action="store_true", help="Create default configuration file"
     )
+    
+    parser.add_argument(
+        "--auth-token", 
+        help="API token for authentication (overrides config file)"
+    )
 
     parser.add_argument("--version", "-v", action="version", version="Prism Client 1.0.0")
 
@@ -271,7 +285,7 @@ Examples:
         return 1
 
     # Initialize client
-    client = PrismClient(args.config, args.daemon)
+    client = PrismClient(args.config, args.daemon, args.auth_token)
     client.initialize()
 
     try:

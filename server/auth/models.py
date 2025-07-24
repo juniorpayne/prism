@@ -134,6 +134,7 @@ class User(Base):
     )
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
+    tcp_tokens = relationship("APIToken", back_populates="user", cascade="all, delete-orphan", foreign_keys="APIToken.user_id")
 
     @validates("email")
     def validate_email_field(self, key: str, email: str) -> str:
@@ -599,10 +600,95 @@ Index("idx_password_reset_tokens_expires", PasswordResetToken.expires_at)
 Index("idx_api_keys_user_org", APIKey.user_id, APIKey.org_id)
 
 
+class APIToken(Base):
+    """
+    API tokens for TCP client authentication.
+    
+    Simple token-based authentication for TCP clients to register hosts.
+    Follows KISS principle - no JWT, just secure random tokens with DB lookups.
+    """
+
+    __tablename__ = "api_tokens"
+
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # User reference
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    # Token details
+    name = Column(String(255), nullable=False)
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+
+    # Usage tracking
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    last_used_ip = Column(String(45), nullable=True)  # Support IPv6
+
+    # Security
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Revocation tracking
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    # Timestamps
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="tcp_tokens", foreign_keys=[user_id])
+
+    def is_valid(self) -> bool:
+        """Check if token is valid (active, not revoked, and not expired)."""
+        if not self.is_active:
+            return False
+        if self.revoked_at is not None:
+            return False
+        if self.expires_at and datetime.now(timezone.utc) > self.expires_at:
+            return False
+        return True
+
+    @staticmethod
+    def hash_token(plain_token: str) -> str:
+        """Hash a plain text token using bcrypt."""
+        import bcrypt
+        return bcrypt.hashpw(plain_token.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    def verify_token(self, plain_token: str) -> bool:
+        """Verify a plain text token against the hash."""
+        import bcrypt
+        return bcrypt.checkpw(plain_token.encode('utf-8'), self.token_hash.encode('utf-8'))
+
+    def __str__(self) -> str:
+        """String representation of APIToken."""
+        return f"APIToken(name='{self.name}', user_id='{self.user_id}')"
+
+    def __repr__(self) -> str:
+        """Detailed string representation of APIToken."""
+        return (
+            f"APIToken(id={self.id}, name='{self.name}', "
+            f"user_id={self.user_id}, is_active={self.is_active})"
+        )
+
+
+# Create index for APIToken
+Index("idx_api_tokens_user_id", APIToken.user_id)
+Index("idx_api_tokens_last_used", APIToken.last_used_at)
+
+
 # Event listeners for automatic timestamp updates
 @event.listens_for(User, "before_update")
 @event.listens_for(Organization, "before_update")
 @event.listens_for(DNSZone, "before_update")
+@event.listens_for(APIToken, "before_update")
 def update_timestamps(mapper, connection, target):
     """Update timestamps before update operations."""
     target.updated_at = datetime.now(timezone.utc)

@@ -272,9 +272,9 @@ class HostManager {
         
         const rows = this.filteredHosts.map(host => {
             return `
-                <tr class="host-row" data-hostname="${escapeHtml(host.hostname)}">
+                <tr class="host-row" data-hostname="${escapeHtml(host.hostname)}" data-host-id="${host.id}">
                     <td>
-                        <span class="cursor-pointer text-primary" onclick="hostManager.showHostDetail('${escapeHtml(host.hostname)}')">
+                        <span class="cursor-pointer text-primary" onclick="hostManager.showHostDetail(${host.id})">
                             ${escapeHtml(host.hostname)}
                         </span>
                     </td>
@@ -292,7 +292,7 @@ class HostManager {
                         </span>
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="hostManager.showHostDetail('${escapeHtml(host.hostname)}')" title="View Details">
+                        <button class="btn btn-sm btn-outline-primary" onclick="hostManager.showHostDetail(${host.id})" title="View Details">
                             <i class="bi bi-eye"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary ms-1" onclick="copyToClipboard('${escapeHtml(host.current_ip)}')" title="Copy IP">
@@ -320,7 +320,7 @@ class HostManager {
         }
     }
 
-    async showHostDetail(hostname) {
+    async showHostDetail(hostId) {
         if (!this.elements.hostDetailModal) return;
         
         // Show modal
@@ -333,7 +333,7 @@ class HostManager {
         hideElement(this.elements.hostDetailError);
         
         try {
-            const host = await api.getHost(hostname);
+            const host = await api.getHost(hostId);
             this.renderHostDetail(host);
             
             hideElement(this.elements.hostDetailLoading);
@@ -416,7 +416,7 @@ class HostManager {
                 <small class="text-muted">
                     Data refreshed: ${formatTimestamp(new Date())}
                 </small>
-                <button class="btn btn-sm btn-primary" onclick="hostManager.showHostDetail('${escapeHtml(host.hostname)}')">
+                <button class="btn btn-sm btn-primary" onclick="hostManager.showHostDetail(${host.id})">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
             </div>

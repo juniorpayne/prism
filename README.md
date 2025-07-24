@@ -61,6 +61,23 @@ A production-ready managed DNS client that tracks dynamic IP addresses across th
    nano prism-client.yaml  # Update server settings
    ```
 
+## 🐳 Docker Development Environment
+
+### ⚠️ IMPORTANT: Use the Correct Docker Commands
+
+**For development with PowerDNS:**
+```bash
+# ALWAYS use this command
+docker compose --profile with-powerdns up -d
+```
+
+**See [DOCKER_USAGE.md](DOCKER_USAGE.md) for detailed Docker usage guidelines.**
+
+Common issues:
+- Services on different networks → Use the command above
+- PowerDNS connection failures → Check [DOCKER_USAGE.md](DOCKER_USAGE.md)
+- DO NOT use archived docker-compose files
+
 ## 🎯 Usage
 
 ### Command Line Interface

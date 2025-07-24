@@ -101,8 +101,20 @@ class PrismAPI {
                     );
                 }
                 
-                const data = await response.json();
-                return data;
+                // Check if response is JSON before parsing
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    return data;
+                } else {
+                    // Non-JSON response (likely HTML error page)
+                    const text = await response.text();
+                    throw new APIError(
+                        `Server returned non-JSON response: ${text.substring(0, 100)}...`,
+                        response.status,
+                        endpoint
+                    );
+                }
                 
             } catch (error) {
                 lastError = error;
@@ -176,17 +188,17 @@ class PrismAPI {
     }
 
     /**
-     * Get specific host by hostname
+     * Get specific host by ID
      */
-    async getHost(hostname) {
+    async getHost(hostId) {
         try {
-            const response = await this.request(`/hosts/${encodeURIComponent(hostname)}`);
+            const response = await this.request(`/hosts/${hostId}`);
             return response;
         } catch (error) {
             if (error.status === 404) {
-                throw new APIError(`Host '${hostname}' not found`, 404, `/hosts/${hostname}`);
+                throw new APIError(`Host not found`, 404, `/hosts/${hostId}`);
             }
-            throw new APIError(`Failed to fetch host: ${error.message}`, error.status, `/hosts/${hostname}`);
+            throw new APIError(`Failed to fetch host: ${error.message}`, error.status, `/hosts/${hostId}`);
         }
     }
 

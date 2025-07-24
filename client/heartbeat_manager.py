@@ -3,6 +3,7 @@ Heartbeat Registration Loop for Prism Host Client (SCRUM-8)
 Handles periodic heartbeat messages to the server with configurable intervals.
 """
 
+import json
 import logging
 import threading
 import time
@@ -43,12 +44,18 @@ class HeartbeatManager:
         self._protocol = MessageProtocol()
         self._sender = TCPSender()
         self._system_info = SystemInfo()
-
+        
+        # Extract auth token (required)
+        self.auth_token = config["server"]["auth_token"]
+        
         # State management
         self._timer: Optional[threading.Timer] = None
         self._running = False
         self._lock = threading.Lock()
         self._logger = logging.getLogger(__name__)
+        
+        # Log auth configuration (without exposing token)
+        self._logger.info("Client configured with API token authentication")
 
     @classmethod
     def from_config_file(cls, config_file: str) -> "HeartbeatManager":
@@ -112,20 +119,78 @@ class HeartbeatManager:
             self._timer = threading.Timer(self._interval, self._send_heartbeat)
             self._timer.start()
 
+    def _get_local_ip(self) -> str:
+        """Get local IP address for the client."""
+        try:
+            import socket
+            # Create a socket and connect to a public DNS server
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except:
+            return "unknown"
+
+    def _create_registration_message(self) -> Dict[str, Any]:
+        """
+        Create registration message with optional auth token.
+        
+        Returns:
+            Dictionary containing the registration message
+        """
+        from datetime import datetime, timezone
+        
+        # Get system information
+        hostname = self._system_info.get_hostname()
+        client_ip = self._get_local_ip()
+        
+        message = {
+            "version": "1.0",
+            "type": "registration",
+            "hostname": hostname,
+            "client_ip": client_ip,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "auth_token": self.auth_token
+        }
+            
+        return message
+    
+    def _create_heartbeat_message(self) -> Dict[str, Any]:
+        """
+        Create heartbeat message with auth token.
+        
+        Returns:
+            Dictionary containing the heartbeat message
+        """
+        from datetime import datetime, timezone
+        
+        # Get system information
+        hostname = self._system_info.get_hostname()
+        client_ip = self._get_local_ip()
+        
+        message = {
+            "version": "1.0",
+            "type": "registration",
+            "hostname": hostname,
+            "client_ip": client_ip,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "auth_token": self.auth_token
+        }
+            
+        return message
+
     def _send_heartbeat(self) -> None:
         """
         Send a heartbeat registration message to the server.
         Handles errors gracefully and reschedules the next heartbeat.
         """
         try:
-            # Get current hostname
-            hostname = self._system_info.get_hostname()
-
-            # Create registration message
-            message = self._protocol.create_registration_message(hostname)
+            # Create heartbeat message with auth token support
+            message = self._create_heartbeat_message()
 
             # Serialize and frame the message
-            serialized = self._protocol.serialize_message(message)
+            serialized = json.dumps(message).encode("utf-8")
             framed = self._sender.frame_message(serialized)
 
             # Connect and send

@@ -2,6 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## API Endpoint Standards
+
+The web application uses a centralized API client (window.api) initialized with base URL `/api`. All API endpoints must follow these patterns:
+
+### Endpoint Patterns
+- **User endpoints**: `/users/...` (e.g., `/users/me`, `/users/me/settings`)
+- **Auth endpoints**: `/auth/...` (e.g., `/auth/login`, `/auth/register`)
+- **Token endpoints**: `v1/tokens` (no leading slash)
+- **Host endpoints**: `/hosts/...`
+- **DNS endpoints**: `/dns/...`
+
+### Important Rules
+1. **NO leading `/api/` in endpoint paths** - The API client already has `/api` as base URL
+2. **NO absolute paths** - All paths should be relative to the base URL
+3. **Versioned endpoints** should not have a leading slash (e.g., `v1/tokens` not `/v1/tokens`)
+
+### Examples
+```javascript
+// CORRECT
+await window.api.get('/users/me');
+await window.api.post('/auth/login', credentials);
+await window.api.request('v1/tokens', { method: 'GET' });
+
+// INCORRECT - will result in /api/api/... paths
+await window.api.get('/api/users/me');
+await window.api.request('/v1/tokens', { method: 'GET' });
+```
+
 ## Environment Variable Standards
 
 ### PowerDNS Configuration
@@ -18,8 +46,6 @@ All PowerDNS-related environment variables use the `POWERDNS_` prefix (without `
 
 The server's `config.py` is the single source of truth for configuration.
 
-[... existing content remains unchanged ...]
-
 ## Jira Workflow Notes
 
 - When updating a Jira issue using jira:update_issue you need to use ADF (Atlassian Document Format), But not when createing new issues, ONLY when updating issues.
@@ -31,6 +57,10 @@ The server's `config.py` is the single source of truth for configuration.
 ## Development Environment Notes
 
 - Always run tests and execute code in our docker dev container environments.
+- We always run tests and code in the docker container environment
+- **CRITICAL**: Always use `docker compose --profile with-powerdns up -d` for development
+- **DO NOT USE** old docker-compose files from archive/ directory
+- All services must be on the same Docker network (prism-network)
 
 ## Production Deployment Guidelines
 
@@ -53,5 +83,3 @@ The server's `config.py` is the single source of truth for configuration.
 - PowerDNS must be on the same network as Prism server
 - Use `powerdns-server` as the hostname in configurations, not `localhost`
 - API URL for internal communication: `http://powerdns-server:8053/api/v1`
-
-[... rest of the existing content remains unchanged ...]

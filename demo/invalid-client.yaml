@@ -1,0 +1,21 @@
+service:
+  name: prism-client-invalid
+  description: "Demo Client with Invalid Token"
+  pid_file: /tmp/prism-client-invalid.pid
+
+server:
+  host: localhost
+  port: 8080
+  timeout: 10
+  auth_token: "invalid-token-12345"  # This token doesn't exist
+
+heartbeat:
+  interval: 5
+
+network:
+  hostname: invalid-host.example.com
+  
+logging:
+  level: INFO
+  file: /tmp/prism-client-invalid.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

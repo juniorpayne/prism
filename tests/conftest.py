@@ -17,12 +17,14 @@ from server.api.app import create_app
 # Import all auth models to ensure they're registered with Base
 from server.auth.models import (
     APIKey,
+    APIToken,
     DNSZone,
     EmailVerificationToken,
     Organization,
     PasswordResetToken,
     RefreshToken,
     User,
+    UserActivity,
     UserOrganization,
 )
 from server.database.connection import get_async_db
